@@ -3,7 +3,7 @@
 import copy
 import json
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 import httpx
 import pytest
@@ -25,14 +25,18 @@ from kubernetes_utils import Kubernetes
 
 
 class TestKubernetes(unittest.TestCase):
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    def setUp(self):
+        self.namespace = "whatever namespace"
+        self.kubernetes = Kubernetes(namespace=self.namespace)
+
     @patch("lightkube.core.client.Client.get")
     def test_given_get_returns_something_when_network_attachment_definition_created_then_return_true(  # noqa: E501
         self, patch_get
     ):
-        kubernetes = Kubernetes(namespace="whatever namespace")
         patch_get.return_value = "anything"
 
-        created = kubernetes.network_attachment_definition_created(name="whatever nad")
+        created = self.kubernetes.network_attachment_definition_created(name="whatever nad")
 
         assert created
 
@@ -40,13 +44,12 @@ class TestKubernetes(unittest.TestCase):
     def test_given_not_found_api_error_when_network_attachment_definition_created_then_return_false(  # noqa: E501
         self, patch_get
     ):
-        kubernetes = Kubernetes(namespace="whatever namespace")
         patch_get.side_effect = ApiError(
             request=httpx.Request(method="", url=""),
             response=httpx.Response(status_code=400, json={"reason": "NotFound"}),
         )
 
-        created = kubernetes.network_attachment_definition_created(name="whatever nad")
+        created = self.kubernetes.network_attachment_definition_created(name="whatever nad")
 
         assert not created
 
@@ -59,20 +62,18 @@ class TestKubernetes(unittest.TestCase):
             response=httpx.Response(status_code=404),
             message="whatever",
         )
-        kubernetes = Kubernetes(namespace="whatever namespace")
 
         with pytest.raises(httpx.HTTPStatusError):
-            kubernetes.network_attachment_definition_created("whatever nad")
+            self.kubernetes.network_attachment_definition_created("whatever nad")
 
     @patch("lightkube.core.client.Client.get")
     def test_given_unexpected_error_when_network_attachment_definition_created_then_same_error_is_raised(  # noqa: E501
         self, patch_get
     ):
         patch_get.side_effect = TimeoutError
-        kubernetes = Kubernetes(namespace="whatever namespace")
 
         with pytest.raises(TimeoutError):
-            kubernetes.network_attachment_definition_created("whatever nad")
+            self.kubernetes.network_attachment_definition_created("whatever nad")
 
     @patch("lightkube.core.client.Client.get")
     def test_given_bad_reason_in_api_error_when_network_attachment_definition_created_then_same_error_is_raised(  # noqa: E501
@@ -82,10 +83,9 @@ class TestKubernetes(unittest.TestCase):
             request=httpx.Request(method="", url=""),
             response=httpx.Response(status_code=400, json={"reason": "Bad reason"}),
         )
-        kubernetes = Kubernetes(namespace="whatever namespace")
 
         with pytest.raises(ApiError):
-            kubernetes.network_attachment_definition_created("whatever nad")
+            self.kubernetes.network_attachment_definition_created("whatever nad")
 
     @patch("lightkube.core.client.Client.create")
     @patch("kubernetes_utils.Kubernetes.network_attachment_definition_created")
@@ -94,10 +94,7 @@ class TestKubernetes(unittest.TestCase):
     ):
         patch_created.return_value = False
 
-        namespace = "whatever namespace"
-        kubernetes = Kubernetes(namespace=namespace)
-
-        kubernetes.create_network_attachment_definitions()
+        self.kubernetes.create_network_attachment_definitions()
 
         patch_create.assert_has_calls(
             calls=[
@@ -115,7 +112,7 @@ class TestKubernetes(unittest.TestCase):
                             )
                         },
                     },
-                    namespace=namespace,
+                    namespace=self.namespace,
                 ),
                 call(
                     obj={
@@ -131,7 +128,7 @@ class TestKubernetes(unittest.TestCase):
                             )
                         },
                     },
-                    namespace=namespace,
+                    namespace=self.namespace,
                 ),
             ]
         )
@@ -142,10 +139,8 @@ class TestKubernetes(unittest.TestCase):
         self, patch_created, patch_create
     ):
         patch_created.return_value = True
-        namespace = "whatever namespace"
-        kubernetes = Kubernetes(namespace=namespace)
 
-        kubernetes.create_network_attachment_definitions()
+        self.kubernetes.create_network_attachment_definitions()
 
         patch_create.assert_not_called()
 
@@ -155,8 +150,6 @@ class TestKubernetes(unittest.TestCase):
         self, patch_created, patch_delete
     ):
         patch_created.return_value = True
-        namespace = "whatever namespace"
-        kubernetes = Kubernetes(namespace=namespace)
         network_attachment_definition = create_namespaced_resource(
             group="k8s.cni.cncf.io",
             version="v1",
@@ -164,12 +157,14 @@ class TestKubernetes(unittest.TestCase):
             plural="network-attachment-definitions",
         )
 
-        kubernetes.delete_network_attachment_definitions()
+        self.kubernetes.delete_network_attachment_definitions()
 
         patch_delete.assert_has_calls(
             calls=[
-                call(res=network_attachment_definition, name="access-net", namespace=namespace),
-                call(res=network_attachment_definition, name="core-net", namespace=namespace),
+                call(
+                    res=network_attachment_definition, name="access-net", namespace=self.namespace
+                ),
+                call(res=network_attachment_definition, name="core-net", namespace=self.namespace),
             ]
         )
 
@@ -179,9 +174,8 @@ class TestKubernetes(unittest.TestCase):
         self, patch_created, patch_delete
     ):
         patch_created.return_value = False
-        kubernetes = Kubernetes(namespace="whatever namespace")
 
-        kubernetes.delete_network_attachment_definitions()
+        self.kubernetes.delete_network_attachment_definitions()
 
         patch_delete.assert_not_called()
 
@@ -210,10 +204,8 @@ class TestKubernetes(unittest.TestCase):
         patch_is_patched.return_value = False
         patch_get.return_value = initial_statefulset
         statefulset_name = "my statefulset"
-        namespace = "my namespace"
-        kubernetes = Kubernetes(namespace=namespace)
 
-        kubernetes.patch_statefulset(statefulset_name=statefulset_name)
+        self.kubernetes.patch_statefulset(statefulset_name=statefulset_name)
 
         final_statefulset = copy.deepcopy(initial_statefulset)
         final_statefulset.spec.template.metadata.annotations[
@@ -246,7 +238,7 @@ class TestKubernetes(unittest.TestCase):
             name=statefulset_name,
             obj=final_statefulset,
             patch_type=PatchType.MERGE,
-            namespace=namespace,
+            namespace=self.namespace,
         )
 
     @patch("lightkube.core.client.Client.patch")
@@ -255,9 +247,8 @@ class TestKubernetes(unittest.TestCase):
         self, patch_is_patched, patch_patch
     ):
         patch_is_patched.return_value = True
-        kubernetes = Kubernetes(namespace="my namespace")
 
-        kubernetes.patch_statefulset(statefulset_name="my statefulset")
+        self.kubernetes.patch_statefulset(statefulset_name="my statefulset")
 
         patch_patch.assert_not_called()
 
@@ -265,7 +256,6 @@ class TestKubernetes(unittest.TestCase):
     def test_given_annotations_and_security_context_when_statefulset_is_patched_then_return_true(
         self, patch_get
     ):
-        kubernetes = Kubernetes(namespace="my namespace")
         patch_get.return_value = StatefulSet(
             spec=StatefulSetSpec(
                 selector="",
@@ -300,13 +290,12 @@ class TestKubernetes(unittest.TestCase):
             )
         )
 
-        is_patched = kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
+        is_patched = self.kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
 
         assert is_patched
 
     @patch("lightkube.core.client.Client.get")
     def test_given_no_annotations_when_statefulset_is_patched_then_return_false(self, patch_get):
-        kubernetes = Kubernetes(namespace="my namespace")
         patch_get.return_value = StatefulSet(
             spec=StatefulSetSpec(
                 selector="",
@@ -324,7 +313,7 @@ class TestKubernetes(unittest.TestCase):
             )
         )
 
-        is_patched = kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
+        is_patched = self.kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
 
         assert not is_patched
 
@@ -332,7 +321,6 @@ class TestKubernetes(unittest.TestCase):
     def test_given_no_security_context_when_statefulset_is_patched_then_return_false(
         self, patch_get
     ):
-        kubernetes = Kubernetes(namespace="my namespace")
         patch_get.return_value = StatefulSet(
             spec=StatefulSetSpec(
                 selector="",
@@ -367,6 +355,6 @@ class TestKubernetes(unittest.TestCase):
             )
         )
 
-        is_patched = kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
+        is_patched = self.kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
 
         assert not is_patched
