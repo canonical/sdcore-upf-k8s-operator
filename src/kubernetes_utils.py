@@ -29,7 +29,7 @@ NetworkAttachmentDefinition = create_namespaced_resource(
 
 
 class Kubernetes:
-    """Kubernetes main class."""
+    """Kubernetes utils main class."""
 
     def __init__(self, namespace: str):
         """Initializes K8s client."""
@@ -37,7 +37,12 @@ class Kubernetes:
         self.namespace = namespace
 
     def create_network_attachement_definition(self, name: str, spec: dict) -> None:
-        """Creates a NetworkAttachmentDefinition."""
+        """Creates a NetworkAttachmentDefinition.
+
+        Args:
+            name: NetworkAttachmentDefinition name
+            spec: NetworkAttachmentDefinition specification
+        """
         network_attachment_definition = NetworkAttachmentDefinition(
             metadata=ObjectMeta(name=name),
             spec=spec,
@@ -46,11 +51,7 @@ class Kubernetes:
         logger.info(f"NetworkAttachmentDefinition {name} created")
 
     def create_network_attachment_definitions(self) -> None:
-        """Creates network attachment definitions.
-
-        Returns:
-            None
-        """
+        """Creates network attachment definitions."""
         multus_interface_type = "macvlan"
         if not self.network_attachment_definition_created(
             name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
@@ -82,12 +83,23 @@ class Kubernetes:
             )
 
     def delete_network_attachment_definition(self, name: str) -> None:
-        """Deletes a NetworkAttachmentDefinition."""
+        """Deletes a NetworkAttachmentDefinition.
+
+        Args:
+            name: NetworkAttachmentDefinition name
+        """
         self.client.delete(res=NetworkAttachmentDefinition, name=name, namespace=self.namespace)
         logger.info(f"NetworkAttachmentDefinition {name} deleted")
 
     def network_attachment_definition_created(self, name: str) -> bool:
-        """Returns whether a NetworkAttachmentDefinition is created."""
+        """Returns whether a NetworkAttachmentDefinition is created.
+
+        Args:
+            name: NetworkAttachmentDefinition name
+
+        Returns:
+            bool: Whether the NetworkAttachmentDefinition is created
+        """
         try:
             self.client.get(
                 res=NetworkAttachmentDefinition,
@@ -100,15 +112,16 @@ class Kubernetes:
             if e.status.reason == "NotFound":
                 logger.info(f"NetworkAttachmentDefinition {name} not yet created")
                 return False
+            raise e
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 logger.error(
                     "NetworkAttachmentDefinition resource not found. You may need to install Multus CNI."  # noqa: E501, W505
                 )
-                raise e
-            logger.info("Unexpected error while checking NetworkAttachmentDefinition")
-            return False
-        return False
+            raise e
+        except Exception as e:
+            logger.error("Unexpected outcome when retrieving network attachment definition")
+            raise e
 
     def patch_statefulset(self, statefulset_name: str) -> None:
         """Patches a statefulset with multus annotation.
@@ -165,6 +178,9 @@ class Kubernetes:
 
         Args:
             statefulset_name: Statefulset name.
+
+        Returns:
+            bool: Whether statefulset is patched
 
         """
         statefulset = self.client.get(
