@@ -24,8 +24,8 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
 
-    @patch("kubernetes.Kubernetes.create_network_attachment_definitions")
-    @patch("kubernetes.Kubernetes.patch_statefulset")
+    @patch("kubernetes_utils.Kubernetes.create_network_attachment_definitions")
+    @patch("kubernetes_utils.Kubernetes.patch_statefulset")
     def test_given_initial_state_when_on_install_then_statefulset_is_patched(
         self,
         patch_statefulset,
@@ -36,8 +36,8 @@ class TestCharm(unittest.TestCase):
         create_network_attachment_definitions.assert_called_once_with()
         patch_statefulset.assert_called_once_with(statefulset_name="upf-operator")
 
-    @patch("kubernetes.Kubernetes.create_network_attachment_definitions", new=Mock)
-    @patch("kubernetes.Kubernetes.patch_statefulset", new=Mock)
+    @patch("kubernetes_utils.Kubernetes.create_network_attachment_definitions", new=Mock)
+    @patch("kubernetes_utils.Kubernetes.patch_statefulset", new=Mock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
     def test_given_can_connect_to_bessd_workload_container_when_on_install_then_config_file_is_written(  # noqa: E501
@@ -59,8 +59,8 @@ class TestCharm(unittest.TestCase):
             ]
         )
 
-    @patch("kubernetes.Kubernetes.create_network_attachment_definitions", new=Mock)
-    @patch("kubernetes.Kubernetes.patch_statefulset", new=Mock)
+    @patch("kubernetes_utils.Kubernetes.create_network_attachment_definitions", new=Mock)
+    @patch("kubernetes_utils.Kubernetes.patch_statefulset", new=Mock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
     def test_given_config_files_already_exist_when_on_install_then_config_file_is_not_written(  # noqa: E501
@@ -75,7 +75,7 @@ class TestCharm(unittest.TestCase):
 
         patch_push.assert_not_called()
 
-    @patch("kubernetes.Kubernetes.delete_network_attachment_definitions")
+    @patch("kubernetes_utils.Kubernetes.delete_network_attachment_definitions")
     def test_given_network_attachment_definitions_created_when_on_remove_then_they_are_removed(
         self, patch_delete_nads
     ):
@@ -83,7 +83,7 @@ class TestCharm(unittest.TestCase):
 
         patch_delete_nads.assert_called()
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
@@ -109,7 +109,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.exists")
     def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_initial_commands_are_executed(  # noqa: E501
@@ -176,7 +176,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for bessd config file to be written"),
         )
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exists")
     def test_given_statefulset_is_not_patched_when_bessd_pebble_ready_then_status_is_waiting(
         self, patch_exists, statefulset_is_patched
@@ -191,7 +191,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for statefulset to be patched"),
         )
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.exists")
     def test_given_exec_error_when_bessd_pebble_ready_then_status_is_waiting(
@@ -217,7 +217,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting to be able to prepare bessd container"),
         )
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exists")
     def test_given_statefulset_is_not_patched_when_routectl_pebble_ready_then_status_is_waiting(
         self, patch_exists, statefulset_is_patched
@@ -232,7 +232,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for statefulset to be patched"),
         )
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exists")
     def test_given_statefulset_is_patched_when_routectl_pebble_ready_then_pebble_plan_is_applied(
         self, patch_exists, statefulset_is_patched
@@ -257,7 +257,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exists")
     def test_given_statefulset_is_not_patched_when_web_pebble_ready_then_status_is_waiting(
         self, patch_exists, statefulset_is_patched
@@ -272,7 +272,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for statefulset to be patched"),
         )
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exists")
     def test_given_can_connect_when_web_pebble_ready_then_pebble_plan_is_applied(
         self, patch_exists, statefulset_is_patched
@@ -296,7 +296,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
@@ -324,7 +324,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_pfcp_agent_config_file_not_written_when_pfcp_agent_pebble_ready_then_status_is_waiting(  # noqa: E501
@@ -343,7 +343,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for pfcp agent config file to be written"),
         )
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_cant_connect_to_bessd_container_when_pfcp_agent_pebble_ready_then_status_is_waiting(  # noqa: E501
@@ -363,7 +363,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("ops.model.Container.get_service")
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_bessd_service_not_running_when_pfcp_agent_pebble_ready_then_status_is_waiting(
@@ -382,7 +382,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("ops.model.Container.get_service")
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exists")
     def test_given_statefulset_is_not_patched_when_pfcf_agent_pebble_ready_then_status_is_waiting(
         self, patch_exists, statefulset_is_patched, patch_get_service
@@ -399,7 +399,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for statefulset to be patched"),
         )
 
-    @patch("kubernetes.Kubernetes.statefulset_is_patched")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_config_file_is_written_and_all_services_are_running_when_pebble_ready_then_status_is_active(  # noqa: E501

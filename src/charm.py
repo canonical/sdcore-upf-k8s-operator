@@ -20,7 +20,7 @@ from ops.main import main
 from ops.model import ActiveStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
-from kubernetes import Kubernetes
+from kubernetes_utils import Kubernetes
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,11 @@ class UPFOperatorCharm(CharmBase):
             self._write_bessd_config_file()
 
     def _on_remove(self, event: RemoveEvent) -> None:
-        """Handle remove event."""
+        """Deletes network attachment definitions.
+
+        Args:
+            event: RemoveEvent
+        """
         self._kubernetes.delete_network_attachment_definitions()
 
     def _write_bessd_config_file(self) -> None:
@@ -96,11 +100,20 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _upf_hostname(self) -> str:
+        """Returns the UPF hostname.
+
+        Returns:
+            str: UPF Hostname
+        """
         return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
 
     @property
     def _bessd_config_file_is_written(self) -> bool:
-        """Returns whether the bessd config file was written to the workload container."""
+        """Returns whether the bessd config file was written to the workload container.
+
+        Returns:
+            bool: Whether the bessd config file was written
+        """
         if not self._bessd_container.exists(f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"):
             logger.info(f"Config file is not written: {CONFIG_FILE_NAME}")
             return False
@@ -109,7 +122,11 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _pfcp_agent_config_file_is_written(self) -> bool:
-        """Returns whether the pfcp agent config file was written to the workload container."""
+        """Returns whether the pfcp agent config file was written to the workload container.
+
+        Returns:
+            bool: Whether the pfcp agent config file was written
+        """
         if not self._pfcp_agent_container.exists(
             f"{PFCP_AGENT_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
         ):
@@ -119,7 +136,11 @@ class UPFOperatorCharm(CharmBase):
         return True
 
     def _on_bessd_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        """Handle Pebble ready event."""
+        """Handle Pebble ready event for bessd container.
+
+        Args:
+            event: PebbleReadyEvent
+        """
         if not self._bessd_config_file_is_written:
             self.unit.status = WaitingStatus("Waiting for bessd config file to be written")
             return
@@ -171,6 +192,12 @@ class UPFOperatorCharm(CharmBase):
     def _exec_command_in_bessd_workload(
         self, command: list, environment: Optional[dict] = None
     ) -> None:
+        """Executes command in bessd container.
+
+        Args:
+            command: Command to execute
+            environment: Environment Variables
+        """
         process = self._bessd_container.exec(command=command, timeout=30, environment=environment)
         try:
             process.wait_output()
@@ -182,7 +209,11 @@ class UPFOperatorCharm(CharmBase):
             raise e
 
     def _on_routectl_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        """Handle routectl Pebble ready event."""
+        """Handle Pebble ready event for routectl container.
+
+        Args:
+            event: PebbleReadyEvent
+        """
         if not self._kubernetes.statefulset_is_patched(statefulset_name=self.app.name):
             self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
             event.defer()
@@ -192,7 +223,11 @@ class UPFOperatorCharm(CharmBase):
         self._set_unit_status()
 
     def _on_web_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        """Handle web Pebble ready event."""
+        """Handle Pebble ready event for web container.
+
+        Args:
+            event: PebbleReadyEvent
+        """
         if not self._kubernetes.statefulset_is_patched(statefulset_name=self.app.name):
             self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
             event.defer()
@@ -202,7 +237,11 @@ class UPFOperatorCharm(CharmBase):
         self._set_unit_status()
 
     def _on_pfcp_agent_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        """Handle pfcp agent Pebble ready event."""
+        """Handle Pebble ready event for pfcp agent container.
+
+        Args:
+            event: PebbleReadyEvent
+        """
         if not self._pfcp_agent_config_file_is_written:
             self.unit.status = WaitingStatus("Waiting for pfcp agent config file to be written")
             event.defer()
@@ -237,7 +276,15 @@ class UPFOperatorCharm(CharmBase):
 
     @staticmethod
     def _service_is_running(container: Container, service_name: str) -> bool:
-        """Returns whether a given service is running."""
+        """Returns whether a Linux service is running in a container.
+
+        Args:
+            container: Container object
+            service_name: Service name
+
+        Returns:
+            bool: Whether service is running
+        """
         if not container.can_connect():
             return False
         try:
@@ -270,7 +317,11 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _routectl_pebble_layer(self) -> Layer:
-        """Returns pebble layer for the routectl container."""
+        """Returns pebble layer for the routectl container.
+
+        Returns:
+            Layer: Pebble Layer
+        """
         return Layer(
             {
                 "summary": "routectl layer",
@@ -288,7 +339,11 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _web_pebble_layer(self) -> Layer:
-        """Returns pebble layer for the web container."""
+        """Returns pebble layer for the web container.
+
+        Returns:
+            Layer: Pebble Layer
+        """
         return Layer(
             {
                 "summary": "web layer",
@@ -305,7 +360,11 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _pfcp_agent_pebble_layer(self) -> Layer:
-        """Returns pebble layer for the pfcp agent container."""
+        """Returns pebble layer for the pfcp agent container.
+
+        Returns:
+            Layer: Pebble Layer
+        """
         return Layer(
             {
                 "summary": "pfcp agent layer",
@@ -322,12 +381,22 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _bessd_environment_variables(self) -> dict:
+        """Returns environment variables for the bessd service.
+
+        Returns:
+            dict: Environment variables
+        """
         return {
             "CONF_FILE": f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}",
         }
 
     @property
     def _routectl_environment_variables(self) -> dict:
+        """Returns environment variables for the routectl service.
+
+        Returns:
+            dict: Environment variables
+        """
         return {
             "PYTHONUNBUFFERED": "1",
         }

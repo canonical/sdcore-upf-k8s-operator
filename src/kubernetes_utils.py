@@ -105,7 +105,7 @@ class Kubernetes:
                 logger.error(
                     "NetworkAttachmentDefinition resource not found. You may need to install Multus CNI."  # noqa: E501, W505
                 )
-                raise
+                raise e
             logger.info("Unexpected error while checking NetworkAttachmentDefinition")
             return False
         return False
