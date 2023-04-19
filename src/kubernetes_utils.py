@@ -128,9 +128,6 @@ class Kubernetes:
 
         Args:
             statefulset_name: Statefulset name.
-
-        Returns:
-            None
         """
         if self.statefulset_is_patched(statefulset_name=statefulset_name):
             logger.info(f"Statefulset {statefulset_name} already patched")
@@ -197,11 +194,7 @@ class Kubernetes:
         return True
 
     def delete_network_attachment_definitions(self) -> None:
-        """Deletes network attachment definitions.
-
-        Returns:
-            None
-        """
+        """Deletes network attachment definitions."""
         if self.network_attachment_definition_created(
             name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
         ):

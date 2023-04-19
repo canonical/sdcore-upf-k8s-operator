@@ -248,3 +248,125 @@ class TestKubernetes(unittest.TestCase):
             patch_type=PatchType.MERGE,
             namespace=namespace,
         )
+
+    @patch("lightkube.core.client.Client.patch")
+    @patch("kubernetes_utils.Kubernetes.statefulset_is_patched")
+    def test_given_statefulset_is_patched_when_patch_statefulset_then_statefulset_is_not_patched(
+        self, patch_is_patched, patch_patch
+    ):
+        patch_is_patched.return_value = True
+        kubernetes = Kubernetes(namespace="my namespace")
+
+        kubernetes.patch_statefulset(statefulset_name="my statefulset")
+
+        patch_patch.assert_not_called()
+
+    @patch("lightkube.core.client.Client.get")
+    def test_given_annotations_and_security_context_when_statefulset_is_patched_then_return_true(
+        self, patch_get
+    ):
+        kubernetes = Kubernetes(namespace="my namespace")
+        patch_get.return_value = StatefulSet(
+            spec=StatefulSetSpec(
+                selector="",
+                serviceName="",
+                template=PodTemplateSpec(
+                    metadata=ObjectMeta(
+                        annotations={
+                            "k8s.v1.cni.cncf.io/networks": json.dumps(
+                                [
+                                    {
+                                        "name": "access-net",
+                                        "interface": "access",
+                                        "ips": ["192.168.252.3/24"],
+                                    },
+                                    {
+                                        "name": "core-net",
+                                        "interface": "core",
+                                        "ips": ["192.168.250.3/24"],
+                                    },
+                                ]
+                            )
+                        }
+                    ),
+                    spec=PodSpec(
+                        containers=[
+                            Container(name="0"),
+                            Container(name="1"),
+                            Container(name="2", securityContext=SecurityContext(privileged=True)),
+                        ]
+                    ),
+                ),
+            )
+        )
+
+        is_patched = kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
+
+        assert is_patched
+
+    @patch("lightkube.core.client.Client.get")
+    def test_given_no_annotations_when_statefulset_is_patched_then_return_false(self, patch_get):
+        kubernetes = Kubernetes(namespace="my namespace")
+        patch_get.return_value = StatefulSet(
+            spec=StatefulSetSpec(
+                selector="",
+                serviceName="",
+                template=PodTemplateSpec(
+                    metadata=ObjectMeta(annotations={}),
+                    spec=PodSpec(
+                        containers=[
+                            Container(name="0"),
+                            Container(name="1"),
+                            Container(name="2", securityContext=SecurityContext(privileged=True)),
+                        ]
+                    ),
+                ),
+            )
+        )
+
+        is_patched = kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
+
+        assert not is_patched
+
+    @patch("lightkube.core.client.Client.get")
+    def test_given_no_security_context_when_statefulset_is_patched_then_return_false(
+        self, patch_get
+    ):
+        kubernetes = Kubernetes(namespace="my namespace")
+        patch_get.return_value = StatefulSet(
+            spec=StatefulSetSpec(
+                selector="",
+                serviceName="",
+                template=PodTemplateSpec(
+                    metadata=ObjectMeta(
+                        annotations={
+                            "k8s.v1.cni.cncf.io/networks": json.dumps(
+                                [
+                                    {
+                                        "name": "access-net",
+                                        "interface": "access",
+                                        "ips": ["192.168.252.3/24"],
+                                    },
+                                    {
+                                        "name": "core-net",
+                                        "interface": "core",
+                                        "ips": ["192.168.250.3/24"],
+                                    },
+                                ]
+                            )
+                        }
+                    ),
+                    spec=PodSpec(
+                        containers=[
+                            Container(name="0"),
+                            Container(name="1"),
+                            Container(name="2", securityContext=SecurityContext()),
+                        ]
+                    ),
+                ),
+            )
+        )
+
+        is_patched = kubernetes.statefulset_is_patched(statefulset_name="my-statefulset")
+
+        assert not is_patched
