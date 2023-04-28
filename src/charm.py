@@ -17,7 +17,7 @@ from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
 from ops.charm import CharmBase, PebbleReadyEvent
 from ops.main import main
-from ops.model import ActiveStatus, Container, ModelError, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
 from kubernetes_multus import (
@@ -51,6 +51,7 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(self.on.routectl_pebble_ready, self._on_routectl_pebble_ready)
         self.framework.observe(self.on.web_pebble_ready, self._on_web_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
+        self.framework.observe(self.on.config_changed, self._on_bessd_pebble_ready)
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
             jobs=[
@@ -137,15 +138,24 @@ class UPFOperatorCharm(CharmBase):
         """
         if not self._bessd_config_file_is_written:
             self._write_bessd_config_file()
+        if not self.access_network_gateway:
+            self.unit.status = BlockedStatus("Please set a value for the `access-gateway` config.")
+            return
+        if not self.core_network_gateway:
+            self.unit.status = BlockedStatus("Please set a value for the `core-gateway` config.")
+            return
+        if not self.gnb_subnet:
+            self.unit.status = BlockedStatus("Please set a value for the `gnb-subnet` config.")
+            return
         try:
             self._exec_command_in_bessd_workload(
                 command=[
                     "ip",
                     "route",
                     "replace",
-                    "192.168.251.0/24",
+                    self.gnb_subnet,
                     "via",
-                    "192.168.252.1",
+                    self.access_network_gateway,
                 ]
             )
             self._exec_command_in_bessd_workload(
@@ -155,7 +165,7 @@ class UPFOperatorCharm(CharmBase):
                     "replace",
                     "default",
                     "via",
-                    "192.168.250.1",
+                    self.core_network_gateway,
                     "metric",
                     "110",
                 ],
@@ -384,6 +394,21 @@ class UPFOperatorCharm(CharmBase):
         return {
             "PYTHONUNBUFFERED": "1",
         }
+
+    @property
+    def core_network_gateway(self) -> Optional[str]:
+        """Core network gateway IP address."""
+        return self.model.config.get("core-gateway")
+
+    @property
+    def access_network_gateway(self) -> Optional[str]:
+        """Access network gateway IP address."""
+        return self.model.config.get("access-gateway")
+
+    @property
+    def gnb_subnet(self) -> Optional[str]:
+        """Gnodeb subnet."""
+        return self.model.config.get("gnb-subnet")
 
 
 if __name__ == "__main__":

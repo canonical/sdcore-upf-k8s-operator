@@ -1,0 +1,13 @@
+options:
+  gnb-subnet:
+    type: string
+    default: 192.168.251.0/24
+    description: gNodeB subnet
+  core-gateway:
+    type: string
+    default: 192.168.250.1
+    description: Core Network Gateway IP address
+  access-gateway:
+    type: string
+    default: 192.168.252.1
+    description: Access Network Gateway IP address
