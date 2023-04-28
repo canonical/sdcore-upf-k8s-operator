@@ -1,6 +1,6 @@
-# charmed-5g-upf-operator
+# sdcore-upf-operator
 
-Charmed Operator for Charmed 5G's User Plane Function (UPF).
+Charmed Operator for SDCORE's User Plane Function (UPF).
 
 
 ## Pre-requisites

@@ -1,7 +1,7 @@
-name: upf-operator
-display-name: 5G UPF operator
-summary: 5G UPF operator
-description: 5G UPF operator
+name: sdcore-upf
+display-name: SD-CORE 5G UPF
+summary: Charmed Operator for SD-CORE's User Plane Function (UPF).
+description: Charmed Operator for SD-CORE's User Plane Function (UPF).
 
 containers:
   bessd:
@@ -57,7 +57,5 @@ storage:
     minimum-size: 1M
 
 provides:
-  upf:
-    interface: upf
   metrics-endpoint:
     interface: prometheus_scrape

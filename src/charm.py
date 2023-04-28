@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the 5G UPF service."""
+"""Charmed operator for the SDCORE UPF service."""
 
 import logging
 from typing import Optional
@@ -15,12 +15,16 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 )
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
-from ops.charm import CharmBase, InstallEvent, PebbleReadyEvent, RemoveEvent
+from ops.charm import CharmBase, PebbleReadyEvent
 from ops.main import main
 from ops.model import ActiveStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
-from kubernetes_utils import Kubernetes
+from kubernetes_multus import (
+    KubernetesMultusCharmLib,
+    NetworkAnnotation,
+    NetworkAttachmentDefinition,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +39,6 @@ class UPFOperatorCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self._kubernetes = Kubernetes(namespace=self.model.name)
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_container_name = self._routectl_service_name = "routectl"
         self._web_container_name = self._web_service_name = "web"
@@ -44,8 +47,6 @@ class UPFOperatorCharm(CharmBase):
         self._routectl_container = self.unit.get_container(self._routectl_container_name)
         self._web_container = self.unit.get_container(self._web_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
-        self.framework.observe(self.on.install, self._on_install)
-        self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.routectl_pebble_ready, self._on_routectl_pebble_ready)
         self.framework.observe(self.on.web_pebble_ready, self._on_web_pebble_ready)
@@ -66,24 +67,17 @@ class UPFOperatorCharm(CharmBase):
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
-
-    def _on_install(self, event: InstallEvent) -> None:
-        self._kubernetes.create_network_attachment_definitions()
-        self._kubernetes.patch_statefulset(statefulset_name=self.app.name)
-        if not self._bessd_container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
-            event.defer()
-            return
-        if not self._bessd_config_file_is_written:
-            self._write_bessd_config_file()
-
-    def _on_remove(self, event: RemoveEvent) -> None:
-        """Deletes network attachment definitions.
-
-        Args:
-            event: RemoveEvent
-        """
-        self._kubernetes.delete_network_attachment_definitions()
+        self._kubernetes_multus = KubernetesMultusCharmLib(
+            charm=self,
+            network_attachment_definitions=[
+                NetworkAttachmentDefinition(name="access-net"),
+                NetworkAttachmentDefinition(name="core-net"),
+            ],
+            network_annotations=[
+                NetworkAnnotation(name="access-net", interface="access"),
+                NetworkAnnotation(name="core-net", interface="core"),
+            ],
+        )
 
     def _write_bessd_config_file(self) -> None:
         """Write the configuration file for the 5G UPF service."""
@@ -142,15 +136,17 @@ class UPFOperatorCharm(CharmBase):
             event: PebbleReadyEvent
         """
         if not self._bessd_config_file_is_written:
-            self.unit.status = WaitingStatus("Waiting for bessd config file to be written")
-            return
-        if not self._kubernetes.statefulset_is_patched(statefulset_name=self.app.name):
-            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
-            event.defer()
-            return
+            self._write_bessd_config_file()
         try:
             self._exec_command_in_bessd_workload(
-                command=["ip", "route", "replace", "192.168.251.0/24", "via", "192.168.252.1"]
+                command=[
+                    "ip",
+                    "route",
+                    "replace",
+                    "192.168.251.0/24",
+                    "via",
+                    "192.168.252.1",
+                ]
             )
             self._exec_command_in_bessd_workload(
                 command=[
@@ -178,7 +174,7 @@ class UPFOperatorCharm(CharmBase):
                 ],
             )
         except ExecError:
-            self.unit.status = WaitingStatus("Waiting to be able to prepare bessd container")
+            self.unit.status = WaitingStatus("Cannot execute command in workload, waiting.")
             event.defer()
             return
         self._bessd_container.add_layer("upf", self._bessd_pebble_layer, combine=True)
@@ -214,10 +210,6 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: PebbleReadyEvent
         """
-        if not self._kubernetes.statefulset_is_patched(statefulset_name=self.app.name):
-            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
-            event.defer()
-            return
         self._routectl_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
         self._routectl_container.replan()
         self._set_unit_status()
@@ -228,10 +220,6 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: PebbleReadyEvent
         """
-        if not self._kubernetes.statefulset_is_patched(statefulset_name=self.app.name):
-            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
-            event.defer()
-            return
         self._web_container.add_layer("web", self._web_pebble_layer, combine=True)
         self._web_container.replan()
         self._set_unit_status()
@@ -248,10 +236,6 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._service_is_running(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to be running")
-            event.defer()
-            return
-        if not self._kubernetes.statefulset_is_patched(statefulset_name=self.app.name):
-            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
             event.defer()
             return
         self._pfcp_agent_container.add_layer("pfcp", self._pfcp_agent_pebble_layer, combine=True)
