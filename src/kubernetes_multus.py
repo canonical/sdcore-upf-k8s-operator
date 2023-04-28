@@ -41,7 +41,7 @@ class YourCharm(CharmBase):
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from typing import List, Union
+from typing import List, Optional, Union
 
 import httpx
 from lightkube import Client
@@ -88,7 +88,7 @@ class NetworkAnnotation:
 
     name: str
     interface: str
-    ips: List = None
+    ips: Optional[List] = None
 
     dict = asdict
 
@@ -156,7 +156,7 @@ class KubernetesMultus:
             metadata=ObjectMeta(name=network_attachment_definition.name),
             spec=network_attachment_definition.spec,
         )
-        self.client.create(obj=network_attachment_definition_obj, namespace=self.namespace)
+        self.client.create(obj=network_attachment_definition_obj, namespace=self.namespace)  # type: ignore[call-overload]  # noqa: E501
         logger.info(
             f"NetworkAttachmentDefinitionResource {network_attachment_definition.name} created"
         )
@@ -183,7 +183,7 @@ class KubernetesMultus:
             logger.info("No network annotations were provided")
             return
         statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
-        statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"] = json.dumps(
+        statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"] = json.dumps(  # type: ignore[attr-defined]  # noqa: E501
             [network_annotation.dict() for network_annotation in network_annotations]
         )
 
@@ -203,7 +203,9 @@ class KubernetesMultus:
         )
         logger.info(f"Multus annotation added to {name} Statefulset")
 
-    def statefulset_is_patched(self, name: str, network_annotations: [NetworkAnnotation]) -> bool:
+    def statefulset_is_patched(
+        self, name: str, network_annotations: List[NetworkAnnotation]
+    ) -> bool:
         """Returns whether the statefulset has the expected multus annotation.
 
         Args:
@@ -214,11 +216,11 @@ class KubernetesMultus:
             bool: Whether the statefulset has the expected multus annotation.
         """
         statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
-        if "k8s.v1.cni.cncf.io/networks" not in statefulset.spec.template.metadata.annotations:
+        if "k8s.v1.cni.cncf.io/networks" not in statefulset.spec.template.metadata.annotations:  # type: ignore[attr-defined]  # noqa: E501
             logger.info("Multus annotation not yet added to statefulset")
             return False
         if json.loads(
-            statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"]
+            statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"]  # type: ignore[attr-defined]  # noqa: E501
         ) != [network_annotation.dict() for network_annotation in network_annotations]:
             logger.info("Existing annotation are not identical to the expected ones")
             return False

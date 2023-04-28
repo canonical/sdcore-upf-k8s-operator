@@ -27,6 +27,10 @@ from kubernetes_multus import (
 
 
 class TestKubernetesMultus(unittest.TestCase):
+    @patch("lightkube.core.client.GenericSyncClient")
+    def setUp(self, patch_k8s_client) -> None:
+        pass
+
     @patch("lightkube.core.client.Client.get")
     def test_given_k8s_get_doesnt_throw_error_when_nad_is_created_then_return_true(
         self, patch_get
