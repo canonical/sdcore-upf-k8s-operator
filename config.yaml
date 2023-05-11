@@ -1,13 +1,25 @@
 options:
+  dnn:
+    type: string
+    default: internet
+    description: Data Network Name (DNN)
   gnb-subnet:
     type: string
     default: 192.168.251.0/24
-    description: gNodeB subnet
-  core-gateway:
+    description: gNodeB subnet.
+  core-ip:
+    type: string
+    default: 192.168.250.3/24
+    description: IP address used by the UPF's core interface.
+  core-gateway-ip:
     type: string
     default: 192.168.250.1
-    description: Core Network Gateway IP address
-  access-gateway:
+    description: Core Network Gateway IP address.
+  access-ip:
+    type: string
+    default: 192.168.252.3/24
+    description: IP address used by the UPF's access interface.
+  access-gateway-ip:
     type: string
     default: 192.168.252.1
-    description: Access Network Gateway IP address
+    description: Access Network Gateway IP address.

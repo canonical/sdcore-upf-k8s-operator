@@ -1,16 +1,15 @@
 {
   "access": {
-    "ifname": "access"
+    "ifname": "{{ access_interface_name }}"
   },
   "core": {
-    "ifname": "core"
+    "ifname": "{{ core_interface_name }}"
   },
   "cpiface": {
-    "dnn": "internet",
+    "dnn": "{{ dnn }}",
     "enable_ue_ip_alloc": false,
     "hostname": "{{ upf_hostname }}",
-    "http_port": "8080",
-    "ue_ip_pool": "172.250.0.0/16"
+    "http_port": "8080"
   },
   "enable_notify_bess": true,
   "gtppsc": true,
@@ -20,7 +19,7 @@
   "measure_flow": false,
   "measure_upf": true,
   "mode": "{{ mode }}",
-  "notify_sockaddr": "/pod-share/notifycp",
+  "notify_sockaddr": "{{ pod_share_path }}/notifycp",
   "qci_qos_config": [
     {
       "burst_duration_ms": 10,

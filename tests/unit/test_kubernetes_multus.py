@@ -9,7 +9,13 @@ import httpx
 import pytest
 from lightkube.core.exceptions import ApiError
 from lightkube.models.apps_v1 import StatefulSet, StatefulSetSpec
-from lightkube.models.core_v1 import PodTemplateSpec
+from lightkube.models.core_v1 import (
+    Capabilities,
+    Container,
+    PodSpec,
+    PodTemplateSpec,
+    SecurityContext,
+)
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet as StatefulSetResource
 from lightkube.types import PatchType
@@ -22,7 +28,6 @@ from kubernetes_multus import (
     KubernetesMultusError,
     NetworkAnnotation,
     NetworkAttachmentDefinition,
-    NetworkAttachmentDefinitionResource,
 )
 
 
@@ -92,7 +97,7 @@ class TestKubernetesMultus(unittest.TestCase):
             self.kubernetes_multus.network_attachment_definition_is_created(name="whatever name")
         self.assertEqual(
             e.value.message,
-            "NetworkAttachmentDefinitionResource resource not found. "
+            "NetworkAttachmentDefinition resource not found. "
             "You may need to install Multus CNI.",
         )
 
@@ -120,7 +125,10 @@ class TestKubernetesMultus(unittest.TestCase):
     def test_given_nad_when_create_nad_then_k8s_create_is_called(self, patch_create):
         nad_name = "whatever name"
         nad_spec = {"a": "b"}
-        network_attachment_definition = NetworkAttachmentDefinition(name=nad_name, spec=nad_spec)
+        network_attachment_definition = NetworkAttachmentDefinition(
+            metadata=ObjectMeta(name=nad_name),
+            spec=nad_spec,
+        )
 
         self.kubernetes_multus.create_network_attachment_definition(
             network_attachment_definition=network_attachment_definition
@@ -137,7 +145,9 @@ class TestKubernetesMultus(unittest.TestCase):
         multus_annotations = []
 
         self.kubernetes_multus.patch_statefulset(
-            name="whatever statefulset name", network_annotations=multus_annotations
+            name="whatever statefulset name",
+            network_annotations=multus_annotations,
+            containers_requiring_net_admin_capability=[],
         )
 
         patch_patch.assert_not_called()
@@ -147,6 +157,7 @@ class TestKubernetesMultus(unittest.TestCase):
     def test_given_statefulset_doesnt_have_network_annotations_when_patch_statefulset_then_statefulset_is_patched(  # noqa: E501
         self, patch_get, patch_patch
     ):
+        container_name = "whatever container name"
         statefulset_name = "whatever statefulset name"
         network_annotations = [
             NetworkAnnotation(interface="whatever interface 1", name="whatever name 1"),
@@ -160,13 +171,23 @@ class TestKubernetesMultus(unittest.TestCase):
                     metadata=ObjectMeta(
                         annotations={},
                     ),
+                    spec=PodSpec(
+                        containers=[
+                            Container(
+                                name=container_name,
+                                securityContext=SecurityContext(),
+                            )
+                        ]
+                    ),
                 ),
             )
         )
         patch_get.return_value = initial_statefulset
 
         self.kubernetes_multus.patch_statefulset(
-            name=statefulset_name, network_annotations=network_annotations
+            name=statefulset_name,
+            network_annotations=network_annotations,
+            containers_requiring_net_admin_capability=[container_name],
         )
 
         args, kwargs = patch_patch.call_args
@@ -175,6 +196,10 @@ class TestKubernetesMultus(unittest.TestCase):
         self.assertEqual(
             kwargs["obj"].spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"],
             json.dumps([network_annotation.dict() for network_annotation in network_annotations]),
+        )
+        self.assertEqual(
+            kwargs["obj"].spec.template.spec.containers[0].securityContext.capabilities.add,
+            ["NET_ADMIN"],
         )
         self.assertEqual(kwargs["patch_type"], PatchType.MERGE)
         self.assertEqual(kwargs["namespace"], self.namespace)
@@ -199,7 +224,9 @@ class TestKubernetesMultus(unittest.TestCase):
         )
 
         is_patched = self.kubernetes_multus.statefulset_is_patched(
-            name=statefulset_name, network_annotations=network_annotations
+            name=statefulset_name,
+            network_annotations=network_annotations,
+            containers_requiring_net_admin_capability=[],
         )
 
         assert not is_patched
@@ -237,7 +264,9 @@ class TestKubernetesMultus(unittest.TestCase):
         )
 
         is_patched = self.kubernetes_multus.statefulset_is_patched(
-            name=statefulset_name, network_annotations=network_annotations
+            name=statefulset_name,
+            network_annotations=network_annotations,
+            containers_requiring_net_admin_capability=[],
         )
 
         assert not is_patched
@@ -271,10 +300,59 @@ class TestKubernetesMultus(unittest.TestCase):
         )
 
         is_patched = self.kubernetes_multus.statefulset_is_patched(
-            name=statefulset_name, network_annotations=network_annotations
+            name=statefulset_name,
+            network_annotations=network_annotations,
+            containers_requiring_net_admin_capability=[],
         )
 
         assert is_patched
+
+    @patch("lightkube.core.client.Client.get")
+    def test_given_annotations_are_already_present_and_security_context_is_missing_when_statefulset_is_patched_then_returns_false(  # noqa: E501
+        self, patch_get
+    ):
+        container_name = "whatever container"
+        statefulset_name = "whatever name"
+        network_annotations = [
+            NetworkAnnotation(interface="whatever interface 1", name="whatever name 1"),
+            NetworkAnnotation(interface="whatever interface 2", name="whatever name 2"),
+        ]
+        patch_get.return_value = StatefulSet(
+            spec=StatefulSetSpec(
+                selector=LabelSelector(),
+                serviceName="",
+                template=PodTemplateSpec(
+                    metadata=ObjectMeta(
+                        annotations={
+                            "k8s.v1.cni.cncf.io/networks": json.dumps(
+                                [
+                                    network_annotation.dict()
+                                    for network_annotation in network_annotations
+                                ]
+                            )
+                        },
+                    ),
+                    spec=PodSpec(
+                        containers=[
+                            Container(
+                                name=container_name,
+                                securityContext=SecurityContext(
+                                    capabilities=Capabilities(add=[], drop=[])
+                                ),
+                            )
+                        ]
+                    ),
+                ),
+            )
+        )
+
+        is_patched = self.kubernetes_multus.statefulset_is_patched(
+            name=statefulset_name,
+            network_annotations=network_annotations,
+            containers_requiring_net_admin_capability=[container_name],
+        )
+
+        assert not is_patched
 
     @patch("lightkube.core.client.Client.delete")
     def test_given_when_delete_nad_then_k8s_delete_is_called(self, patch_delete):
@@ -283,7 +361,7 @@ class TestKubernetesMultus(unittest.TestCase):
         self.kubernetes_multus.delete_network_attachment_definition(name=nad_name)
 
         patch_delete.assert_called_with(
-            res=NetworkAttachmentDefinitionResource, name=nad_name, namespace=self.namespace
+            res=NetworkAttachmentDefinition, name=nad_name, namespace=self.namespace
         )
 
 
@@ -294,6 +372,7 @@ class _TestCharmNoNAD(CharmBase):
             charm=self,
             network_attachment_definitions=[],
             network_annotations=[],
+            containers_requiring_net_admin_capability=[],
         )
 
 
@@ -320,8 +399,14 @@ class _TestCharmMultipleNAD(CharmBase):
         }
         self.annotation_1_name = "eth0"
         self.annotation_2_name = "eth1"
-        nad_1 = NetworkAttachmentDefinition(name=self.nad_1_name, spec=self.nad_1_spec)
-        nad_2 = NetworkAttachmentDefinition(name=self.nad_2_name, spec=self.nad_2_spec)
+        nad_1 = NetworkAttachmentDefinition(
+            metadata=ObjectMeta(name=self.nad_1_name),
+            spec=self.nad_1_spec,
+        )
+        nad_2 = NetworkAttachmentDefinition(
+            metadata=ObjectMeta(name=self.nad_2_name),
+            spec=self.nad_2_spec,
+        )
         self.network_attachment_definitions = [nad_1, nad_2]
         self.kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
@@ -384,14 +469,16 @@ class TestKubernetesMultusCharmLib(unittest.TestCase):
         patch_create_nad.assert_has_calls(
             calls=[
                 call(
-                    network_attachment_definition=NetworkAttachmentDefinition(
-                        name=harness.charm.nad_1_name, spec=harness.charm.nad_1_spec
-                    )
+                    network_attachment_definition={
+                        "metadata": ObjectMeta(name=harness.charm.nad_1_name),
+                        "spec": harness.charm.nad_1_spec,
+                    }
                 ),
                 call(
-                    network_attachment_definition=NetworkAttachmentDefinition(
-                        name=harness.charm.nad_2_name, spec=harness.charm.nad_2_spec
-                    )
+                    network_attachment_definition={
+                        "metadata": ObjectMeta(name=harness.charm.nad_2_name),
+                        "spec": harness.charm.nad_2_spec,
+                    }
                 ),
             ]
         )
@@ -421,6 +508,7 @@ class TestKubernetesMultusCharmLib(unittest.TestCase):
                     name=harness.charm.annotation_2_name, interface=harness.charm.nad_2_name
                 ),
             ],
+            containers_requiring_net_admin_capability=[],
         )
 
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)

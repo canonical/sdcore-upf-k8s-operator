@@ -47,7 +47,11 @@ jobs:
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
         with:
+          juju-channel: 3.1/stable
           provider: microk8s
+          channel: 1.26-strict/stable
+      - name: Enable Multus addon
+        run: microk8s enable community && microk8s enable multus
       - name: Run integration tests
         run: tox -e integration
       - name: Archive Tested Charm
@@ -55,7 +59,7 @@ jobs:
         if: ${{ github.ref_name == 'main' }}
         with:
           name: tested-charm
-          path: .tox/**/charmed-5g-upf_ubuntu-22.04-amd64.charm
+          path: .tox/**/sdcore-upf_ubuntu-22.04-amd64.charm
           retention-days: 5
       - name: Archive charmcraft logs
         if: failure()
@@ -85,7 +89,7 @@ jobs:
         with:
           name: tested-charm
       - name: Move charm in current directory
-        run: find ./ -name charmed-5g-upf_ubuntu-22.04-amd64.charm -exec mv -t ./ {} \;
+        run: find ./ -name sdcore-upf_ubuntu-22.04-amd64.charm -exec mv -t ./ {} \;
       - name: Select Charmhub channel
         uses: canonical/charming-actions/channel@2.2.5
         id: channel

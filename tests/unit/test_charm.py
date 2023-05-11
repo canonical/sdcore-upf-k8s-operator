@@ -5,8 +5,7 @@ import unittest
 from unittest.mock import Mock, call, patch
 
 from ops import testing
-from ops.model import ActiveStatus, ModelError, WaitingStatus
-from ops.pebble import ExecError
+from ops.model import ActiveStatus, BlockedStatus, ModelError, WaitingStatus
 
 from charm import UPFOperatorCharm
 
@@ -32,7 +31,7 @@ class TestCharm(unittest.TestCase):
         patch_push,
         patch_exists,
     ):
-        patch_exists.return_value = False
+        patch_exists.side_effect = [False, True]
 
         self.harness.container_pebble_ready(container_name="bessd")
 
@@ -40,7 +39,7 @@ class TestCharm(unittest.TestCase):
             [
                 call(
                     path="/etc/bess/conf/upf.json",
-                    source='{\n  "access": {\n    "ifname": "access"\n  },\n  "core": {\n    "ifname": "core"\n  },\n  "cpiface": {\n    "dnn": "internet",\n    "enable_ue_ip_alloc": false,\n    "hostname": "sdcore-upf.whatever.svc.cluster.local",\n    "http_port": "8080",\n    "ue_ip_pool": "172.250.0.0/16"\n  },\n  "enable_notify_bess": true,\n  "gtppsc": true,\n  "hwcksum": true,\n  "log_level": "trace",\n  "max_sessions": 50000,\n  "measure_flow": false,\n  "measure_upf": true,\n  "mode": "af_packet",\n  "notify_sockaddr": "/pod-share/notifycp",\n  "qci_qos_config": [\n    {\n      "burst_duration_ms": 10,\n      "cbs": 50000,\n      "ebs": 50000,\n      "pbs": 50000,\n      "priority": 7,\n      "qci": 0\n    }\n  ],\n  "slice_rate_limit_config": {\n    "n3_bps": 1000000000,\n    "n3_burst_bytes": 12500000,\n    "n6_bps": 1000000000,\n    "n6_burst_bytes": 12500000\n  },\n  "table_sizes": {\n    "appQERLookup": 200000,\n    "farLookup": 150000,\n    "pdrLookup": 50000,\n    "sessionQERLookup": 100000\n  },\n  "workers": 1\n}',  # noqa: E501
+                    source='{\n  "access": {\n    "ifname": "access"\n  },\n  "core": {\n    "ifname": "core"\n  },\n  "cpiface": {\n    "dnn": "internet",\n    "enable_ue_ip_alloc": false,\n    "hostname": "sdcore-upf.whatever.svc.cluster.local",\n    "http_port": "8080"\n  },\n  "enable_notify_bess": true,\n  "gtppsc": true,\n  "hwcksum": true,\n  "log_level": "trace",\n  "max_sessions": 50000,\n  "measure_flow": false,\n  "measure_upf": true,\n  "mode": "af_packet",\n  "notify_sockaddr": "/pod-share/notifycp",\n  "qci_qos_config": [\n    {\n      "burst_duration_ms": 10,\n      "cbs": 50000,\n      "ebs": 50000,\n      "pbs": 50000,\n      "priority": 7,\n      "qci": 0\n    }\n  ],\n  "slice_rate_limit_config": {\n    "n3_bps": 1000000000,\n    "n3_burst_bytes": 12500000,\n    "n6_bps": 1000000000,\n    "n6_burst_bytes": 12500000\n  },\n  "table_sizes": {\n    "appQERLookup": 200000,\n    "farLookup": 150000,\n    "pdrLookup": 50000,\n    "sessionQERLookup": 100000\n  },\n  "workers": 1\n}',  # noqa: E501
                 ),
             ]
         )
@@ -84,6 +83,14 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
+    def test_given_bad_config_when_config_changed_then_status_is_blocked(self):
+        self.harness.update_config(key_values={"dnn": ""})
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("The following configurations are not valid: ['dnn']"),
+        )
+
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.exists")
     def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_initial_commands_are_executed(  # noqa: E501
@@ -119,7 +126,7 @@ class TestCharm(unittest.TestCase):
                 call(
                     command=[
                         "iptables",
-                        "-I",
+                        "--check",
                         "OUTPUT",
                         "-p",
                         "icmp",
@@ -132,31 +139,13 @@ class TestCharm(unittest.TestCase):
                     environment=None,
                 ),
                 call().wait_output(),
+                call(
+                    command=["bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+                    timeout=30,
+                    environment={"CONF_FILE": "/etc/bess/conf/upf.json"},
+                ),
+                call().wait_output(),
             ],
-        )
-
-    @patch("ops.model.Container.exec")
-    @patch("ops.model.Container.exists")
-    def test_given_exec_error_when_bessd_pebble_ready_then_status_is_waiting(
-        self, patch_exists, patch_exec
-    ):
-        patch_exec_mock = Mock()
-        patch_exec_mock.wait_output.side_effect = ExecError(
-            command=["whatever command"],
-            exit_code=1,
-            stderr="whatever stderr",
-            stdout="whatever stdout",
-        )
-
-        patch_exec.return_value = patch_exec_mock
-
-        patch_exists.return_value = True
-
-        self.harness.container_pebble_ready(container_name="bessd")
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            WaitingStatus("Cannot execute command in workload, waiting."),
         )
 
     @patch("ops.model.Container.exists")

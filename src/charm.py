@@ -4,18 +4,20 @@
 
 """Charmed operator for the SDCORE UPF service."""
 
+import json
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]  # noqa: E501
     KubernetesServicePatch,
 )
-from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]  # noqa: E501
+from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
-from ops.charm import CharmBase, PebbleReadyEvent
+from lightkube.models.meta_v1 import ObjectMeta
+from ops.charm import CharmBase, ConfigChangedEvent, PebbleReadyEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -30,7 +32,14 @@ logger = logging.getLogger(__name__)
 
 BESSD_CONTAINER_CONFIG_PATH = "/etc/bess/conf"
 PFCP_AGENT_CONTAINER_CONFIG_PATH = "/tmp/conf"
+POD_SHARE_PATH = "/pod-share"
+ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME = "access-net"
+CORE_NETWORK_ATTACHMENT_DEFINITION_NAME = "core-net"
+ACCESS_INTERFACE_NAME = "access"
+CORE_INTERFACE_NAME = "core"
 CONFIG_FILE_NAME = "upf.json"
+UPF_MODE = "af_packet"
+BESS_WEB_PORT = 8000
 PROMETHEUS_PORT = 8080
 
 
@@ -64,29 +73,66 @@ class UPFOperatorCharm(CharmBase):
             charm=self,
             ports=[
                 ServicePort(name="pfcp", port=8805, protocol="UDP"),
-                ServicePort(name="bess-web", port=8000),
+                ServicePort(name="bess-web", port=BESS_WEB_PORT),
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
+        network_attachment_definition_spec = {
+            "config": json.dumps(
+                {
+                    "cniVersion": "0.3.1",
+                    "type": "macvlan",
+                    "ipam": {"type": "static"},
+                    "capabilities": {"mac": True},
+                }
+            )
+        }
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
+            containers_requiring_net_admin_capability=[self._bessd_container_name],
             network_attachment_definitions=[
-                NetworkAttachmentDefinition(name="access-net"),
-                NetworkAttachmentDefinition(name="core-net"),
+                NetworkAttachmentDefinition(
+                    metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                    spec=network_attachment_definition_spec,
+                ),
+                NetworkAttachmentDefinition(
+                    metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                    spec=network_attachment_definition_spec,
+                ),
             ],
             network_annotations=[
-                NetworkAnnotation(name="access-net", interface="access"),
-                NetworkAnnotation(name="core-net", interface="core"),
+                NetworkAnnotation(
+                    name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=ACCESS_INTERFACE_NAME,
+                    ips=[self._access_network_ip],
+                ),
+                NetworkAnnotation(
+                    name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=CORE_INTERFACE_NAME,
+                    ips=[self._core_network_ip],
+                ),
             ],
         )
 
-    def _write_bessd_config_file(self) -> None:
+    def _write_bessd_config_file(
+        self,
+        upf_hostname: str,
+        upf_mode: str,
+        access_interface_name: str,
+        core_interface_name: str,
+        dnn: str,
+        pod_share_path: str,
+    ) -> None:
         """Write the configuration file for the 5G UPF service."""
         jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
         template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
         content = template.render(
-            upf_hostname=self._upf_hostname,
-            mode="af_packet",
+            upf_hostname=upf_hostname,
+            mode=upf_mode,
+            access_interface_name=access_interface_name,
+            core_interface_name=core_interface_name,
+            dnn=dnn,
+            pod_share_path=pod_share_path,
         )
         self._bessd_container.push(
             path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}", source=content
@@ -130,50 +176,99 @@ class UPFOperatorCharm(CharmBase):
         logger.info("Config file is written")
         return True
 
-    def _on_bessd_pebble_ready(self, event: PebbleReadyEvent) -> None:
+    def _on_bessd_pebble_ready(self, event: Union[PebbleReadyEvent, ConfigChangedEvent]) -> None:
         """Handle Pebble ready event for bessd container.
 
         Args:
             event: PebbleReadyEvent
         """
+        invalid_configs = self._get_invalid_configs()
+        if invalid_configs:
+            self.unit.status = BlockedStatus(
+                f"The following configurations are not valid: {invalid_configs}"
+            )
+            event.defer()
+            return
         if not self._bessd_config_file_is_written:
-            self._write_bessd_config_file()
-        if not self.access_network_gateway:
-            self.unit.status = BlockedStatus("Please set a value for the `access-gateway` config.")
-            return
-        if not self.core_network_gateway:
-            self.unit.status = BlockedStatus("Please set a value for the `core-gateway` config.")
-            return
-        if not self.gnb_subnet:
-            self.unit.status = BlockedStatus("Please set a value for the `gnb-subnet` config.")
-            return
+            if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+                self.unit.status = WaitingStatus("Waiting for storage to be attached")
+                event.defer()
+                return
+            self._write_bessd_config_file(
+                upf_hostname=self._upf_hostname,
+                upf_mode=UPF_MODE,
+                access_interface_name=ACCESS_INTERFACE_NAME,
+                core_interface_name=CORE_INTERFACE_NAME,
+                dnn=self._dnn,  # type: ignore[arg-type]
+                pod_share_path=POD_SHARE_PATH,
+            )
+        self._create_gnb_route()
+        self._create_core_route()
+        if not self._ip_tables_rule_exists():
+            self._create_ip_tables_rule()
+        self._bessd_container.add_layer("upf", self._bessd_pebble_layer, combine=True)
+        self._bessd_container.replan()
+        self._exec_command_in_bessd_workload(
+            command=["bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+            environment=self._bessd_environment_variables,
+        )
+        self._set_unit_status()
+
+    def _get_invalid_configs(self) -> list[str]:
+        """Returns list of invalid configurations.
+
+        Returns:
+            list: List of strings matching config keys.
+        """
+        invalid_configs = []
+        if not self._dnn:
+            invalid_configs.append("dnn")
+        if not self._access_network_ip:
+            invalid_configs.append("access-ip")
+        if not self._core_network_ip:
+            invalid_configs.append("core-ip")
+        if not self._access_network_gateway_ip:
+            invalid_configs.append("access-gateway-ip")
+        if not self._core_network_gateway_ip:
+            invalid_configs.append("core-gateway-ip")
+        if not self._gnb_subnet:
+            invalid_configs.append("gnb-subnet")
+        return invalid_configs
+
+    def _create_gnb_route(self) -> None:
+        self._exec_command_in_bessd_workload(
+            command=[
+                "ip",
+                "route",
+                "replace",
+                self._gnb_subnet,
+                "via",
+                self._access_network_gateway_ip,
+            ]
+        )
+        logger.info("gNodeB route created")
+
+    def _create_core_route(self) -> None:
+        self._exec_command_in_bessd_workload(
+            command=[
+                "ip",
+                "route",
+                "replace",
+                "default",
+                "via",
+                self._core_network_gateway_ip,
+                "metric",
+                "110",
+            ],
+        )
+        logger.info("Core network route created")
+
+    def _ip_tables_rule_exists(self) -> bool:
         try:
             self._exec_command_in_bessd_workload(
                 command=[
-                    "ip",
-                    "route",
-                    "replace",
-                    self.gnb_subnet,
-                    "via",
-                    self.access_network_gateway,
-                ]
-            )
-            self._exec_command_in_bessd_workload(
-                command=[
-                    "ip",
-                    "route",
-                    "replace",
-                    "default",
-                    "via",
-                    self.core_network_gateway,
-                    "metric",
-                    "110",
-                ],
-            )
-            self._exec_command_in_bessd_workload(
-                command=[
                     "iptables",
-                    "-I",
+                    "--check",
                     "OUTPUT",
                     "-p",
                     "icmp",
@@ -181,23 +276,34 @@ class UPFOperatorCharm(CharmBase):
                     "port-unreachable",
                     "-j",
                     "DROP",
-                ],
+                ]
             )
+            logger.info("Iptables rule already exists")
+            return True
         except ExecError:
-            self.unit.status = WaitingStatus("Cannot execute command in workload, waiting.")
-            event.defer()
-            return
-        self._bessd_container.add_layer("upf", self._bessd_pebble_layer, combine=True)
-        self._bessd_container.replan()
+            logger.info("Iptables rule doesn't exist")
+            return False
+
+    def _create_ip_tables_rule(self) -> None:
+        """Creates iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
         self._exec_command_in_bessd_workload(
-            command=["bessctl run /opt/bess/bessctl/conf/up4"],
-            environment=self._bessd_environment_variables,
+            command=[
+                "iptables",
+                "-I",
+                "OUTPUT",
+                "-p",
+                "icmp",
+                "--icmp-type",
+                "port-unreachable",
+                "-j",
+                "DROP",
+            ],
         )
-        self._set_unit_status()
+        logger.info("Iptables rule for ICMP created")
 
     def _exec_command_in_bessd_workload(
         self, command: list, environment: Optional[dict] = None
-    ) -> None:
+    ) -> tuple:
         """Executes command in bessd container.
 
         Args:
@@ -206,7 +312,7 @@ class UPFOperatorCharm(CharmBase):
         """
         process = self._bessd_container.exec(command=command, timeout=30, environment=environment)
         try:
-            process.wait_output()
+            return process.wait_output()
         except ExecError as e:
             logger.error("Exited with code %d. Stderr:", e.exit_code)
             if e.stderr:
@@ -253,7 +359,13 @@ class UPFOperatorCharm(CharmBase):
         self._set_unit_status()
 
     def _set_unit_status(self) -> None:
-        """Set the application status based on container services being running."""
+        """Set the application status based on config and container services running."""
+        invalid_configs = self._get_invalid_configs()
+        if invalid_configs:
+            self.unit.status = BlockedStatus(
+                f"The following configurations are not valid: {invalid_configs}"
+            )
+            return
         if not self._service_is_running(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
             return
@@ -324,7 +436,7 @@ class UPFOperatorCharm(CharmBase):
                     self._routectl_service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": "/opt/bess/bessctl/conf/route_control.py -i access core",
+                        "command": f"/opt/bess/bessctl/conf/route_control.py -i {ACCESS_INTERFACE_NAME} {CORE_INTERFACE_NAME}",  # noqa: E501
                         "environment": self._routectl_environment_variables,
                     },
                 },
@@ -346,7 +458,7 @@ class UPFOperatorCharm(CharmBase):
                     self._web_service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": "bessctl http 0.0.0.0 8000",
+                        "command": f"bessctl http 0.0.0.0 {BESS_WEB_PORT}",
                     },
                 },
             }
@@ -396,17 +508,32 @@ class UPFOperatorCharm(CharmBase):
         }
 
     @property
-    def core_network_gateway(self) -> Optional[str]:
+    def _dnn(self) -> Optional[str]:
+        """Data Network Name."""
+        return self.model.config.get("dnn")
+
+    @property
+    def _core_network_ip(self) -> Optional[str]:
+        """IP address used by the core interface."""
+        return self.model.config.get("core-ip")
+
+    @property
+    def _access_network_ip(self) -> Optional[str]:
+        """IP address used by the access interface."""
+        return self.model.config.get("access-ip")
+
+    @property
+    def _core_network_gateway_ip(self) -> Optional[str]:
         """Core network gateway IP address."""
-        return self.model.config.get("core-gateway")
+        return self.model.config.get("core-gateway-ip")
 
     @property
-    def access_network_gateway(self) -> Optional[str]:
+    def _access_network_gateway_ip(self) -> Optional[str]:
         """Access network gateway IP address."""
-        return self.model.config.get("access-gateway")
+        return self.model.config.get("access-gateway-ip")
 
     @property
-    def gnb_subnet(self) -> Optional[str]:
+    def _gnb_subnet(self) -> Optional[str]:
         """Gnodeb subnet."""
         return self.model.config.get("gnb-subnet")
 
