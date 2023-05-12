@@ -122,7 +122,16 @@ class UPFOperatorCharm(CharmBase):
         dnn: str,
         pod_share_path: str,
     ) -> None:
-        """Write the configuration file for the 5G UPF service."""
+        """Write the configuration file for the 5G UPF service.
+
+        Args:
+            upf_hostname: UPF hostname
+            upf_mode: UPF mode
+            access_interface_name: Access network interface name
+            core_interface_name: Core network interface name
+            dnn: Data Network Name (DNN)
+            pod_share_path: pod_share path
+        """
         jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
         template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
         content = template.render(
@@ -177,12 +186,10 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: EventBase
         """
-        invalid_configs = self._get_invalid_configs()
-        if invalid_configs:
+        if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
             )
-            event.defer()
             return
         if not self._kubernetes_multus.multus_is_configured():
             self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
@@ -190,7 +197,6 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting to be able to connect to the container")
-            event.defer()
             return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
@@ -365,8 +371,7 @@ class UPFOperatorCharm(CharmBase):
 
     def _set_unit_status(self) -> None:
         """Set the unit status based on config and container services running."""
-        invalid_configs = self._get_invalid_configs()
-        if invalid_configs:
+        if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
             )

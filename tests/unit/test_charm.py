@@ -23,6 +23,20 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
 
+    @staticmethod
+    def _read_file(path: str) -> str:
+        """Reads a file and returns as a string.
+
+        Args:
+            path (str): path to the file.
+
+        Returns:
+            str: content of the file.
+        """
+        with open(path, "r") as f:
+            content = f.read()
+        return content
+
     @patch(
         "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
     )
@@ -40,11 +54,13 @@ class TestCharm(unittest.TestCase):
 
         self.harness.container_pebble_ready(container_name="bessd")
 
+        expected_config_file_content = self._read_file("tests/unit/expected_upf.json")
+
         patch_push.assert_has_calls(
             [
                 call(
                     path="/etc/bess/conf/upf.json",
-                    source='{\n  "access": {\n    "ifname": "access"\n  },\n  "core": {\n    "ifname": "core"\n  },\n  "cpiface": {\n    "dnn": "internet",\n    "enable_ue_ip_alloc": false,\n    "hostname": "sdcore-upf.whatever.svc.cluster.local",\n    "http_port": "8080"\n  },\n  "enable_notify_bess": true,\n  "gtppsc": true,\n  "hwcksum": true,\n  "log_level": "trace",\n  "max_sessions": 50000,\n  "measure_flow": false,\n  "measure_upf": true,\n  "mode": "af_packet",\n  "notify_sockaddr": "/pod-share/notifycp",\n  "qci_qos_config": [\n    {\n      "burst_duration_ms": 10,\n      "cbs": 50000,\n      "ebs": 50000,\n      "pbs": 50000,\n      "priority": 7,\n      "qci": 0\n    }\n  ],\n  "slice_rate_limit_config": {\n    "n3_bps": 1000000000,\n    "n3_burst_bytes": 12500000,\n    "n6_bps": 1000000000,\n    "n6_burst_bytes": 12500000\n  },\n  "table_sizes": {\n    "appQERLookup": 200000,\n    "farLookup": 150000,\n    "pdrLookup": 50000,\n    "sessionQERLookup": 100000\n  },\n  "workers": 1\n}',  # noqa: E501
+                    source=expected_config_file_content,
                 ),
             ]
         )
@@ -68,7 +84,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
-    def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
+    def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_exists,
         patch_multus_is_configured,

@@ -1,0 +1,46 @@
+{
+  "access": {
+    "ifname": "access"
+  },
+  "core": {
+    "ifname": "core"
+  },
+  "cpiface": {
+    "dnn": "internet",
+    "enable_ue_ip_alloc": false,
+    "hostname": "sdcore-upf.whatever.svc.cluster.local",
+    "http_port": "8080"
+  },
+  "enable_notify_bess": true,
+  "gtppsc": true,
+  "hwcksum": true,
+  "log_level": "trace",
+  "max_sessions": 50000,
+  "measure_flow": false,
+  "measure_upf": true,
+  "mode": "af_packet",
+  "notify_sockaddr": "/pod-share/notifycp",
+  "qci_qos_config": [
+    {
+      "burst_duration_ms": 10,
+      "cbs": 50000,
+      "ebs": 50000,
+      "pbs": 50000,
+      "priority": 7,
+      "qci": 0
+    }
+  ],
+  "slice_rate_limit_config": {
+    "n3_bps": 1000000000,
+    "n3_burst_bytes": 12500000,
+    "n6_bps": 1000000000,
+    "n6_burst_bytes": 12500000
+  },
+  "table_sizes": {
+    "appQERLookup": 200000,
+    "farLookup": 150000,
+    "pdrLookup": 50000,
+    "sessionQERLookup": 100000
+  },
+  "workers": 1
+}
