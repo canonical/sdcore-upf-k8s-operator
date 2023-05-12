@@ -155,9 +155,7 @@ class UPFOperatorCharm(CharmBase):
             bool: Whether the bessd config file was written
         """
         if not self._bessd_container.exists(f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"):
-            logger.info(f"Config file is not written: {CONFIG_FILE_NAME}")
             return False
-        logger.info("Config file is written")
         return True
 
     @property
@@ -170,9 +168,7 @@ class UPFOperatorCharm(CharmBase):
         if not self._pfcp_agent_container.exists(
             f"{PFCP_AGENT_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
         ):
-            logger.info(f"Config file is not written: {CONFIG_FILE_NAME}")
             return False
-        logger.info("Config file is written")
         return True
 
     def _configure_bessd_workload(self, event: EventBase) -> None:
