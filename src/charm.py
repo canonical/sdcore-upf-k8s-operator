@@ -321,6 +321,11 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: PebbleReadyEvent
         """
+        if not self._routectl_container.can_connect():
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `routectl` container"
+            )
+            return
         self._routectl_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
         self._routectl_container.replan()
         self._set_unit_status()
@@ -331,6 +336,11 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: PebbleReadyEvent
         """
+        if not self._web_container.can_connect():
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `web` container"
+            )
+            return
         self._web_container.add_layer("web", self._web_pebble_layer, combine=True)
         self._web_container.replan()
         self._set_unit_status()
@@ -341,6 +351,11 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: PebbleReadyEvent
         """
+        if not self._pfcp_agent_container.can_connect():
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `pfcp-agent` container"
+            )
+            return
         if not self._pfcp_agent_container.exists(path=PFCP_AGENT_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
             event.defer()
