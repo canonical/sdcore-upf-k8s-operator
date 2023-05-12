@@ -31,7 +31,7 @@ class TestCharm(unittest.TestCase):
         patch_push,
         patch_exists,
     ):
-        patch_exists.side_effect = [False, True]
+        patch_exists.side_effect = [True, False]
 
         self.harness.container_pebble_ready(container_name="bessd")
 

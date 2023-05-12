@@ -189,11 +189,15 @@ class UPFOperatorCharm(CharmBase):
             )
             event.defer()
             return
+        if not self._bessd_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting to be able to connect to the container")
+            event.defer()
+            return
+        if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+            self.unit.status = WaitingStatus("Waiting for storage to be attached")
+            event.defer()
+            return
         if not self._bessd_config_file_is_written:
-            if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
-                self.unit.status = WaitingStatus("Waiting for storage to be attached")
-                event.defer()
-                return
             self._write_bessd_config_file(
                 upf_hostname=self._upf_hostname,
                 upf_mode=UPF_MODE,
