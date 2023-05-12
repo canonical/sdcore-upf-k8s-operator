@@ -29,7 +29,7 @@ juju deploy upf-operator --trust --channel=edge
 
 ## Image
 
-- **bessd**: omecproject/upf-epc-bess:master-d1af749
-- **routectl**: omecproject/upf-epc-bess:master-d1af749
-- **web**: omecproject/upf-epc-bess:master-d1af749
-- **pfcp-agent**: omecproject/upf-epc-pfcpiface:master-d1af749
+- **bessd**: omecproject/upf-epc-bess:master-5786085
+- **routectl**: omecproject/upf-epc-bess:master-5786085
+- **web**: omecproject/upf-epc-bess:master-5786085
+- **pfcp-agent**: omecproject/upf-epc-pfcpiface:master-5786085

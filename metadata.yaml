@@ -30,22 +30,22 @@ resources:
   bessd-image:
     type: oci-image
     description: OCI image for 5G upf bessd
-    upstream-source: omecproject/upf-epc-bess:master-d1af749
+    upstream-source: omecproject/upf-epc-bess:master-5786085
 
   routectl-image:
     type: oci-image
     description: OCI image for 5G upf routectl
-    upstream-source: omecproject/upf-epc-bess:master-d1af749
+    upstream-source: omecproject/upf-epc-bess:master-5786085
 
   web-image:
     type: oci-image
     description: OCI image for 5G upf web
-    upstream-source: omecproject/upf-epc-bess:master-d1af749
+    upstream-source: omecproject/upf-epc-bess:master-5786085
 
   pfcp-agent-image:
     type: oci-image
     description: OCI image for 5G upf pfcp-agent
-    upstream-source: omecproject/upf-epc-pfcpiface:master-d1af749
+    upstream-source: omecproject/upf-epc-pfcpiface:master-5786085
 
 storage:
   config:
