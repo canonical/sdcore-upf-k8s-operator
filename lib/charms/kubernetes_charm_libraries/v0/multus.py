@@ -5,7 +5,7 @@
 
 - On charm installation, it will:
   - Create the requested network attachment definitions
-  - Patch the statefultset with the necessary annotations for the container to have interfaces
+  - Patch the statefulset with the necessary annotations for the container to have interfaces
     that use those new network attachments.
 - On charm removal, it will:
   - Delete the created network attachment definitions
@@ -84,6 +84,17 @@ from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.types import PatchType
 from ops.charm import CharmBase, EventBase, RemoveEvent
 from ops.framework import Object
+
+# The unique Charmhub library identifier, never change it
+LIBID = "75283550e3474e7b8b5b7724d345e3c2"
+
+# Increment this major API version when introducing breaking changes
+LIBAPI = 0
+
+# Increment this PATCH version before using `charmcraft publish-lib` or reset
+# to 0 if you are raising the major API version
+LIBPATCH = 1
+
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +327,7 @@ class KubernetesMultusCharmLib(Object):
         kubernetes_multus = KubernetesMultus(namespace=self.model.name)
         for network_attachment_definition in self.network_attachment_definitions:
             if not kubernetes_multus.network_attachment_definition_is_created(
-                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]  # noqa: E501
+                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
             ):
                 kubernetes_multus.create_network_attachment_definition(
                     network_attachment_definition=network_attachment_definition
@@ -341,8 +352,8 @@ class KubernetesMultusCharmLib(Object):
         kubernetes_multus = KubernetesMultus(namespace=self.model.name)
         for network_attachment_definition in self.network_attachment_definitions:
             if kubernetes_multus.network_attachment_definition_is_created(
-                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]  # noqa: E501
+                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
             ):
                 kubernetes_multus.delete_network_attachment_definition(
-                    name=network_attachment_definition.metadata.name  # type: ignore[union-attr]  # noqa: E501
+                    name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
                 )

@@ -8,7 +8,12 @@ import json
 import logging
 from typing import Optional
 
-from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]  # noqa: E501
+from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
+    KubernetesMultusCharmLib,
+    NetworkAnnotation,
+    NetworkAttachmentDefinition,
+)
+from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]
     KubernetesServicePatch,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
@@ -21,12 +26,6 @@ from ops.charm import CharmBase, EventBase, PebbleReadyEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
-
-from kubernetes_multus import (
-    KubernetesMultusCharmLib,
-    NetworkAnnotation,
-    NetworkAttachmentDefinition,
-)
 
 logger = logging.getLogger(__name__)
 
