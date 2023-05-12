@@ -163,7 +163,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether the bessd config file was written
         """
-        if not self._bessd_container.exists(f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"):
+        if not self._bessd_container.exists(
+            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
+        ):
             return False
         return True
 
@@ -198,30 +200,46 @@ class UPFOperatorCharm(CharmBase):
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting to be able to connect to the container")
             return
+        if not self._has_net_admin_capability():
+            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
+            event.defer()
+            return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
             event.defer()
             return
-        if not self._bessd_config_file_is_written:
-            self._write_bessd_config_file(
-                upf_hostname=self._upf_hostname,
-                upf_mode=UPF_MODE,
-                access_interface_name=ACCESS_INTERFACE_NAME,
-                core_interface_name=CORE_INTERFACE_NAME,
-                dnn=self._dnn,  # type: ignore[arg-type]
-                pod_share_path=POD_SHARE_PATH,
-            )
-        self._create_gnb_route()
+        self._write_bessd_config_file(
+            upf_hostname=self._upf_hostname,
+            upf_mode=UPF_MODE,
+            access_interface_name=ACCESS_INTERFACE_NAME,
+            core_interface_name=CORE_INTERFACE_NAME,
+            dnn=self._dnn,  # type: ignore[arg-type]
+            pod_share_path=POD_SHARE_PATH,
+        )
+        self._create_access_route()
         self._create_core_route()
         if not self._ip_tables_rule_exists():
             self._create_ip_tables_rule()
         self._bessd_container.add_layer("upf", self._bessd_pebble_layer, combine=True)
         self._bessd_container.replan()
+        self._bessd_container.restart(self._bessd_service_name)
         self._exec_command_in_bessd_workload(
-            command=["bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+            command="bessctl run /opt/bess/bessctl/conf/up4",
             environment=self._bessd_environment_variables,
         )
         self._set_unit_status()
+
+    def _has_net_admin_capability(self) -> bool:
+        """Returns whether net_admin capability was added.
+
+        Returns:
+            bool: Whether net_admin capability was added
+        """
+        try:
+            self._exec_command_in_bessd_workload(command="capsh --has-p=cap_net_admin")
+            return True
+        except ExecError:
+            return False
 
     def _get_invalid_configs(self) -> list[str]:
         """Returns list of invalid configurations.
@@ -244,48 +262,29 @@ class UPFOperatorCharm(CharmBase):
             invalid_configs.append("gnb-subnet")
         return invalid_configs
 
-    def _create_gnb_route(self) -> None:
+    def _create_access_route(self) -> None:
+        """Creates ip route towards access network."""
         self._exec_command_in_bessd_workload(
-            command=[
-                "ip",
-                "route",
-                "replace",
-                self._gnb_subnet,
-                "via",
-                self._access_network_gateway_ip,
-            ]
+            command=f"ip route replace {self._gnb_subnet} via {self._access_network_gateway_ip}"
         )
-        logger.info("gNodeB route created")
+        logger.info("Access network route created")
 
     def _create_core_route(self) -> None:
+        """Creates ip route towards core network."""
         self._exec_command_in_bessd_workload(
-            command=[
-                "ip",
-                "route",
-                "replace",
-                "default",
-                "via",
-                self._core_network_gateway_ip,
-                "metric",
-                "110",
-            ],
+            command=f"ip route replace default via {self._core_network_gateway_ip} metric 110"
         )
         logger.info("Core network route created")
 
     def _ip_tables_rule_exists(self) -> bool:
+        """Returns whether iptables rule already exists using the `--check` parameter.
+
+        Returns:
+            bool: Whether iptables rule exists
+        """
         try:
             self._exec_command_in_bessd_workload(
-                command=[
-                    "iptables",
-                    "--check",
-                    "OUTPUT",
-                    "-p",
-                    "icmp",
-                    "--icmp-type",
-                    "port-unreachable",
-                    "-j",
-                    "DROP",
-                ]
+                command="iptables --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
             )
             logger.info("Iptables rule already exists")
             return True
@@ -296,22 +295,12 @@ class UPFOperatorCharm(CharmBase):
     def _create_ip_tables_rule(self) -> None:
         """Creates iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
         self._exec_command_in_bessd_workload(
-            command=[
-                "iptables",
-                "-I",
-                "OUTPUT",
-                "-p",
-                "icmp",
-                "--icmp-type",
-                "port-unreachable",
-                "-j",
-                "DROP",
-            ],
+            command="iptables -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
         )
         logger.info("Iptables rule for ICMP created")
 
     def _exec_command_in_bessd_workload(
-        self, command: list, environment: Optional[dict] = None
+        self, command: str, environment: Optional[dict] = None
     ) -> tuple:
         """Executes command in bessd container.
 
@@ -319,15 +308,12 @@ class UPFOperatorCharm(CharmBase):
             command: Command to execute
             environment: Environment Variables
         """
-        process = self._bessd_container.exec(command=command, timeout=30, environment=environment)
-        try:
-            return process.wait_output()
-        except ExecError as e:
-            logger.error("Exited with code %d. Stderr:", e.exit_code)
-            if e.stderr:
-                for line in e.stderr.splitlines():
-                    logger.error("    %s", line)
-            raise e
+        process = self._bessd_container.exec(
+            command=command.split(),
+            timeout=30,
+            environment=environment,
+        )
+        return process.wait_output()
 
     def _on_routectl_pebble_ready(self, event: PebbleReadyEvent) -> None:
         """Handle Pebble ready event for routectl container.
@@ -355,6 +341,10 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: PebbleReadyEvent
         """
+        if not self._pfcp_agent_container.exists(path=PFCP_AGENT_CONTAINER_CONFIG_PATH):
+            self.unit.status = WaitingStatus("Waiting for storage to be attached")
+            event.defer()
+            return
         if not self._pfcp_agent_config_file_is_written:
             self.unit.status = WaitingStatus("Waiting for pfcp agent config file to be written")
             event.defer()
@@ -398,7 +388,7 @@ class UPFOperatorCharm(CharmBase):
 
     @staticmethod
     def _service_is_running_on_container(container: Container, service_name: str) -> bool:
-        """Returns whether a Linux service is running in a container.
+        """Returns whether a Pebble service is running in a container.
 
         Args:
             container: Container object

@@ -82,6 +82,7 @@ class TestCharm(unittest.TestCase):
     @patch(
         "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
     )
+    @patch("ops.model.Container.push", new=Mock())
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
@@ -120,6 +121,7 @@ class TestCharm(unittest.TestCase):
     @patch(
         "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
     )
+    @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.exists")
     def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_initial_commands_are_executed(  # noqa: E501
@@ -226,7 +228,8 @@ class TestCharm(unittest.TestCase):
     @patch(
         "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
     )
-    @patch("ops.model.Container.exec", new=Mock())
+    @patch("ops.model.Container.push", new=Mock)
+    @patch("ops.model.Container.exec", new=Mock)
     @patch("ops.model.Container.exists")
     def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
         self,
@@ -259,7 +262,7 @@ class TestCharm(unittest.TestCase):
         self,
         patch_exists,
     ):
-        patch_exists.return_value = False
+        patch_exists.side_effect = [True, False]
         self.harness.set_can_connect(container="bessd", val=True)
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
@@ -305,7 +308,8 @@ class TestCharm(unittest.TestCase):
     @patch(
         "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
     )
-    @patch("ops.model.Container.exec", new=Mock())
+    @patch("ops.model.Container.push", new=Mock)
+    @patch("ops.model.Container.exec", new=Mock)
     @patch("ops.model.Container.exists")
     def test_given_config_file_is_written_and_all_services_are_running_when_pebble_ready_then_status_is_active(  # noqa: E501
         self,
