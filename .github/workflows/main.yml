@@ -51,7 +51,7 @@ jobs:
           provider: microk8s
           channel: 1.26-strict/stable
       - name: Enable Multus addon
-        run: microk8s enable community && microk8s enable multus
+        run: sudo microk8s enable community && sudo microk8s enable multus
       - name: Run integration tests
         run: tox -e integration
       - name: Archive Tested Charm
