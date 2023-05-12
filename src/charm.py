@@ -199,6 +199,7 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting to be able to connect to the container")
+            event.defer()
             return
         if not self._has_net_admin_capability():
             self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
@@ -325,6 +326,7 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `routectl` container"
             )
+            event.defer()
             return
         self._routectl_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
         self._routectl_container.replan()
@@ -340,6 +342,7 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `web` container"
             )
+            event.defer()
             return
         self._web_container.add_layer("web", self._web_pebble_layer, combine=True)
         self._web_container.replan()
@@ -355,6 +358,7 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `pfcp-agent` container"
             )
+            event.defer()
             return
         if not self._pfcp_agent_container.exists(path=PFCP_AGENT_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
