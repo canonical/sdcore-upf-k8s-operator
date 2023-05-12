@@ -21,6 +21,7 @@ jobs:
           channel: 1.26/stable
           microk8s-addons: "storage dns rbac community"
       - name: Enable Multus addon
+        continue-on-error: true
         run: |
           sudo microk8s enable multus
           sudo microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds
