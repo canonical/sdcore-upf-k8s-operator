@@ -19,8 +19,12 @@ jobs:
           juju-channel: 2.9/stable
           provider: microk8s
           channel: 1.26/stable
+          microk8s-addons: "storage dns rbac community"
       - name: Enable Multus addon
-        run: sudo microk8s enable community && sudo microk8s enable multus
+        run: |
+          /usr/bin/sg microk8s -c sudo microk8s enable multus \
+          /usr/bin/sg microk8s -c microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds \
+          /usr/bin/sg microk8s -c microk8s kubectl auth can-i create network-attachment-definitions
       - name: Run integration tests
         run: tox -e integration
       - name: Archive Tested Charm
