@@ -6,7 +6,7 @@
 
 import json
 import logging
-from typing import Optional, Union
+from typing import Optional
 
 from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]  # noqa: E501
     KubernetesServicePatch,
@@ -17,7 +17,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
 from lightkube.models.meta_v1 import ObjectMeta
-from ops.charm import CharmBase, ConfigChangedEvent, PebbleReadyEvent
+from ops.charm import CharmBase, EventBase, PebbleReadyEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -56,11 +56,11 @@ class UPFOperatorCharm(CharmBase):
         self._routectl_container = self.unit.get_container(self._routectl_container_name)
         self._web_container = self.unit.get_container(self._web_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
-        self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
+        self.framework.observe(self.on.bessd_pebble_ready, self._configure_bessd_workload)
         self.framework.observe(self.on.routectl_pebble_ready, self._on_routectl_pebble_ready)
         self.framework.observe(self.on.web_pebble_ready, self._on_web_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
-        self.framework.observe(self.on.config_changed, self._on_bessd_pebble_ready)
+        self.framework.observe(self.on.config_changed, self._configure_bessd_workload)
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
             jobs=[
@@ -176,11 +176,11 @@ class UPFOperatorCharm(CharmBase):
         logger.info("Config file is written")
         return True
 
-    def _on_bessd_pebble_ready(self, event: Union[PebbleReadyEvent, ConfigChangedEvent]) -> None:
-        """Handle Pebble ready event for bessd container.
+    def _configure_bessd_workload(self, event: EventBase) -> None:
+        """Handles events for configuring bessd container.
 
         Args:
-            event: PebbleReadyEvent
+            event: EventBase
         """
         invalid_configs = self._get_invalid_configs()
         if invalid_configs:
@@ -350,7 +350,9 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for pfcp agent config file to be written")
             event.defer()
             return
-        if not self._service_is_running(self._bessd_container, self._bessd_service_name):
+        if not self._service_is_running_on_container(
+            self._bessd_container, self._bessd_service_name
+        ):
             self.unit.status = WaitingStatus("Waiting for bessd service to be running")
             event.defer()
             return
@@ -359,29 +361,35 @@ class UPFOperatorCharm(CharmBase):
         self._set_unit_status()
 
     def _set_unit_status(self) -> None:
-        """Set the application status based on config and container services running."""
+        """Set the unit status based on config and container services running."""
         invalid_configs = self._get_invalid_configs()
         if invalid_configs:
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
             )
             return
-        if not self._service_is_running(self._bessd_container, self._bessd_service_name):
+        if not self._service_is_running_on_container(
+            self._bessd_container, self._bessd_service_name
+        ):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
             return
-        if not self._service_is_running(self._routectl_container, self._routectl_service_name):
+        if not self._service_is_running_on_container(
+            self._routectl_container, self._routectl_service_name
+        ):
             self.unit.status = WaitingStatus("Waiting for routectl service to run")
             return
-        if not self._service_is_running(self._web_container, self._web_service_name):
+        if not self._service_is_running_on_container(self._web_container, self._web_service_name):
             self.unit.status = WaitingStatus("Waiting for web service to run")
             return
-        if not self._service_is_running(self._pfcp_agent_container, self._pfcp_agent_service_name):
+        if not self._service_is_running_on_container(
+            self._pfcp_agent_container, self._pfcp_agent_service_name
+        ):
             self.unit.status = WaitingStatus("Waiting for pfcp agent service to run")
             return
         self.unit.status = ActiveStatus()
 
     @staticmethod
-    def _service_is_running(container: Container, service_name: str) -> bool:
+    def _service_is_running_on_container(container: Container, service_name: str) -> bool:
         """Returns whether a Linux service is running in a container.
 
         Args:

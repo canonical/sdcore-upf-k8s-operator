@@ -73,7 +73,7 @@ class YourCharm(CharmBase):
 import json
 import logging
 from dataclasses import asdict, dataclass
-from typing import Optional, Union
+from typing import Optional
 
 import httpx
 from lightkube import Client
@@ -82,7 +82,7 @@ from lightkube.generic_resource import GenericNamespacedResource, create_namespa
 from lightkube.models.core_v1 import Capabilities
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.types import PatchType
-from ops.charm import CharmBase, InstallEvent, RemoveEvent, UpgradeCharmEvent
+from ops.charm import CharmBase, EventBase, RemoveEvent
 from ops.framework import Object
 
 logger = logging.getLogger(__name__)
@@ -307,11 +307,11 @@ class KubernetesMultusCharmLib(Object):
         self.framework.observe(charm.on.upgrade_charm, self._patch)
         self.framework.observe(charm.on.remove, self._on_remove)
 
-    def _patch(self, event: Union[InstallEvent, UpgradeCharmEvent]) -> None:
+    def _patch(self, event: EventBase) -> None:
         """Creates network attachment definitions and patches statefulset.
 
         Args:
-            event: Juju event
+            event: EventBase
         """
         kubernetes_multus = KubernetesMultus(namespace=self.model.name)
         for network_attachment_definition in self.network_attachment_definitions:
