@@ -142,11 +142,14 @@ class Kubernetes:
         Returns:
             int: Container index
         """
-        statefulset = self.client.get(
-            res=StatefulSet,
-            name=statefulset_name,
-            namespace=self.namespace,
-        )
+        try:
+            statefulset = self.client.get(
+                res=StatefulSet,
+                name=statefulset_name,
+                namespace=self.namespace,
+            )
+        except ApiError:
+            raise KubernetesMultusError(f"Could not get statefulset {statefulset_name}")
         containers = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]
         for i in range(len(containers)):
             if containers[i].name == container_name:
@@ -197,7 +200,13 @@ class Kubernetes:
         Args:
             network_attachment_definition: NetworkAttachmentDefinition object
         """
-        self.client.create(obj=network_attachment_definition, namespace=self.namespace)  # type: ignore[call-overload]  # noqa: E501
+        try:
+            self.client.create(obj=network_attachment_definition, namespace=self.namespace)  # type: ignore[call-overload]  # noqa: E501
+        except ApiError:
+            raise KubernetesMultusError(
+                f"Could not create NetworkAttachmentDefinition "
+                f"{network_attachment_definition.metadata.name}"  # type: ignore[union-attr]
+            )
         logger.info(
             f"NetworkAttachmentDefinition {network_attachment_definition.metadata.name} created"  # type: ignore[union-attr]  # noqa: E501, W505
         )
@@ -208,7 +217,12 @@ class Kubernetes:
         Args:
             name: NetworkAttachmentDefinition name
         """
-        self.client.delete(res=NetworkAttachmentDefinition, name=name, namespace=self.namespace)
+        try:
+            self.client.delete(
+                res=NetworkAttachmentDefinition, name=name, namespace=self.namespace
+            )
+        except ApiError:
+            raise KubernetesMultusError(f"Could not delete NetworkAttachmentDefinition {name}")
         logger.info(f"NetworkAttachmentDefinition {name} deleted")
 
     def patch_statefulset(
@@ -227,7 +241,10 @@ class Kubernetes:
         if not network_annotations:
             logger.info("No network annotations were provided")
             return
-        statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
+        try:
+            statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
+        except ApiError:
+            raise KubernetesMultusError(f"Could not get statefulset {name}")
         statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"] = json.dumps(  # type: ignore[attr-defined]  # noqa: E501
             [network_annotation.dict() for network_annotation in network_annotations]
         )
@@ -242,13 +259,16 @@ class Kubernetes:
                     "NET_ADMIN",
                 ]
             )
-        self.client.patch(
-            res=StatefulSet,
-            name=name,
-            obj=statefulset,
-            patch_type=PatchType.MERGE,
-            namespace=self.namespace,
-        )
+        try:
+            self.client.patch(
+                res=StatefulSet,
+                name=name,
+                obj=statefulset,
+                patch_type=PatchType.MERGE,
+                namespace=self.namespace,
+            )
+        except ApiError:
+            raise KubernetesMultusError(f"Could not patch statefulset {name}")
         logger.info(f"Multus annotation added to {name} Statefulset")
 
     def statefulset_is_patched(
@@ -267,7 +287,10 @@ class Kubernetes:
         Returns:
             bool: Whether the statefulset has the expected multus annotation.
         """
-        statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
+        try:
+            statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
+        except ApiError:
+            raise KubernetesMultusError(f"Could not get statefulset {name}")
         if "k8s.v1.cni.cncf.io/networks" not in statefulset.spec.template.metadata.annotations:  # type: ignore[attr-defined]  # noqa: E501
             logger.info("Multus annotation not yet added to statefulset")
             return False
