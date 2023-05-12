@@ -22,9 +22,9 @@ jobs:
           microk8s-addons: "storage dns rbac community"
       - name: Enable Multus addon
         run: |
-          /usr/bin/sg microk8s -c sudo microk8s enable multus
-          /usr/bin/sg microk8s -c microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds
-          /usr/bin/sg microk8s -c microk8s kubectl auth can-i create network-attachment-definitions
+          sudo microk8s enable multus
+          microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds
+          microk8s kubectl auth can-i create network-attachment-definitions
       - name: Run integration tests
         run: tox -e integration
       - name: Archive Tested Charm
