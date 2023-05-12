@@ -47,9 +47,9 @@ jobs:
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
         with:
-          juju-channel: 3.1/stable
+          juju-channel: 2.9/stable
           provider: microk8s
-          channel: 1.26-strict/stable
+          channel: 1.26/stable
       - name: Enable Multus addon
         run: sudo microk8s enable community && sudo microk8s enable multus
       - name: Run integration tests
