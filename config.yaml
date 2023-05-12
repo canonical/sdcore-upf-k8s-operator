@@ -10,16 +10,16 @@ options:
   core-ip:
     type: string
     default: 192.168.250.3/24
-    description: IP address used by the UPF's core interface.
+    description: IP address used by the UPF's Core interface.
   core-gateway-ip:
     type: string
     default: 192.168.250.1
-    description: Core Network Gateway IP address.
+    description: Gateway IP address to the Core Network.
   access-ip:
     type: string
     default: 192.168.252.3/24
-    description: IP address used by the UPF's access interface.
+    description: IP address used by the UPF's Access interface.
   access-gateway-ip:
     type: string
     default: 192.168.252.1
-    description: Access Network Gateway IP address.
+    description: Gateway IP address to the Access Network.
