@@ -23,8 +23,8 @@ jobs:
       - name: Enable Multus addon
         run: |
           sudo microk8s enable multus
-          microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds
-          microk8s kubectl auth can-i create network-attachment-definitions
+          sudo microk8s kubectl -n kube-system rollout status daemonset/kube-multus-ds
+          sudo microk8s kubectl auth can-i create network-attachment-definitions
       - name: Run integration tests
         run: tox -e integration
       - name: Archive Tested Charm
