@@ -23,6 +23,9 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
 
+    @patch(
+        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
+    )
     @patch("ops.model.Container.exec", new=Mock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
@@ -30,8 +33,10 @@ class TestCharm(unittest.TestCase):
         self,
         patch_push,
         patch_exists,
+        patch_multus_is_configured,
     ):
         patch_exists.side_effect = [True, False]
+        patch_multus_is_configured.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
@@ -58,13 +63,18 @@ class TestCharm(unittest.TestCase):
 
         patch_push.assert_not_called()
 
+    @patch(
+        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
+    )
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_exists,
+        patch_multus_is_configured,
     ):
         patch_exists.return_value = True
+        patch_multus_is_configured.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
@@ -91,12 +101,16 @@ class TestCharm(unittest.TestCase):
             BlockedStatus("The following configurations are not valid: ['dnn']"),
         )
 
+    @patch(
+        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
+    )
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.exists")
     def test_given_bessd_config_file_is_written_when_bessd_pebble_ready_then_initial_commands_are_executed(  # noqa: E501
-        self, patch_exists, patch_exec
+        self, patch_exists, patch_exec, patch_multus_is_configured
     ):
         patch_exists.return_value = True
+        patch_multus_is_configured.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
@@ -193,13 +207,18 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
+    @patch(
+        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
+    )
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_exists,
+        patch_multus_is_configured,
     ):
         patch_exists.return_value = True
+        patch_multus_is_configured.return_value = True
         self.harness.container_pebble_ready(container_name="bessd")
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
@@ -267,13 +286,18 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for bessd service to be running"),
         )
 
+    @patch(
+        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.multus_is_configured"
+    )
     @patch("ops.model.Container.exec", new=Mock())
     @patch("ops.model.Container.exists")
     def test_given_config_file_is_written_and_all_services_are_running_when_pebble_ready_then_status_is_active(  # noqa: E501
         self,
         patch_exists,
+        patch_multus_is_configured,
     ):
         patch_exists.return_value = True
+        patch_multus_is_configured.return_value = True
 
         self.harness.container_pebble_ready("bessd")
         self.harness.container_pebble_ready("routectl")

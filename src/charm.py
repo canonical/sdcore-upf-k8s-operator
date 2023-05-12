@@ -188,6 +188,10 @@ class UPFOperatorCharm(CharmBase):
             )
             event.defer()
             return
+        if not self._kubernetes_multus.multus_is_configured():
+            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
+            event.defer()
+            return
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting to be able to connect to the container")
             event.defer()

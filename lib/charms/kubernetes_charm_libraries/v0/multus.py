@@ -125,8 +125,8 @@ class KubernetesMultusError(Exception):
         super().__init__(self.message)
 
 
-class KubernetesMultus:
-    """Class containing all the Kubernetes Multus specific calls."""
+class Kubernetes:
+    """Class containing all the Kubernetes specific calls."""
 
     def __init__(self, namespace: str):
         self.client = Client()
@@ -305,7 +305,7 @@ class KubernetesMultusCharmLib(Object):
         containers_requiring_net_admin_capability: Optional[list[str]] = None,
     ):
         super().__init__(charm, "kubernetes-multus")
-
+        self.kubernetes = Kubernetes(namespace=self.model.name)
         self.network_attachment_definitions = network_attachment_definitions
         self.network_annotations = network_annotations
         if containers_requiring_net_admin_capability:
@@ -314,34 +314,52 @@ class KubernetesMultusCharmLib(Object):
             )
         else:
             self.containers_requiring_net_admin_capability = []
-        self.framework.observe(charm.on.install, self._patch)
-        self.framework.observe(charm.on.upgrade_charm, self._patch)
+        self.framework.observe(charm.on.install, self._configure_multus)
+        self.framework.observe(charm.on.upgrade_charm, self._configure_multus)
         self.framework.observe(charm.on.remove, self._on_remove)
 
-    def _patch(self, event: EventBase) -> None:
+    def _configure_multus(self, event: EventBase) -> None:
         """Creates network attachment definitions and patches statefulset.
 
         Args:
             event: EventBase
         """
-        kubernetes_multus = KubernetesMultus(namespace=self.model.name)
         for network_attachment_definition in self.network_attachment_definitions:
-            if not kubernetes_multus.network_attachment_definition_is_created(
+            if not self.kubernetes.network_attachment_definition_is_created(
                 name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
             ):
-                kubernetes_multus.create_network_attachment_definition(
+                self.kubernetes.create_network_attachment_definition(
                     network_attachment_definition=network_attachment_definition
                 )
-        if not kubernetes_multus.statefulset_is_patched(
+        if not self.kubernetes.statefulset_is_patched(
             name=self.model.app.name,
             network_annotations=self.network_annotations,
             containers_requiring_net_admin_capability=self.containers_requiring_net_admin_capability,  # noqa: E501
         ):
-            kubernetes_multus.patch_statefulset(
+            self.kubernetes.patch_statefulset(
                 name=self.model.app.name,
                 network_annotations=self.network_annotations,
                 containers_requiring_net_admin_capability=self.containers_requiring_net_admin_capability,  # noqa: E501
             )
+
+    def multus_is_configured(self) -> bool:
+        """Returns whether multus is configured.
+
+        Returns:
+            bool: Whether multus is configured
+        """
+        for network_attachment_definition in self.network_attachment_definitions:
+            if not self.kubernetes.network_attachment_definition_is_created(
+                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
+            ):
+                return False
+        if not self.kubernetes.statefulset_is_patched(
+            name=self.model.app.name,
+            network_annotations=self.network_annotations,
+            containers_requiring_net_admin_capability=self.containers_requiring_net_admin_capability,  # noqa: E501
+        ):
+            return False
+        return True
 
     def _on_remove(self, event: RemoveEvent) -> None:
         """Deletes network attachment definitions.
@@ -349,11 +367,10 @@ class KubernetesMultusCharmLib(Object):
         Args:
             event: RemoveEvent
         """
-        kubernetes_multus = KubernetesMultus(namespace=self.model.name)
         for network_attachment_definition in self.network_attachment_definitions:
-            if kubernetes_multus.network_attachment_definition_is_created(
+            if self.kubernetes.network_attachment_definition_is_created(
                 name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
             ):
-                kubernetes_multus.delete_network_attachment_definition(
+                self.kubernetes.delete_network_attachment_definition(
                     name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
                 )
