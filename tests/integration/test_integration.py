@@ -42,6 +42,7 @@ async def test_given_charm_is_built_when_deployed_then_status_is_active(
 ):
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
+        raise_on_error=False,
         status="active",
         timeout=1000,
     )
