@@ -6,6 +6,7 @@
 
 import json
 import logging
+import time
 from typing import Optional
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
@@ -224,11 +225,24 @@ class UPFOperatorCharm(CharmBase):
         self._bessd_container.add_layer("upf", self._bessd_pebble_layer, combine=True)
         self._bessd_container.replan()
         self._bessd_container.restart(self._bessd_service_name)
-        self._exec_command_in_bessd_workload(
-            command="bessctl run /opt/bess/bessctl/conf/up4",
-            environment=self._bessd_environment_variables,
-        )
+        self._run_bess_configuration()
         self._set_unit_status()
+
+    def _run_bess_configuration(self) -> None:
+        """Runs bessd configuration in workload."""
+        initial_time = time.time()
+        timeout = 30
+        while time.time() - initial_time <= timeout:
+            try:
+                self._exec_command_in_bessd_workload(
+                    command="bessctl run /opt/bess/bessctl/conf/up4",
+                    environment=self._bessd_environment_variables,
+                )
+                return
+            except ExecError:
+                logger.info("Failed running configuration for bess")
+                time.sleep(2)
+        raise TimeoutError("Timed out trying to run configuration for bess")
 
     def _has_net_admin_capability(self) -> bool:
         """Returns whether net_admin capability was added.
