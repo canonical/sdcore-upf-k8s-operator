@@ -11,8 +11,8 @@ A Kubernetes cluster with the Multus addon enabled.
 Enable the Multus addon on MicroK8s
 
 ```bash
-microk8s enable community
-microk8s enable multus
+sudo microk8s addons repo add community https://github.com/canonical/microk8s-community-addons --reference feat/strict-fix-multus
+sudo microk8s enable multus
 ```
 
 Create a Juju model:
