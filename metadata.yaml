@@ -59,3 +59,6 @@ storage:
 provides:
   metrics-endpoint:
     interface: prometheus_scrape
+
+assumes:
+  - k8s-api
