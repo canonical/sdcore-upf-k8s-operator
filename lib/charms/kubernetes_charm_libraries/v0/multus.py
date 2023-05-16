@@ -72,6 +72,8 @@ class YourCharm(CharmBase):
 
 import json
 import logging
+import signal
+import sys
 from dataclasses import asdict, dataclass
 from typing import Optional
 
@@ -259,6 +261,11 @@ class Kubernetes:
                     "NET_ADMIN",
                 ]
             )
+        # Add a handler for SIGTERM prior to patching. Juju tries to send a SIGTERM to the CRI to
+        # exit gracefully when in CAAS mode, then the hook is re-executed, so we can "safely"
+        # trap it here without causing a hook failure if there is a race, and the install hook
+        # will retry (after it is applied and the pod is rescheduled)
+        signal.signal(signal.SIGTERM, self._handle_pod_termination)
         try:
             self.client.patch(
                 res=StatefulSet,
@@ -270,6 +277,14 @@ class Kubernetes:
         except ApiError:
             raise KubernetesMultusError(f"Could not patch statefulset {name}")
         logger.info(f"Multus annotation added to {name} Statefulset")
+
+    def _handle_pod_termination(self, *args) -> None:
+        logger.debug(
+            "KubernetesMultus's signal handler caught a SIGTERM, likely due to "
+            "pod termination during execution of `install` event hook. Exiting gracefully. "
+            "The hook being executed will be re-run by Juju once the pod is re-scheduled."
+        )
+        sys.exit(0)
 
     def statefulset_is_patched(
         self,
