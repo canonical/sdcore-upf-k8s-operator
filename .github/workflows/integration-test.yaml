@@ -18,7 +18,7 @@ jobs:
         with:
           juju-channel: 3.1/stable
           provider: microk8s
-          channel: 1.27-strict/stable
+          channel: 1.26-strict/stable
           microk8s-addons: "hostpath-storage dns"
       - name: Enable Multus addon
         continue-on-error: true
@@ -36,25 +36,25 @@ jobs:
       - name: Dump deployments
         if: failure()
         run: kubectl describe deployments -A
-          - name: Dump replicasets
-            if: failure()
-            run: kubectl describe replicasets -A
-          - name: Dump pods and their logs
-            if: failure()
-            shell: bash
-            run: |
-              juju status --relations --storage
-              kubectl get pods \
-                  -A \
-                  -o=jsonpath='{range.items[*]}{.metadata.namespace} {.metadata.name}{"\n"}' \
-                  --sort-by=.metadata.namespace \
-                  | grep -v "^\s*$" \
-                  | while read namespace pod; do \
-                       kubectl -n $namespace describe pod $pod; \
-                       kubectl -n $namespace logs $pod \
-                          --all-containers=true \
-                          --tail=100; \
-                   done
+      - name: Dump replicasets
+        if: failure()
+        run: kubectl describe replicasets -A
+      - name: Dump pods and their logs
+        if: failure()
+        shell: bash
+        run: |
+          juju status --relations --storage
+          kubectl get pods \
+              -A \
+              -o=jsonpath='{range.items[*]}{.metadata.namespace} {.metadata.name}{"\n"}' \
+              --sort-by=.metadata.namespace \
+              | grep -v "^\s*$" \
+              | while read namespace pod; do \
+                   kubectl -n $namespace describe pod $pod; \
+                   kubectl -n $namespace logs $pod \
+                      --all-containers=true \
+                      --tail=100; \
+               done
       - name: Archive Tested Charm
         uses: actions/upload-artifact@v3
         if: ${{ github.ref_name == 'main' }}
