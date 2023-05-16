@@ -30,7 +30,6 @@ async def build_and_deploy(ops_test):
         charm,
         resources=resources,
         application_name=APP_NAME,
-        series="jammy",
         trust=True,
     )
 
