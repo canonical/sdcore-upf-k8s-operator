@@ -263,8 +263,8 @@ class Kubernetes:
             )
         # Add a handler for SIGTERM prior to patching. Juju tries to send a SIGTERM to the CRI to
         # exit gracefully when in CAAS mode, then the hook is re-executed, so we can "safely"
-        # trap it here without causing a hook failure if there is a race, and the install hook
-        # will retry (after it is applied and the pod is rescheduled)
+        # trap it here without causing a hook failure if there is a race, and the config-changed
+        # hook will retry (after it is applied and the pod is rescheduled)
         signal.signal(signal.SIGTERM, self._handle_pod_termination)
         try:
             self.client.patch(
@@ -281,7 +281,7 @@ class Kubernetes:
     def _handle_pod_termination(self, *args) -> None:
         logger.debug(
             "KubernetesMultus's signal handler caught a SIGTERM, likely due to "
-            "pod termination during execution of `install` event hook. Exiting gracefully. "
+            "pod termination during execution of `config-changed` event hook. Exiting gracefully. "
             "The hook being executed will be re-run by Juju once the pod is re-scheduled."
         )
         sys.exit(0)
@@ -352,8 +352,7 @@ class KubernetesMultusCharmLib(Object):
             )
         else:
             self.containers_requiring_net_admin_capability = []
-        self.framework.observe(charm.on.install, self._configure_multus)
-        self.framework.observe(charm.on.upgrade_charm, self._configure_multus)
+        self.framework.observe(charm.on.config_changed, self._configure_multus)
         self.framework.observe(charm.on.remove, self._on_remove)
 
     def _configure_multus(self, event: EventBase) -> None:
