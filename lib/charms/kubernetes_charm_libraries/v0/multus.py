@@ -79,8 +79,10 @@ import httpx
 from lightkube import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import GenericNamespacedResource, create_namespaced_resource
-from lightkube.models.core_v1 import Capabilities
+from lightkube.models.apps_v1 import StatefulSetSpec
+from lightkube.models.core_v1 import Capabilities, PodTemplateSpec, PodSpec, Container, SecurityContext
 from lightkube.resources.apps_v1 import StatefulSet
+from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.types import PatchType
 from ops.charm import CharmBase, EventBase, RemoveEvent
 from ops.framework import Object
@@ -125,7 +127,7 @@ class KubernetesMultusError(Exception):
         super().__init__(self.message)
 
 
-class Kubernetes:
+class KubernetesClient:
     """Class containing all the Kubernetes specific calls."""
 
     def __init__(self, namespace: str):
@@ -245,31 +247,48 @@ class Kubernetes:
             statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
         except ApiError:
             raise KubernetesMultusError(f"Could not get statefulset {name}")
-        statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"] = json.dumps(  # type: ignore[attr-defined]  # noqa: E501
-            [network_annotation.dict() for network_annotation in network_annotations]
+        statefulset_delta = StatefulSet(
+            spec=StatefulSetSpec(
+                selector=statefulset.spec.selector,
+                serviceName=statefulset.spec.serviceName,
+                template=PodTemplateSpec(
+                    metadata=ObjectMeta(
+                        annotations={
+                            "k8s.v1.cni.cncf.io/networks": json.dumps(
+                                [network_annotation.dict() for network_annotation in
+                                 network_annotations]
+                            )
+                        }
+                    ),
+                    spec=PodSpec(
+                        containers=[
+                            Container(
+                                name=container_name,
+                                securityContext=SecurityContext(
+                                    capabilities=Capabilities(
+                                        add=[
+                                            "NET_ADMIN",
+                                        ]
+                                    )
+                                )
+                            ) for container_name in containers_requiring_net_admin_capability
+                        ]
+                    )
+                ),
+            )
         )
-        for container_name in containers_requiring_net_admin_capability:
-            container_index = self.get_container_index_from_name(
-                statefulset_name=name, container_name=container_name
-            )
-            statefulset.spec.template.spec.containers[  # type: ignore[attr-defined]
-                container_index
-            ].securityContext.capabilities = Capabilities(
-                add=[
-                    "NET_ADMIN",
-                ]
-            )
         try:
             self.client.patch(
                 res=StatefulSet,
                 name=name,
-                obj=statefulset,
-                patch_type=PatchType.MERGE,
+                obj=statefulset_delta,
+                patch_type=PatchType.APPLY,
                 namespace=self.namespace,
+                field_manager=self.__class__.__name__,
             )
         except ApiError:
             raise KubernetesMultusError(f"Could not patch statefulset {name}")
-        logger.info(f"Multus annotation added to {name} Statefulset")
+        logger.info(f"Multus annotation added to {name} statefulset")
 
     def statefulset_is_patched(
         self,
@@ -328,7 +347,7 @@ class KubernetesMultusCharmLib(Object):
         containers_requiring_net_admin_capability: Optional[list[str]] = None,
     ):
         super().__init__(charm, "kubernetes-multus")
-        self.kubernetes = Kubernetes(namespace=self.model.name)
+        self.kubernetes = KubernetesClient(namespace=self.model.name)
         self.network_attachment_definitions = network_attachment_definitions
         self.network_annotations = network_annotations
         if containers_requiring_net_admin_capability:
