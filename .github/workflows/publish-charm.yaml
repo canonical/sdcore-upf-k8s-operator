@@ -2,6 +2,9 @@ name: publish-charm
 
 on:
   workflow_call:
+    secrets:
+      CHARMCRAFT_AUTH:
+        required: true
 
 jobs:
   publish-charm:
@@ -22,5 +25,5 @@ jobs:
         id: channel
       - name: Upload charm to Charmhub
         env:
-          CHARMCRAFT_AUTH: "${{ secrets.CHARMHUB_TOKEN }}"
+          CHARMCRAFT_AUTH: ${{ secrets.CHARMCRAFT_AUTH }}
         run: charmcraft upload ./sdcore-upf_ubuntu-22.04-amd64.charm --release ${{ steps.channel.outputs.name }}
