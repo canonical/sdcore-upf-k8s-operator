@@ -3,7 +3,7 @@
 
 """Charm Library used to leverage the Multus Kubernetes CNI in charms.
 
-- On charm installation, it will:
+- On config-changed, it will:
   - Create the requested network attachment definitions
   - Patch the statefulset with the necessary annotations for the container to have interfaces
     that use those new network attachments.
@@ -26,54 +26,40 @@ class YourCharm(CharmBase):
         super().__init__(*args)
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
+            containers_requiring_net_admin_capability=[self._bessd_container_name],
             network_attachment_definitions=[
                 NetworkAttachmentDefinition(
-                    metadata=ObjectMeta(name="access-net"),
-                    spec={
-                        "config": json.dumps(
-                            {
-                                "cniVersion": "0.3.1",
-                                "type": "macvlan",
-                                "ipam": {"type": "static"},
-                                "capabilities": {"mac": True},
-                            }
-                        )
-                    }
+                    metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                    spec=network_attachment_definition_spec,
                 ),
                 NetworkAttachmentDefinition(
-                    metadata=ObjectMeta(name="core-net"),
-                    spec={
-                        "config": json.dumps(
-                            {
-                                "cniVersion": "0.3.1",
-                                "type": "macvlan",
-                                "ipam": {"type": "static"},
-                                "capabilities": {"mac": True},
-                            }
-                        )
-                    }
+                    metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                    spec=network_attachment_definition_spec,
                 ),
             ],
-            network_annotations=[
-                NetworkAnnotation(
-                    name="access-net",
-                    interface="access",
-                    ips=[self._access_network_ip],
-                ),
-                NetworkAnnotation(
-                    name="core-net",
-                    interface="core",
-                    ips=[self._core_network_ip],
-                ),
-            ],
+            network_annotations_func=self._network_annotations_from_config,
         )
+
+    def _network_annotations_from_config(self) -> list[NetworkAnnotation]:
+        return [
+            NetworkAnnotation(
+                name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                interface=ACCESS_INTERFACE_NAME,
+                ips=[self._get_access_network_ip_config()],
+            ),
+            NetworkAnnotation(
+                name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                interface=CORE_INTERFACE_NAME,
+                ips=[self._get_core_network_ip_config()],
+            ),
+        ]
 ```
 """
 
 import json
 import logging
 from dataclasses import asdict, dataclass
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import httpx
 from lightkube import Client
@@ -303,7 +289,7 @@ class KubernetesClient:
         ) != [network_annotation.dict() for network_annotation in network_annotations]:
             logger.info("Existing annotation are not identical to the expected ones")
             return False
-        for container in statefulset.spec.template.spec.containers:
+        for container in statefulset.spec.template.spec.containers:  # type: ignore[attr-defined]
             if container.name in containers_requiring_net_admin_capability:
                 if "NET_ADMIN" not in container.securityContext.capabilities.add:
                     logger.info(

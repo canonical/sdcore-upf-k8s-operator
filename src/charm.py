@@ -178,11 +178,6 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _upf_hostname(self) -> str:
-        """Returns the UPF hostname.
-
-        Returns:
-            str: UPF Hostname
-        """
         return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
 
     def _bessd_config_file_is_written(self) -> bool:
@@ -468,11 +463,6 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _bessd_pebble_layer(self) -> Layer:
-        """Returns pebble layer for the bessd container.
-
-        Returns:
-            Layer: Pebble Layer
-        """
         return Layer(
             {
                 "summary": "bessd layer",
@@ -497,11 +487,6 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _routectl_pebble_layer(self) -> Layer:
-        """Returns pebble layer for the routectl container.
-
-        Returns:
-            Layer: Pebble Layer
-        """
         return Layer(
             {
                 "summary": "routectl layer",
