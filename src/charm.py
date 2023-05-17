@@ -23,7 +23,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
 from lightkube.models.meta_v1 import ObjectMeta
-from ops.charm import CharmBase, EventBase, PebbleReadyEvent
+from ops.charm import CharmBase, EventBase, UpdateStatusEvent
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -39,6 +39,7 @@ ACCESS_INTERFACE_NAME = "access"
 CORE_INTERFACE_NAME = "core"
 CONFIG_FILE_NAME = "upf.json"
 UPF_MODE = "af_packet"
+BESSD_PORT = 10514
 BESS_WEB_PORT = 8000
 PROMETHEUS_PORT = 8080
 
@@ -56,11 +57,6 @@ class UPFOperatorCharm(CharmBase):
         self._routectl_container = self.unit.get_container(self._routectl_container_name)
         self._web_container = self.unit.get_container(self._web_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
-        self.framework.observe(self.on.bessd_pebble_ready, self._configure_bessd_workload)
-        self.framework.observe(self.on.routectl_pebble_ready, self._on_routectl_pebble_ready)
-        self.framework.observe(self.on.web_pebble_ready, self._on_web_pebble_ready)
-        self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
-        self.framework.observe(self.on.config_changed, self._configure_bessd_workload)
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
             jobs=[
@@ -100,30 +96,65 @@ class UPFOperatorCharm(CharmBase):
                     spec=network_attachment_definition_spec,
                 ),
             ],
-            network_annotations=[
-                NetworkAnnotation(
-                    name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                    interface=ACCESS_INTERFACE_NAME,
-                    ips=[self._access_network_ip],
-                ),
-                NetworkAnnotation(
-                    name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                    interface=CORE_INTERFACE_NAME,
-                    ips=[self._core_network_ip],
-                ),
-            ],
+            network_annotations_func=self._network_annotations_from_config,
         )
+        self.framework.observe(self.on.bessd_pebble_ready, self._configure)
+        self.framework.observe(self.on.routectl_pebble_ready, self._configure)
+        self.framework.observe(self.on.web_pebble_ready, self._configure)
+        self.framework.observe(self.on.pfcp_agent_pebble_ready, self._configure)
+        self.framework.observe(self.on.config_changed, self._configure)
+        self.framework.observe(self.on.update_status, self._update_status)
+
+    def _update_status(self, event: UpdateStatusEvent):
+        """Sets unit status based on current state."""
+        if self.unit.status != ActiveStatus():
+            self._configure(event)
+
+    def _network_annotations_from_config(self) -> list[NetworkAnnotation]:
+        """Returns the list of network annotation to be added to the charm statefulset.
+
+        Annotations use configuration values provided in the Juju config.
+
+        Returns:
+            List: List of NetworkAnnotation objects.
+        """
+        return [
+            NetworkAnnotation(
+                name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                interface=ACCESS_INTERFACE_NAME,
+                ips=[self._get_access_network_ip_config()],
+            ),
+            NetworkAnnotation(
+                name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                interface=CORE_INTERFACE_NAME,
+                ips=[self._get_core_network_ip_config()],
+            ),
+        ]
 
     def _write_bessd_config_file(
         self,
+        content: str,
+    ) -> None:
+        """Write the configuration file for the 5G UPF service.
+
+        Args:
+            content: Bessd config file content
+        """
+        self._bessd_container.push(
+            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}", source=content
+        )
+        logger.info("Pushed %s config file", CONFIG_FILE_NAME)
+
+    @staticmethod
+    def _render_bessd_config_file(
         upf_hostname: str,
         upf_mode: str,
         access_interface_name: str,
         core_interface_name: str,
         dnn: str,
         pod_share_path: str,
-    ) -> None:
-        """Write the configuration file for the 5G UPF service.
+    ) -> str:
+        """Renders the configuration file for the 5G UPF service.
 
         Args:
             upf_hostname: UPF hostname
@@ -143,10 +174,7 @@ class UPFOperatorCharm(CharmBase):
             dnn=dnn,
             pod_share_path=pod_share_path,
         )
-        self._bessd_container.push(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}", source=content
-        )
-        logger.info(f"Pushed {CONFIG_FILE_NAME} config file")
+        return content
 
     @property
     def _upf_hostname(self) -> str:
@@ -157,7 +185,6 @@ class UPFOperatorCharm(CharmBase):
         """
         return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
 
-    @property
     def _bessd_config_file_is_written(self) -> bool:
         """Returns whether the bessd config file was written to the workload container.
 
@@ -170,21 +197,21 @@ class UPFOperatorCharm(CharmBase):
             return False
         return True
 
-    @property
-    def _pfcp_agent_config_file_is_written(self) -> bool:
-        """Returns whether the pfcp agent config file was written to the workload container.
+    def _bessd_config_file_content_matches(self, content: str) -> bool:
+        """Returns whether the bessd config file content matches the provided content.
 
         Returns:
-            bool: Whether the pfcp agent config file was written
+            bool: Whether the bessd config file content matches
         """
-        if not self._pfcp_agent_container.exists(
-            f"{PFCP_AGENT_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
-        ):
+        existing_content = self._bessd_container.pull(
+            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
+        )
+        if existing_content.read() != content:
             return False
         return True
 
-    def _configure_bessd_workload(self, event: EventBase) -> None:
-        """Handles events for configuring bessd container.
+    def _configure(self, event: EventBase) -> None:
+        """Handles events for configuring workloads.
 
         Args:
             event: EventBase
@@ -199,34 +226,67 @@ class UPFOperatorCharm(CharmBase):
             event.defer()
             return
         if not self._bessd_container.can_connect():
-            self.unit.status = WaitingStatus("Waiting to be able to connect to the container")
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `bessd` container"
+            )
+            event.defer()
+            return
+        if not self._routectl_container.can_connect():
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `routectl` container"
+            )
+            event.defer()
+            return
+        if not self._web_container.can_connect():
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `web` container"
+            )
+            event.defer()
+            return
+        if not self._pfcp_agent_container.can_connect():
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `pfcp-agent` container"
+            )
             event.defer()
             return
         if not self._has_net_admin_capability():
-            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
+            self.unit.status = WaitingStatus("Waiting for pod to have NET_ADMIN capability")
             event.defer()
             return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
             event.defer()
             return
-        self._write_bessd_config_file(
+        self._configure_bessd_workload()
+        self._configure_routectl_workload()
+        self._configure_web_workload()
+        self._configure_pfcp_agent_workoad()
+        self._set_unit_status()
+
+    def _configure_bessd_workload(self) -> None:
+        """Configures bessd workload.
+
+        Writes configuration file, creates routes, creates iptable rule and pebble layer.
+        """
+        content = self._render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=UPF_MODE,
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
-            dnn=self._dnn,  # type: ignore[arg-type]
+            dnn=self._get_dnn_config(),  # type: ignore[arg-type]
             pod_share_path=POD_SHARE_PATH,
         )
+        if not self._bessd_config_file_is_written() or not self._bessd_config_file_content_matches(
+            content=content
+        ):
+            self._write_bessd_config_file(content=content)
         self._create_access_route()
         self._create_core_route()
         if not self._ip_tables_rule_exists():
             self._create_ip_tables_rule()
         self._bessd_container.add_layer("upf", self._bessd_pebble_layer, combine=True)
-        self._bessd_container.replan()
         self._bessd_container.restart(self._bessd_service_name)
         self._run_bess_configuration()
-        self._set_unit_status()
 
     def _run_bess_configuration(self) -> None:
         """Runs bessd configuration in workload."""
@@ -263,31 +323,31 @@ class UPFOperatorCharm(CharmBase):
             list: List of strings matching config keys.
         """
         invalid_configs = []
-        if not self._dnn:
+        if not self._get_dnn_config():
             invalid_configs.append("dnn")
-        if not self._access_network_ip:
+        if not self._get_access_network_ip_config():
             invalid_configs.append("access-ip")
-        if not self._core_network_ip:
+        if not self._get_core_network_ip_config():
             invalid_configs.append("core-ip")
-        if not self._access_network_gateway_ip:
+        if not self._get_access_network_gateway_ip_config():
             invalid_configs.append("access-gateway-ip")
-        if not self._core_network_gateway_ip:
+        if not self._get_core_network_gateway_ip_config():
             invalid_configs.append("core-gateway-ip")
-        if not self._gnb_subnet:
+        if not self._get_gnb_subnet_config():
             invalid_configs.append("gnb-subnet")
         return invalid_configs
 
     def _create_access_route(self) -> None:
         """Creates ip route towards access network."""
         self._exec_command_in_bessd_workload(
-            command=f"ip route replace {self._gnb_subnet} via {self._access_network_gateway_ip}"
+            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_access_network_gateway_ip_config()}"  # noqa: E501
         )
         logger.info("Access network route created")
 
     def _create_core_route(self) -> None:
         """Creates ip route towards core network."""
         self._exec_command_in_bessd_workload(
-            command=f"ip route replace default via {self._core_network_gateway_ip} metric 110"
+            command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
         )
         logger.info("Core network route created")
 
@@ -330,67 +390,35 @@ class UPFOperatorCharm(CharmBase):
         )
         return process.wait_output()
 
-    def _on_routectl_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        """Handle Pebble ready event for routectl container.
-
-        Args:
-            event: PebbleReadyEvent
-        """
-        if not self._routectl_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `routectl` container"
+    def _configure_routectl_workload(self) -> None:
+        """Configures pebble layer for routectl container."""
+        plan = self._routectl_container.get_plan()
+        layer = self._routectl_pebble_layer
+        if plan.services != layer.services:
+            self._routectl_container.add_layer(
+                "routectl", self._routectl_pebble_layer, combine=True
             )
-            event.defer()
-            return
-        self._routectl_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
-        self._routectl_container.replan()
-        self._set_unit_status()
+            self._routectl_container.restart(self._routectl_service_name)
 
-    def _on_web_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        """Handle Pebble ready event for web container.
+    def _configure_web_workload(
+        self,
+    ) -> None:
+        """Configures pebble layer for `web` container."""
+        plan = self._web_container.get_plan()
+        layer = self._web_pebble_layer
+        if plan.services != layer.services:
+            self._web_container.add_layer("web", self._web_pebble_layer, combine=True)
+            self._web_container.restart(self._web_service_name)
 
-        Args:
-            event: PebbleReadyEvent
-        """
-        if not self._web_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `web` container"
+    def _configure_pfcp_agent_workoad(self) -> None:
+        """Configures pebble layer for `pfcp-agent` container."""
+        plan = self._pfcp_agent_container.get_plan()
+        layer = self._pfcp_agent_pebble_layer
+        if plan.services != layer.services:
+            self._pfcp_agent_container.add_layer(
+                "pfcp", self._pfcp_agent_pebble_layer, combine=True
             )
-            event.defer()
-            return
-        self._web_container.add_layer("web", self._web_pebble_layer, combine=True)
-        self._web_container.replan()
-        self._set_unit_status()
-
-    def _on_pfcp_agent_pebble_ready(self, event: PebbleReadyEvent) -> None:
-        """Handle Pebble ready event for pfcp agent container.
-
-        Args:
-            event: PebbleReadyEvent
-        """
-        if not self._pfcp_agent_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `pfcp-agent` container"
-            )
-            event.defer()
-            return
-        if not self._pfcp_agent_container.exists(path=PFCP_AGENT_CONTAINER_CONFIG_PATH):
-            self.unit.status = WaitingStatus("Waiting for storage to be attached")
-            event.defer()
-            return
-        if not self._pfcp_agent_config_file_is_written:
-            self.unit.status = WaitingStatus("Waiting for pfcp agent config file to be written")
-            event.defer()
-            return
-        if not self._service_is_running_on_container(
-            self._bessd_container, self._bessd_service_name
-        ):
-            self.unit.status = WaitingStatus("Waiting for bessd service to be running")
-            event.defer()
-            return
-        self._pfcp_agent_container.add_layer("pfcp", self._pfcp_agent_pebble_layer, combine=True)
-        self._pfcp_agent_container.replan()
-        self._set_unit_status()
+            self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
 
     def _set_unit_status(self) -> None:
         """Set the unit status based on config and container services running."""
@@ -453,9 +481,16 @@ class UPFOperatorCharm(CharmBase):
                     self._bessd_service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": "bessd -f -grpc-url=0.0.0.0:10514 -m 0",  # "-m 0" means that we are not using hugepages  # noqa: E501
+                        "command": f"bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} -m 0",  # "-m 0" means that we are not using hugepages  # noqa: E501
                         "environment": self._bessd_environment_variables,
                     },
+                },
+                "checks": {
+                    "online": {
+                        "override": "replace",
+                        "level": "ready",
+                        "tcp": {"port": BESSD_PORT},
+                    }
                 },
             }
         )
@@ -484,11 +519,6 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _web_pebble_layer(self) -> Layer:
-        """Returns pebble layer for the web container.
-
-        Returns:
-            Layer: Pebble Layer
-        """
         return Layer(
             {
                 "summary": "web layer",
@@ -500,16 +530,18 @@ class UPFOperatorCharm(CharmBase):
                         "command": f"bessctl http 0.0.0.0 {BESS_WEB_PORT}",
                     },
                 },
+                "checks": {
+                    "online": {
+                        "override": "replace",
+                        "level": "ready",
+                        "tcp": {"port": BESS_WEB_PORT},
+                    }
+                },
             }
         )
 
     @property
     def _pfcp_agent_pebble_layer(self) -> Layer:
-        """Returns pebble layer for the pfcp agent container.
-
-        Returns:
-            Layer: Pebble Layer
-        """
         return Layer(
             {
                 "summary": "pfcp agent layer",
@@ -526,54 +558,32 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _bessd_environment_variables(self) -> dict:
-        """Returns environment variables for the bessd service.
-
-        Returns:
-            dict: Environment variables
-        """
         return {
             "CONF_FILE": f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}",
         }
 
     @property
     def _routectl_environment_variables(self) -> dict:
-        """Returns environment variables for the routectl service.
-
-        Returns:
-            dict: Environment variables
-        """
         return {
             "PYTHONUNBUFFERED": "1",
         }
 
-    @property
-    def _dnn(self) -> Optional[str]:
-        """Data Network Name."""
+    def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
 
-    @property
-    def _core_network_ip(self) -> Optional[str]:
-        """IP address used by the core interface."""
+    def _get_core_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-ip")
 
-    @property
-    def _access_network_ip(self) -> Optional[str]:
-        """IP address used by the access interface."""
+    def _get_access_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-ip")
 
-    @property
-    def _core_network_gateway_ip(self) -> Optional[str]:
-        """Core network gateway IP address."""
+    def _get_core_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-gateway-ip")
 
-    @property
-    def _access_network_gateway_ip(self) -> Optional[str]:
-        """Access network gateway IP address."""
+    def _get_access_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-gateway-ip")
 
-    @property
-    def _gnb_subnet(self) -> Optional[str]:
-        """Gnodeb subnet."""
+    def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
 
 
