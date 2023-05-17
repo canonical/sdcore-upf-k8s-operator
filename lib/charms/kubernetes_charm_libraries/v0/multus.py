@@ -59,6 +59,7 @@ class YourCharm(CharmBase):
 import json
 import logging
 from dataclasses import asdict, dataclass
+from json.decoder import JSONDecodeError
 from typing import Callable, Optional
 
 import httpx
@@ -284,10 +285,14 @@ class KubernetesClient:
         if "k8s.v1.cni.cncf.io/networks" not in statefulset.spec.template.metadata.annotations:  # type: ignore[attr-defined]  # noqa: E501
             logger.info("Multus annotation not yet added to statefulset")
             return False
-        if json.loads(
-            statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"]  # type: ignore[attr-defined]  # noqa: E501
-        ) != [network_annotation.dict() for network_annotation in network_annotations]:
-            logger.info("Existing annotation are not identical to the expected ones")
+        try:
+            if json.loads(
+                statefulset.spec.template.metadata.annotations["k8s.v1.cni.cncf.io/networks"]  # type: ignore[attr-defined]  # noqa: E501
+            ) != [network_annotation.dict() for network_annotation in network_annotations]:
+                logger.info("Existing annotation are not identical to the expected ones")
+                return False
+        except JSONDecodeError:
+            logger.info("Existing annotations are not a valid json.")
             return False
         for container in statefulset.spec.template.spec.containers:  # type: ignore[attr-defined]
             if container.name in containers_requiring_net_admin_capability:
