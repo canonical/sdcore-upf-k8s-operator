@@ -145,13 +145,12 @@ class KubernetesClient:
             logger.info(f"NetworkAttachmentDefinition {name} already created")
             return True
         except ApiError as e:
-            if e.status.reason == "NotFound":
-                logger.info(f"NetworkAttachmentDefinition {name} not yet created")
-                return False
-            else:
+            if e.status.reason != "NotFound":
                 raise KubernetesMultusError(
                     f"Unexpected outcome when retrieving network attachment definition {name}"
                 )
+            logger.info(f"NetworkAttachmentDefinition {name} not yet created")
+            return False
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 raise KubernetesMultusError(
