@@ -29,6 +29,13 @@ jobs:
           sudo microk8s kubectl auth can-i create network-attachment-definitions
       - name: Run integration tests
         run: tox -vve integration
+      - name: Archive Tested Charm
+        uses: actions/upload-artifact@v3
+        if: ${{ github.ref_name == 'main' }}
+        with:
+          name: tested-charm
+          path: .tox/**/sdcore-upf_ubuntu-22.04-amd64.charm
+          retention-days: 5
       - name: Archive charmcraft logs
         if: failure()
         uses: actions/upload-artifact@v3
