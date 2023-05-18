@@ -23,7 +23,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
 from lightkube.models.meta_v1 import ObjectMeta
-from ops.charm import CharmBase, EventBase, UpdateStatusEvent
+from ops.charm import CharmBase, EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -103,12 +103,6 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(self.on.web_pebble_ready, self._configure)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._configure)
         self.framework.observe(self.on.config_changed, self._configure)
-        self.framework.observe(self.on.update_status, self._update_status)
-
-    def _update_status(self, event: UpdateStatusEvent):
-        """Sets unit status based on current state."""
-        if self.unit.status != ActiveStatus():
-            self._configure(event)
 
     def _network_annotations_from_config(self) -> list[NetworkAnnotation]:
         """Returns the list of network annotation to be added to the charm statefulset.
@@ -218,35 +212,29 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._kubernetes_multus.multus_is_configured():
             self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
-            event.defer()
             return
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `bessd` container"
             )
-            event.defer()
             return
         if not self._routectl_container.can_connect():
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `routectl` container"
             )
-            event.defer()
             return
         if not self._web_container.can_connect():
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `web` container"
             )
-            event.defer()
             return
         if not self._pfcp_agent_container.can_connect():
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `pfcp-agent` container"
             )
-            event.defer()
             return
         if not self._has_net_admin_capability():
             self.unit.status = WaitingStatus("Waiting for pod to have NET_ADMIN capability")
-            event.defer()
             return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
