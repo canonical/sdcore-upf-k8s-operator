@@ -29,39 +29,6 @@ jobs:
           sudo microk8s kubectl auth can-i create network-attachment-definitions
       - name: Run integration tests
         run: tox -vve integration
-      - name: Dump debug log
-        if: failure()
-        run: for m in $(juju models --format json | jq -r '.models[].name' | grep -v "admin/controller"); do juju debug-log -m $m --replay --ms --no-tail; done
-        shell: bash
-      - name: Dump deployments
-        if: failure()
-        run: kubectl describe deployments -A
-      - name: Dump replicasets
-        if: failure()
-        run: kubectl describe replicasets -A
-      - name: Dump pods and their logs
-        if: failure()
-        shell: bash
-        run: |
-          juju status --relations --storage
-          kubectl get pods \
-              -A \
-              -o=jsonpath='{range.items[*]}{.metadata.namespace} {.metadata.name}{"\n"}' \
-              --sort-by=.metadata.namespace \
-              | grep -v "^\s*$" \
-              | while read namespace pod; do \
-                   kubectl -n $namespace describe pod $pod; \
-                   kubectl -n $namespace logs $pod \
-                      --all-containers=true \
-                      --tail=100; \
-               done
-      - name: Archive Tested Charm
-        uses: actions/upload-artifact@v3
-        if: ${{ github.ref_name == 'main' }}
-        with:
-          name: tested-charm
-          path: .tox/**/sdcore-upf_ubuntu-22.04-amd64.charm
-          retention-days: 5
       - name: Archive charmcraft logs
         if: failure()
         uses: actions/upload-artifact@v3
