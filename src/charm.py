@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the SDCORE UPF service."""
+"""Charmed operator for the SD-Core UPF service."""
 
 import json
 import logging

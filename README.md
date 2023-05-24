@@ -1,6 +1,6 @@
 # sdcore-upf-operator
 
-Charmed Operator for SDCORE's User Plane Function (UPF). For more information, read [here](https://github.com/omec-project/upf).
+Charmed Operator for SD-Core's User Plane Function (UPF). For more information, read [here](https://github.com/omec-project/upf).
 
 ## Pre-requisites
 

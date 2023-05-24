@@ -1,7 +1,7 @@
 name: sdcore-upf
-display-name: SD-CORE 5G UPF
-summary: Charmed Operator for SD-CORE's User Plane Function (UPF).
-description: Charmed Operator for SD-CORE's User Plane Function (UPF).
+display-name: SD-Core 5G UPF
+summary: Charmed Operator for SD-Core's User Plane Function (UPF).
+description: Charmed Operator for SD-Core's User Plane Function (UPF).
 
 containers:
   bessd:
