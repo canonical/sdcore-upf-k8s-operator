@@ -31,4 +31,3 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           upload-image: "true"
           channel: "${{ steps.channel.outputs.name }}"
-          tag-prefix: magma-${{ inputs.charm }}
