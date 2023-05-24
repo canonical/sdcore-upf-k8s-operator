@@ -11,7 +11,7 @@ To get started using the library, you need to fetch the library using `charmcraf
 
 ```shell
 cd some-charm
-charmcraft fetch-lib charms.fiveg_n3.v0.fiveg_n3
+charmcraft fetch-lib charms.sdcore_upf.v0.fiveg_n3
 ```
 
 Add the following libraries to the charm's `requirements.txt` file:
@@ -22,7 +22,7 @@ Typical usage of this class would look something like:
 
     ```python
     ...
-    from charms.fiveg_n3.v0.fiveg_n3 import N3Provides
+    from charms.sdcore_upf.v0.fiveg_n3 import N3Provides
     ...
 
     class SomeProviderCharm(CharmBase):
@@ -53,7 +53,7 @@ Typical usage of this class would look something like:
 
     ```python
     ...
-    from charms.fiveg_n3.v0.fiveg_n3 import N3Requires
+    from charms.sdcore_upf.v0.fiveg_n3 import N3Requires
     ...
 
     class SomeRequirerCharm(CharmBase):

@@ -3,7 +3,7 @@
 
 import logging
 
-from charms.fiveg_n3.v0.fiveg_n3 import N3Requires
+from charms.sdcore_upf.v0.fiveg_n3 import N3Requires
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus
