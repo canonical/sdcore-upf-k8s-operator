@@ -1,4 +1,16 @@
-# sdcore-upf-operator
+<div align="center">
+  <img src="./icon.svg" alt="ONF Icon" width="200" height="200">
+</div>
+<br/>
+<div align="center">
+  <a href="https://charmhub.io/sdcore-upf"><img src="https://charmhub.io/sdcore-upf/badge.svg" alt="CharmHub Badge"></a>
+  <a href="https://github.com/canonical/sdcore-upf-operator/actions/workflows/publish-charm.yaml">
+    <img src="https://github.com/canonical/sdcore-upf-operator/actions/workflows/publish-charm.yaml/badge.svg?branch=main" alt=".github/workflows/publish-charm.yaml">
+  </a>
+  <br/>
+  <br/>
+  <h1>SD-Core UPF Operator</h1>
+</div>
 
 Charmed Operator for SD-Core's User Plane Function (UPF). For more information, read [here](https://github.com/omec-project/upf).
 
