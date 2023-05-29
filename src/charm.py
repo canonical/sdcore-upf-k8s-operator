@@ -210,7 +210,7 @@ class UPFOperatorCharm(CharmBase):
                 f"The following configurations are not valid: {invalid_configs}"
             )
             return
-        if not self._kubernetes_multus.multus_is_configured():
+        if not self._kubernetes_multus.is_ready():
             self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
             return
         if not self._bessd_container.can_connect():
@@ -232,9 +232,6 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `pfcp-agent` container"
             )
-            return
-        if not self._has_net_admin_capability():
-            self.unit.status = WaitingStatus("Waiting for pod to have NET_ADMIN capability")
             return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
@@ -286,18 +283,6 @@ class UPFOperatorCharm(CharmBase):
                 logger.info("Failed running configuration for bess")
                 time.sleep(2)
         raise TimeoutError("Timed out trying to run configuration for bess")
-
-    def _has_net_admin_capability(self) -> bool:
-        """Returns whether net_admin capability was added.
-
-        Returns:
-            bool: Whether net_admin capability was added
-        """
-        try:
-            self._exec_command_in_bessd_workload(command="capsh --has-p=cap_net_admin")
-            return True
-        except ExecError:
-            return False
 
     def _get_invalid_configs(self) -> list[str]:
         """Returns list of invalid configurations.
