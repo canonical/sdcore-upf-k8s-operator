@@ -35,3 +35,13 @@ jobs:
     with:
       charm-file-name: "sdcore-upf_ubuntu-22.04-amd64.charm"
     secrets: inherit
+
+  publish-lib:
+    name: Publish Lib
+    needs:
+      [ publish-charm ]
+    if: ${{ github.ref_name == 'main' }}
+    uses: canonical/sdcore-github-workflows/.github/workflows/publish-lib.yaml@main
+    with:
+      lib-name: "charms.sdcore_upf.v0.fiveg_n3"
+    secrets: inherit
