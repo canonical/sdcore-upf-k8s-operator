@@ -16,6 +16,7 @@ charmcraft fetch-lib charms.sdcore_upf.v0.fiveg_n3
 
 Add the following libraries to the charm's `requirements.txt` file:
 - pydantic
+- pytest-interface-tester
 
 Charms providing the `fiveg_n3` relation should use `N3Provides`.
 Typical usage of this class would look something like:
@@ -85,7 +86,7 @@ from ops.framework import EventBase, EventSource, Object
 from pydantic import BaseModel, Field, IPvAnyAddress, ValidationError
 
 # The unique Charmhub library identifier, never change it
-LIBID = "To be defined"
+LIBID = "4b9dbfa97f7849dda91d47f5cb0fa044"
 
 # Increment this major API version when introducing breaking changes
 LIBAPI = 0

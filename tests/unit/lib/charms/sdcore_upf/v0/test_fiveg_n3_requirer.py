@@ -2,9 +2,9 @@
 # See LICENSE file for licensing details.
 
 import unittest
+from unittest.mock import call, patch
 
 from ops import testing
-from ops.model import ActiveStatus
 from test_charms.test_fiveg_n3_requirer.src.charm import WhateverCharm  # type: ignore[import]
 
 
@@ -15,18 +15,23 @@ class TestN3Requires(unittest.TestCase):
         self.harness.begin()
         self.relation_name = "fiveg_n3"
 
-    def test_given_fiveg_n3_requirer_charm_when_fiveg_n3_available_then_charm_goes_to_active_status_and_the_message_contains_valid_upf_ip_address(  # noqa: E501
-        self,
+    @patch("charms.sdcore_upf.v0.fiveg_n3.N3RequirerCharmEvents.fiveg_n3_available")
+    def test_given_relation_with_n3_profider_when_fiveg_n3_available_event_then_n3_information_is_provided(  # noqa: E501
+        self, patched_fiveg_n3_available_event
     ):
         test_upf_ip = "1.2.3.4"
         relation_id = self.harness.add_relation(
             relation_name=self.relation_name, remote_app="whatever-app"
         )
         self.harness.add_relation_unit(relation_id, "whatever-app/0")
+
         self.harness.update_relation_data(
             relation_id=relation_id,
             app_or_unit="whatever-app/0",
             key_values={"upf_ip_address": test_upf_ip},
         )
 
-        self.assertEqual(self.harness.model.unit.status, ActiveStatus(test_upf_ip))
+        calls = [
+            call.emit(upf_ip_address=test_upf_ip),
+        ]
+        patched_fiveg_n3_available_event.assert_has_calls(calls)
