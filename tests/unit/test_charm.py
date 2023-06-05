@@ -532,6 +532,18 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    def test_given_unit_is_not_leader_when_fiveg_n3_request_then_upf_ip_address_is_not_published(
+        self, patched_publish_upf_information
+    ):
+        test_upf_access_ip_cidr = "1.2.3.4/21"
+        self.harness.update_config(key_values={"access-ip": test_upf_access_ip_cidr})
+
+        n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
+        self.harness.add_relation_unit(n3_relation_id, "n3_requirer_app/0")
+
+        patched_publish_upf_information.assert_not_called()
+
+    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=Mock)
