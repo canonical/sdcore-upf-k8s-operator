@@ -4,6 +4,7 @@
 
 """Charmed operator for the SD-Core UPF service."""
 
+import ipaddress
 import json
 import logging
 import time
@@ -20,12 +21,13 @@ from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ign
 from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
+from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
 from lightkube.models.meta_v1 import ObjectMeta
 from ops.charm import CharmBase, EventBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, Relation, WaitingStatus
 from ops.pebble import ExecError, Layer
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,7 @@ class UPFOperatorCharm(CharmBase):
         self._routectl_container = self.unit.get_container(self._routectl_container_name)
         self._web_container = self.unit.get_container(self._web_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
+        self.fiveg_n3_provider = N3Provides(charm=self, relation_name="fiveg_n3")
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
             jobs=[
@@ -103,6 +106,30 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(self.on.web_pebble_ready, self._configure)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._configure)
         self.framework.observe(self.on.config_changed, self._configure)
+        self.framework.observe(
+            self.fiveg_n3_provider.on.fiveg_n3_request, self._update_fiveg_n3_relation_data
+        )
+
+    def _update_fiveg_n3_relation_data(self, event: EventBase) -> None:
+        """Publishes UPF IP address in the `fiveg_n3` relation data bag.
+
+        Args:
+            event: Juju event
+        """
+        if not self._access_ip_config_is_valid():
+            self.unit.status = BlockedStatus("Invalid `access-ip` config provided")
+            return
+        upf_access_ip_address = self._get_access_network_ip_config().split("/")[0]  # type: ignore[union-attr]  # noqa: E501
+        fiveg_n3_relations = self.model.relations.get("fiveg_n3")
+        if not fiveg_n3_relations:
+            logger.info("No `fiveg_n3` relations found.")
+            return
+        for fiveg_n3_relation in fiveg_n3_relations:
+            if self._get_upf_ip_from_relation_data_bag(fiveg_n3_relation) != upf_access_ip_address:
+                self.fiveg_n3_provider.publish_upf_information(
+                    relation_id=fiveg_n3_relation.id,
+                    upf_ip_address=upf_access_ip_address,
+                )
 
     def _network_annotations_from_config(self) -> list[NetworkAnnotation]:
         """Returns the list of network annotation to be added to the charm statefulset.
@@ -125,10 +152,7 @@ class UPFOperatorCharm(CharmBase):
             ),
         ]
 
-    def _write_bessd_config_file(
-        self,
-        content: str,
-    ) -> None:
+    def _write_bessd_config_file(self, content: str) -> None:
         """Write the configuration file for the 5G UPF service.
 
         Args:
@@ -237,6 +261,7 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
             event.defer()
             return
+        self._update_fiveg_n3_relation_data(event)
         self._configure_bessd_workload()
         self._configure_routectl_workload()
         self._configure_web_workload()
@@ -293,15 +318,15 @@ class UPFOperatorCharm(CharmBase):
         invalid_configs = []
         if not self._get_dnn_config():
             invalid_configs.append("dnn")
-        if not self._get_access_network_ip_config():
+        if not self._access_ip_config_is_valid():
             invalid_configs.append("access-ip")
-        if not self._get_core_network_ip_config():
+        if not self._core_ip_config_is_valid():
             invalid_configs.append("core-ip")
-        if not self._get_access_network_gateway_ip_config():
+        if not self._access_gateway_ip_config_is_valid():
             invalid_configs.append("access-gateway-ip")
-        if not self._get_core_network_gateway_ip_config():
+        if not self._core_gateway_ip_config_is_valid():
             invalid_configs.append("core-gateway-ip")
-        if not self._get_gnb_subnet_config():
+        if not self._gnb_subnet_config_is_valid():
             invalid_configs.append("gnb-subnet")
         return invalid_configs
 
@@ -368,9 +393,7 @@ class UPFOperatorCharm(CharmBase):
             )
             self._routectl_container.restart(self._routectl_service_name)
 
-    def _configure_web_workload(
-        self,
-    ) -> None:
+    def _configure_web_workload(self) -> None:
         """Configures pebble layer for `web` container."""
         plan = self._web_container.get_plan()
         layer = self._web_pebble_layer
@@ -529,21 +552,90 @@ class UPFOperatorCharm(CharmBase):
     def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
 
+    def _core_ip_config_is_valid(self) -> bool:
+        """Checks whether the core-ip config is valid.
+
+        Returns:
+            bool: Whether the core-ip config is valid
+        """
+        return self._ip_config_is_valid("core-ip")
+
     def _get_core_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-ip")
+
+    def _access_ip_config_is_valid(self) -> bool:
+        """Checks whether the access-ip config is valid.
+
+        Returns:
+            bool: Whether the access-ip config is valid
+        """
+        return self._ip_config_is_valid("access-ip")
 
     def _get_access_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-ip")
 
+    def _core_gateway_ip_config_is_valid(self) -> bool:
+        """Checks whether the core-gateway-ip config is valid.
+
+        Returns:
+            bool: Whether the core-gateway-ip config is valid
+        """
+        return self._ip_config_is_valid("core-gateway-ip")
+
     def _get_core_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-gateway-ip")
+
+    def _access_gateway_ip_config_is_valid(self) -> bool:
+        """Checks whether the access-gateway-ip config is valid.
+
+        Returns:
+            bool: Whether the access-gateway-ip config is valid
+        """
+        return self._ip_config_is_valid("access-gateway-ip")
 
     def _get_access_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-gateway-ip")
 
+    def _gnb_subnet_config_is_valid(self) -> bool:
+        """Checks whether the gnb-subnet config is valid.
+
+        Returns:
+            bool: Whether the gnb-subnet config is valid
+        """
+        return self._ip_config_is_valid("gnb-subnet")
+
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
 
+    def _ip_config_is_valid(self, config_name: str) -> bool:
+        """Check whether given IP config is valid.
 
-if __name__ == "__main__":
+        Args:
+            config_name (str): Config parameter name
+
+        Returns:
+            bool: True if given IP config_name is valid
+        """
+        try:
+            ipaddress.ip_network(self.model.config.get(config_name), strict=False)  # type: ignore[arg-type]  # noqa: E501
+            return True
+        except ValueError:
+            return False
+
+    def _get_upf_ip_from_relation_data_bag(self, relation: Relation) -> Optional[str]:
+        """Gets UPF IP address from the relation data.
+
+        Args:
+            relation: Juju relation
+
+        Returns:
+            str: UPF IP address
+        """
+        try:
+            return relation.data[self.app]["upf_ip_address"]
+        except KeyError:
+            return None
+
+
+if __name__ == "__main__":  # pragma: no cover
     main(UPFOperatorCharm)

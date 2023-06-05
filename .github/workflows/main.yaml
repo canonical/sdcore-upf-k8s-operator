@@ -36,10 +36,24 @@ jobs:
       charm-file-name: "sdcore-upf_ubuntu-22.04-amd64.charm"
     secrets: inherit
 
+  lib-needs-publishing:
+    runs-on: ubuntu-22.04
+    outputs:
+      needs-publishing: ${{ steps.changes.outputs.fiveg_n3 }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            fiveg_n3:
+              - 'lib/charms/sdcore_upf/v0/fiveg_n3.py'
+
   publish-lib:
     name: Publish Lib
     needs:
-      [ publish-charm ]
+      - publish-charm
+      - lib-needs-publishing
     if: ${{ github.ref_name == 'main' }}
     uses: canonical/sdcore-github-workflows/.github/workflows/publish-lib.yaml@main
     with:

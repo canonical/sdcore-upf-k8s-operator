@@ -57,6 +57,8 @@ storage:
     minimum-size: 1M
 
 provides:
+  fiveg_n3:
+    interface: fiveg_n3
   metrics-endpoint:
     interface: prometheus_scrape
 
