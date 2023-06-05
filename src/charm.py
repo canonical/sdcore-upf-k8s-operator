@@ -116,6 +116,8 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: Juju event
         """
+        if not self.unit.is_leader():
+            return
         if not self._access_ip_config_is_valid():
             self.unit.status = BlockedStatus("Invalid `access-ip` config provided")
             return
@@ -125,11 +127,10 @@ class UPFOperatorCharm(CharmBase):
             logger.info("No `fiveg_n3` relations found.")
             return
         for fiveg_n3_relation in fiveg_n3_relations:
-            if self._get_upf_ip_from_relation_data_bag(fiveg_n3_relation) != upf_access_ip_address:
-                self.fiveg_n3_provider.publish_upf_information(
-                    relation_id=fiveg_n3_relation.id,
-                    upf_ip_address=upf_access_ip_address,
-                )
+            self.fiveg_n3_provider.publish_upf_information(
+                relation_id=fiveg_n3_relation.id,
+                upf_ip_address=upf_access_ip_address,
+            )
 
     def _network_annotations_from_config(self) -> list[NetworkAnnotation]:
         """Returns the list of network annotation to be added to the charm statefulset.
