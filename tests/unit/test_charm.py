@@ -515,3 +515,84 @@ class TestCharm(unittest.TestCase):
         self.harness.charm._configure(event=Mock())
 
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
+
+    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    def test_given_fiveg_n3_relation_created_when_fiveg_n3_request_then_upf_ip_address_is_published(  # noqa: E501
+        self, patched_publish_upf_information
+    ):
+        self.harness.set_leader(is_leader=True)
+        test_upf_access_ip_cidr = "1.2.3.4/21"
+        self.harness.update_config(key_values={"access-ip": test_upf_access_ip_cidr})
+
+        n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
+        self.harness.add_relation_unit(n3_relation_id, "n3_requirer_app/0")
+
+        patched_publish_upf_information.assert_called_once_with(
+            relation_id=n3_relation_id, upf_ip_address=test_upf_access_ip_cidr.split("/")[0]
+        )
+
+    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    def test_given_unit_is_not_leader_when_fiveg_n3_request_then_upf_ip_address_is_not_published(
+        self, patched_publish_upf_information
+    ):
+        test_upf_access_ip_cidr = "1.2.3.4/21"
+        self.harness.update_config(key_values={"access-ip": test_upf_access_ip_cidr})
+
+        n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
+        self.harness.add_relation_unit(n3_relation_id, "n3_requirer_app/0")
+
+        patched_publish_upf_information.assert_not_called()
+
+    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch("ops.model.Container.push", new=Mock)
+    @patch("ops.model.Container.exec", new=Mock)
+    @patch("ops.model.Container.pull", new=Mock)
+    @patch("ops.model.Container.exists")
+    def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_then_new_upf_ip_address_is_published(  # noqa: E501
+        self, patch_exists, patch_multus_is_ready, patched_publish_upf_information
+    ):
+        patch_exists.return_value = True
+        patch_multus_is_ready.return_value = True
+        self.harness.set_can_connect(container="bessd", val=True)
+        self.harness.set_can_connect(container="routectl", val=True)
+        self.harness.set_can_connect(container="web", val=True)
+        self.harness.set_can_connect(container="pfcp-agent", val=True)
+        self.harness.set_leader(is_leader=True)
+        n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
+        self.harness.add_relation_unit(n3_relation_id, "n3_requirer_app/0")
+        test_upf_access_ip_cidr = "1.2.3.4/21"
+        expected_calls = [
+            call(relation_id=n3_relation_id, upf_ip_address="192.168.252.3"),
+            call(relation_id=n3_relation_id, upf_ip_address=test_upf_access_ip_cidr.split("/")[0]),
+        ]
+
+        self.harness.update_config(key_values={"access-ip": test_upf_access_ip_cidr})
+
+        patched_publish_upf_information.assert_has_calls(expected_calls)
+
+    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch("ops.model.Container.push", new=Mock)
+    @patch("ops.model.Container.exec", new=Mock)
+    @patch("ops.model.Container.pull", new=Mock)
+    @patch("ops.model.Container.exists")
+    def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_to_invalid_cidr_then_new_upf_ip_address_is_not_published(  # noqa: E501
+        self, patch_exists, patch_multus_is_ready, patched_publish_upf_information
+    ):
+        patch_exists.return_value = True
+        patch_multus_is_ready.return_value = True
+        self.harness.set_can_connect(container="bessd", val=True)
+        self.harness.set_can_connect(container="routectl", val=True)
+        self.harness.set_can_connect(container="web", val=True)
+        self.harness.set_can_connect(container="pfcp-agent", val=True)
+        self.harness.set_leader(is_leader=True)
+        n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
+        self.harness.add_relation_unit(n3_relation_id, "n3_requirer_app/0")
+        invalid_test_upf_access_ip_cidr = "1111.2.3.4/21"
+
+        self.harness.update_config(key_values={"access-ip": invalid_test_upf_access_ip_cidr})
+
+        patched_publish_upf_information.assert_called_once_with(
+            relation_id=n3_relation_id, upf_ip_address="192.168.252.3"
+        )
