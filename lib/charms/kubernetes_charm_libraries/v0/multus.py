@@ -4,7 +4,7 @@
 """Charm Library used to leverage the Multus Kubernetes CNI in charms.
 
 - On config-changed, it will:
-  - Create the requested network attachment definitions
+  - Configure the requested network attachment definitions
   - Patch the statefulset with the necessary annotations for the container to have interfaces
     that use those new network attachments.
 - On charm removal, it will:
@@ -14,7 +14,7 @@
 
 ```python
 
-from kubernetes_multus import (
+from charms.kubernetes_charm_libraries.v0.multus import (
     KubernetesMultusCharmLib,
     NetworkAttachmentDefinition,
     NetworkAnnotation
@@ -26,31 +26,41 @@ class YourCharm(CharmBase):
         super().__init__(*args)
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
-            containers_requiring_net_admin_capability=[self._bessd_container_name],
-            network_attachment_definitions=[
-                NetworkAttachmentDefinition(
-                    metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                    spec=network_attachment_definition_spec,
-                ),
-                NetworkAttachmentDefinition(
-                    metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                    spec=network_attachment_definition_spec,
-                ),
+            network_attachment_definitions_func=self._get_network_attachment_definitions_from_config,
+            network_annotations=[
+                NetworkAnnotation(
+                    name=NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=INTERFACE_NAME,
+                )
             ],
-            network_annotations_func=self._network_annotations_from_config,
         )
 
-    def _network_annotations_from_config(self) -> list[NetworkAnnotation]:
+    def _get_network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         return [
-            NetworkAnnotation(
-                name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                interface=ACCESS_INTERFACE_NAME,
-                ips=[self._get_access_network_ip_config()],
-            ),
-            NetworkAnnotation(
-                name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                interface=CORE_INTERFACE_NAME,
-                ips=[self._get_core_network_ip_config()],
+            NetworkAttachmentDefinition(
+                metadata=ObjectMeta(name=NETWORK_ATTACHMENT_DEFINITION_NAME),
+                spec={
+                    "config": json.dumps(
+                        {
+                            "cniVersion": "0.3.1",
+                            "type": "macvlan",
+                            "ipam": {
+                                "type": "static",
+                                "routes": [
+                                    {
+                                        "dst": self._get_upf_ip_address_from_config(),
+                                        "gw": self._get_upf_gateway_from_config(),
+                                    }
+                                ],
+                                "addresses": [
+                                    {
+                                        "address": self._get_interface_ip_address_from_config(),
+                                    }
+                                ],
+                            },
+                        }
+                    )
+                },
             ),
         ]
 ```
@@ -89,17 +99,25 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 
 logger = logging.getLogger(__name__)
 
-NetworkAttachmentDefinition = create_namespaced_resource(
+_NetworkAttachmentDefinition = create_namespaced_resource(
     group="k8s.cni.cncf.io",
     version="v1",
     kind="NetworkAttachmentDefinition",
     plural="network-attachment-definitions",
 )
+
+
+class NetworkAttachmentDefinition(_NetworkAttachmentDefinition):  # type: ignore[valid-type, misc]
+    """Object to represent Kubernetes Multus NetworkAttachmentDefinition."""
+
+    def __eq__(self, other):
+        """Validates equality between two NetworkAttachmentDefinitions object."""
+        return self.metadata.name == other.metadata.name and self.spec == other.spec
 
 
 @dataclass
@@ -108,7 +126,6 @@ class NetworkAnnotation:
 
     name: str
     interface: str
-    ips: Optional[list] = None
 
     dict = asdict
 
@@ -167,29 +184,30 @@ class KubernetesClient:
                     return False
         return True
 
-    def network_attachment_definition_is_created(self, name: str) -> bool:
+    def network_attachment_definition_is_created(
+        self, network_attachment_definition: NetworkAttachmentDefinition
+    ) -> bool:
         """Returns whether a NetworkAttachmentDefinition is created.
 
         Args:
-            name: NetworkAttachmentDefinition name
+            network_attachment_definition: NetworkAttachmentDefinition
 
         Returns:
             bool: Whether the NetworkAttachmentDefinition is created
         """
         try:
-            self.client.get(
+            existing_nad = self.client.get(
                 res=NetworkAttachmentDefinition,
-                name=name,
+                name=network_attachment_definition.metadata.name,
                 namespace=self.namespace,
             )
-            logger.info(f"NetworkAttachmentDefinition {name} already created")
-            return True
+            return existing_nad == network_attachment_definition
         except ApiError as e:
             if e.status.reason != "NotFound":
                 raise KubernetesMultusError(
-                    f"Unexpected outcome when retrieving network attachment definition {name}"
+                    f"Unexpected outcome when retrieving NetworkAttachmentDefinition "
+                    f"{network_attachment_definition.metadata.name}"
                 )
-            logger.info(f"NetworkAttachmentDefinition {name} not yet created")
             return False
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
@@ -199,7 +217,8 @@ class KubernetesClient:
                 )
             else:
                 raise KubernetesMultusError(
-                    f"Unexpected outcome when retrieving network attachment definition {name}"
+                    f"Unexpected outcome when retrieving NetworkAttachmentDefinition "
+                    f"{network_attachment_definition.metadata.name}"
                 )
 
     def create_network_attachment_definition(
@@ -220,6 +239,19 @@ class KubernetesClient:
         logger.info(
             f"NetworkAttachmentDefinition {network_attachment_definition.metadata.name} created"  # type: ignore[union-attr]  # noqa: E501, W505
         )
+
+    def list_network_attachment_definitions(self) -> list[NetworkAttachmentDefinition]:
+        """Lists NetworkAttachmentDefinitions in a given namespace.
+
+        Returns:
+            list[NetworkAttachmentDefinition]: List of NetworkAttachmentDefinitions
+        """
+        try:
+            return list(
+                self.client.list(res=NetworkAttachmentDefinition, namespace=self.namespace)
+            )
+        except ApiError:
+            raise KubernetesMultusError("Could not list NetworkAttachmentDefinitions")
 
     def delete_network_attachment_definition(self, name: str) -> None:
         """Deletes network attachment definition based on name.
@@ -350,24 +382,24 @@ class KubernetesMultusCharmLib(Object):
     def __init__(
         self,
         charm: CharmBase,
-        network_attachment_definitions: list[GenericNamespacedResource],
-        network_annotations_func: Callable[[], list[NetworkAnnotation]],
+        network_attachment_definitions_func: Callable[[], list[NetworkAttachmentDefinition]],
+        network_annotations: list[NetworkAnnotation],
         containers_requiring_net_admin_capability: Optional[list[str]] = None,
     ):
         """Constructor for the KubernetesMultusCharmLib.
 
         Args:
             charm: Charm object
-            network_attachment_definitions: List of `NetworkAttachmentDefinition` to be created.
-            network_annotations_func: A callable to a function returning a list of
-                NetworkAnnotation.
+            network_attachment_definitions_func: A callable to a function returning a list of
+              `NetworkAttachmentDefinition` to be created.
+            network_annotations: List of NetworkAnnotation.
             containers_requiring_net_admin_capability: List of containers requiring the "NET_ADMIN"
                 capability.
         """
         super().__init__(charm, "kubernetes-multus")
         self.kubernetes = KubernetesClient(namespace=self.model.name)
-        self.network_attachment_definitions = network_attachment_definitions
-        self.network_annotations_func = network_annotations_func
+        self.network_attachment_definitions_func = network_attachment_definitions_func
+        self.network_annotations = network_annotations
         self.containers_requiring_net_admin_capability = (
             containers_requiring_net_admin_capability
             if containers_requiring_net_admin_capability
@@ -382,25 +414,66 @@ class KubernetesMultusCharmLib(Object):
         Args:
             event: EventBase
         """
-        for network_attachment_definition in self.network_attachment_definitions:
-            if not self.kubernetes.network_attachment_definition_is_created(
-                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
-            ):
-                self.kubernetes.create_network_attachment_definition(
-                    network_attachment_definition=network_attachment_definition
-                )
+        self._configure_network_attachment_definitions()
         if not self._statefulset_is_patched():
             self.kubernetes.patch_statefulset(
                 name=self.model.app.name,
-                network_annotations=self.network_annotations_func(),
+                network_annotations=self.network_annotations,
                 containers_requiring_net_admin_capability=self.containers_requiring_net_admin_capability,  # noqa: E501
+            )
+
+    def _network_attachment_definition_created_by_charm(
+        self, network_attachment_definition: NetworkAttachmentDefinition
+    ) -> bool:
+        """Returns whether a given NetworkAttachmentDefinitions was created by this charm."""
+        labels = network_attachment_definition.metadata.labels
+        if not labels:
+            return False
+        if "app.juju.is/created-by" not in labels:
+            return False
+        if labels["app.juju.is/created-by"] != self.model.app.name:
+            return False
+        return True
+
+    def _configure_network_attachment_definitions(self):
+        """Configures NetworkAttachmentDefinitions in Kubernetes.
+
+        1. Goes through the list of existing NetworkAttachmentDefinitions in Kubernetes.
+        - If it was created by this charm:
+          - If it is in the list of NetworkAttachmentDefinitions to create, remove it from the
+            list of NetworkAttachmentDefinitions to create
+          - Else, delete it
+        2. Goes through the list of NetworkAttachmentDefinitions to create and create them all
+        """
+        network_attachment_definitions_to_create = self.network_attachment_definitions_func()
+        for (
+            existing_network_attachment_definition
+        ) in self.kubernetes.list_network_attachment_definitions():
+            if self._network_attachment_definition_created_by_charm(
+                existing_network_attachment_definition
+            ):
+                if (
+                    existing_network_attachment_definition
+                    not in network_attachment_definitions_to_create
+                ):
+                    self.kubernetes.delete_network_attachment_definition(
+                        name=existing_network_attachment_definition.metadata.name
+                    )
+                else:
+                    network_attachment_definitions_to_create.remove(
+                        existing_network_attachment_definition
+                    )
+
+        for network_attachment_definition_to_create in network_attachment_definitions_to_create:
+            self.kubernetes.create_network_attachment_definition(
+                network_attachment_definition=network_attachment_definition_to_create
             )
 
     def _network_attachment_definitions_are_created(self) -> bool:
         """Returns whether all network attachment definitions are created."""
-        for network_attachment_definition in self.network_attachment_definitions:
+        for network_attachment_definition in self.network_attachment_definitions_func():
             if not self.kubernetes.network_attachment_definition_is_created(
-                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
+                network_attachment_definition=network_attachment_definition
             ):
                 return False
         return True
@@ -409,7 +482,7 @@ class KubernetesMultusCharmLib(Object):
         """Returns whether statefuset is patched with network annotations and capabilities."""
         return self.kubernetes.statefulset_is_patched(
             name=self.model.app.name,
-            network_annotations=self.network_annotations_func(),
+            network_annotations=self.network_annotations,
             containers_requiring_net_admin_capability=self.containers_requiring_net_admin_capability,  # noqa: E501
         )
 
@@ -418,7 +491,7 @@ class KubernetesMultusCharmLib(Object):
         return self.kubernetes.pod_is_ready(
             containers_requiring_net_admin_capability=self.containers_requiring_net_admin_capability,  # noqa: E501
             pod_name=self._pod,
-            network_annotations=self.network_annotations_func(),
+            network_annotations=self.network_annotations,
         )
 
     def is_ready(self) -> bool:
@@ -431,11 +504,10 @@ class KubernetesMultusCharmLib(Object):
         Returns:
             bool: Whether Multus is ready
         """
-        return (
-            self._network_attachment_definitions_are_created()
-            and self._statefulset_is_patched()  # noqa: W503
-            and self._pod_is_ready()  # noqa: W503
-        )
+        nad_are_created = self._network_attachment_definitions_are_created()
+        satefulset_is_patched = self._statefulset_is_patched()
+        pod_is_ready = self._pod_is_ready()
+        return nad_are_created and satefulset_is_patched and pod_is_ready
 
     @property
     def _pod(self) -> str:
@@ -452,9 +524,9 @@ class KubernetesMultusCharmLib(Object):
         Args:
             event: RemoveEvent
         """
-        for network_attachment_definition in self.network_attachment_definitions:
+        for network_attachment_definition in self.network_attachment_definitions_func():
             if self.kubernetes.network_attachment_definition_is_created(
-                name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
+                network_attachment_definition=network_attachment_definition
             ):
                 self.kubernetes.delete_network_attachment_definition(
                     name=network_attachment_definition.metadata.name  # type: ignore[union-attr]

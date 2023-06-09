@@ -8,26 +8,22 @@ import ipaddress
 import json
 import logging
 import time
-from typing import Optional
+from typing import Optional, Union
 
-from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
+from charms.kubernetes_charm_libraries.v0.multus import (
     KubernetesMultusCharmLib,
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
-from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]
-    KubernetesServicePatch,
-)
-from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
-    MetricsEndpointProvider,
-)
+from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
 from lightkube.models.meta_v1 import ObjectMeta
-from ops.charm import CharmBase, EventBase
+from ops.charm import CharmBase, ConfigChangedEvent, PebbleReadyEvent, EventBase
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, Relation, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
 logger = logging.getLogger(__name__)
@@ -76,36 +72,26 @@ class UPFOperatorCharm(CharmBase):
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
-        network_attachment_definition_spec = {
-            "config": json.dumps(
-                {
-                    "cniVersion": "0.3.1",
-                    "type": "macvlan",
-                    "ipam": {"type": "static"},
-                    "capabilities": {"mac": True},
-                }
-            )
-        }
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             containers_requiring_net_admin_capability=[self._bessd_container_name],
-            network_attachment_definitions=[
-                NetworkAttachmentDefinition(
-                    metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                    spec=network_attachment_definition_spec,
+            network_annotations=[
+                NetworkAnnotation(
+                    name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=ACCESS_INTERFACE_NAME,
                 ),
-                NetworkAttachmentDefinition(
-                    metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                    spec=network_attachment_definition_spec,
+                NetworkAnnotation(
+                    name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=CORE_INTERFACE_NAME,
                 ),
             ],
-            network_annotations_func=self._network_annotations_from_config,
+            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
         )
-        self.framework.observe(self.on.bessd_pebble_ready, self._configure)
-        self.framework.observe(self.on.routectl_pebble_ready, self._configure)
-        self.framework.observe(self.on.web_pebble_ready, self._configure)
-        self.framework.observe(self.on.pfcp_agent_pebble_ready, self._configure)
-        self.framework.observe(self.on.config_changed, self._configure)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
+        self.framework.observe(self.on.routectl_pebble_ready, self._on_routectl_pebble_ready)
+        self.framework.observe(self.on.web_pebble_ready, self._on_web_pebble_ready)
+        self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._update_fiveg_n3_relation_data
         )
@@ -132,24 +118,55 @@ class UPFOperatorCharm(CharmBase):
                 upf_ip_address=upf_access_ip_address,
             )
 
-    def _network_annotations_from_config(self) -> list[NetworkAnnotation]:
-        """Returns the list of network annotation to be added to the charm statefulset.
+    def _on_config_changed(self, event: ConfigChangedEvent) -> None:
+        if not self._bessd_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
+            event.defer()
+            return
+        self._on_bessd_pebble_ready(event)
+        self._on_pfcp_agent_pebble_ready(event)
 
-        Annotations use configuration values provided in the Juju config.
-
-        Returns:
-            List: List of NetworkAnnotation objects.
-        """
+    def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         return [
-            NetworkAnnotation(
-                name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                interface=ACCESS_INTERFACE_NAME,
-                ips=[self._get_access_network_ip_config()],
+            NetworkAttachmentDefinition(
+                metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                spec={
+                    "config": json.dumps(
+                        {
+                            "cniVersion": "0.3.1",
+                            "type": "macvlan",
+                            "ipam": {
+                                "type": "static",
+                                "addresses": [
+                                    {
+                                        "address": self._get_access_network_ip_config(),
+                                    }
+                                ],
+                            },
+                            "capabilities": {"mac": True},
+                        }
+                    )
+                },
             ),
-            NetworkAnnotation(
-                name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                interface=CORE_INTERFACE_NAME,
-                ips=[self._get_core_network_ip_config()],
+            NetworkAttachmentDefinition(
+                metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
+                spec={
+                    "config": json.dumps(
+                        {
+                            "cniVersion": "0.3.1",
+                            "type": "macvlan",
+                            "ipam": {
+                                "type": "static",
+                                "addresses": [
+                                    {
+                                        "address": self._get_core_network_ip_config(),
+                                    }
+                                ],
+                            },
+                            "capabilities": {"mac": True},
+                        }
+                    )
+                },
             ),
         ]
 
@@ -205,11 +222,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether the bessd config file was written
         """
-        if not self._bessd_container.exists(
+        return self._bessd_container.exists(
             path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
-        ):
-            return False
-        return True
+        )
 
     def _bessd_config_file_content_matches(self, content: str) -> bool:
         """Returns whether the bessd config file content matches the provided content.
@@ -224,49 +239,17 @@ class UPFOperatorCharm(CharmBase):
             return False
         return True
 
-    def _configure(self, event: EventBase) -> None:
-        """Handles events for configuring workloads.
-
-        Args:
-            event: EventBase
-        """
-        if invalid_configs := self._get_invalid_configs():
-            self.unit.status = BlockedStatus(
-                f"The following configurations are not valid: {invalid_configs}"
-            )
-            return
-        if not self._kubernetes_multus.is_ready():
-            self.unit.status = WaitingStatus("Waiting for statefulset to be patched")
-            return
+    def _on_bessd_pebble_ready(self, event: Union[PebbleReadyEvent, ConfigChangedEvent]) -> None:
+        """Handle Pebble ready event."""
         if not self._bessd_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `bessd` container"
-            )
-            return
-        if not self._routectl_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `routectl` container"
-            )
-            return
-        if not self._web_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `web` container"
-            )
-            return
-        if not self._pfcp_agent_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `pfcp-agent` container"
-            )
-            return
-        if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
-            self.unit.status = WaitingStatus("Waiting for storage to be attached")
+            self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
             event.defer()
             return
-        self._update_fiveg_n3_relation_data(event)
+        if not self._kubernetes_multus.is_ready():
+            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
+            event.defer()
+            return
         self._configure_bessd_workload()
-        self._configure_routectl_workload()
-        self._configure_web_workload()
-        self._configure_pfcp_agent_workoad()
         self._set_unit_status()
 
     def _configure_bessd_workload(self) -> None:
@@ -286,12 +269,11 @@ class UPFOperatorCharm(CharmBase):
             content=content
         ):
             self._write_bessd_config_file(content=content)
+        self._create_ip_tables_rule()
         self._create_access_route()
         self._create_core_route()
-        if not self._ip_tables_rule_exists():
-            self._create_ip_tables_rule()
         self._bessd_container.add_layer("upf", self._bessd_pebble_layer, combine=True)
-        self._bessd_container.restart(self._bessd_service_name)
+        self._bessd_container.replan()
         self._run_bess_configuration()
 
     def _run_bess_configuration(self) -> None:
@@ -319,54 +301,17 @@ class UPFOperatorCharm(CharmBase):
         invalid_configs = []
         if not self._get_dnn_config():
             invalid_configs.append("dnn")
-        if not self._access_ip_config_is_valid():
+        if not self._get_access_network_ip_config():
             invalid_configs.append("access-ip")
-        if not self._core_ip_config_is_valid():
+        if not self._get_core_network_ip_config():
             invalid_configs.append("core-ip")
-        if not self._access_gateway_ip_config_is_valid():
+        if not self._get_access_network_gateway_ip_config():
             invalid_configs.append("access-gateway-ip")
-        if not self._core_gateway_ip_config_is_valid():
+        if not self._get_core_network_gateway_ip_config():
             invalid_configs.append("core-gateway-ip")
-        if not self._gnb_subnet_config_is_valid():
+        if not self._get_gnb_subnet_config():
             invalid_configs.append("gnb-subnet")
         return invalid_configs
-
-    def _create_access_route(self) -> None:
-        """Creates ip route towards access network."""
-        self._exec_command_in_bessd_workload(
-            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_access_network_gateway_ip_config()}"  # noqa: E501
-        )
-        logger.info("Access network route created")
-
-    def _create_core_route(self) -> None:
-        """Creates ip route towards core network."""
-        self._exec_command_in_bessd_workload(
-            command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
-        )
-        logger.info("Core network route created")
-
-    def _ip_tables_rule_exists(self) -> bool:
-        """Returns whether iptables rule already exists using the `--check` parameter.
-
-        Returns:
-            bool: Whether iptables rule exists
-        """
-        try:
-            self._exec_command_in_bessd_workload(
-                command="iptables --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
-            )
-            logger.info("Iptables rule already exists")
-            return True
-        except ExecError:
-            logger.info("Iptables rule doesn't exist")
-            return False
-
-    def _create_ip_tables_rule(self) -> None:
-        """Creates iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
-        self._exec_command_in_bessd_workload(
-            command="iptables -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
-        )
-        logger.info("Iptables rule for ICMP created")
 
     def _exec_command_in_bessd_workload(
         self, command: str, environment: Optional[dict] = None
@@ -384,33 +329,77 @@ class UPFOperatorCharm(CharmBase):
         )
         return process.wait_output()
 
-    def _configure_routectl_workload(self) -> None:
-        """Configures pebble layer for routectl container."""
-        plan = self._routectl_container.get_plan()
-        layer = self._routectl_pebble_layer
-        if plan.services != layer.services:
-            self._routectl_container.add_layer(
-                "routectl", self._routectl_pebble_layer, combine=True
-            )
-            self._routectl_container.restart(self._routectl_service_name)
+    def _create_access_route(self) -> None:
+        self._exec_command_in_bessd_workload(
+            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_access_network_gateway_ip_config()}"  # noqa: E501
+        )
+        logger.info("Added route for access")
 
-    def _configure_web_workload(self) -> None:
-        """Configures pebble layer for `web` container."""
-        plan = self._web_container.get_plan()
-        layer = self._web_pebble_layer
-        if plan.services != layer.services:
-            self._web_container.add_layer("web", self._web_pebble_layer, combine=True)
-            self._web_container.restart(self._web_service_name)
+    def _create_core_route(self) -> None:
+        self._exec_command_in_bessd_workload(
+            command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
+        )
+        logger.info("Added route for core")
 
-    def _configure_pfcp_agent_workoad(self) -> None:
-        """Configures pebble layer for `pfcp-agent` container."""
-        plan = self._pfcp_agent_container.get_plan()
-        layer = self._pfcp_agent_pebble_layer
-        if plan.services != layer.services:
-            self._pfcp_agent_container.add_layer(
-                "pfcp", self._pfcp_agent_pebble_layer, combine=True
-            )
-            self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
+    def _create_ip_tables_rule(self) -> None:
+        self._exec_command_in_bessd_workload(
+            command="iptables -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+        )
+        logger.info("Iptables rule for ICMP created")
+
+    def _on_routectl_pebble_ready(self, event: PebbleReadyEvent) -> None:
+        """Handle routectl Pebble ready event."""
+        if not self._routectl_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for routectl container to be ready")
+            event.defer()
+            return
+        if not self._kubernetes_multus.is_ready():
+            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
+            event.defer()
+            return
+        self._routectl_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
+        self._routectl_container.replan()
+        self._set_unit_status()
+
+    def _on_web_pebble_ready(self, event: PebbleReadyEvent) -> None:
+        """Handle web Pebble ready event."""
+        if not self._web_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for web container to be ready")
+            event.defer()
+            return
+        if not self._kubernetes_multus.is_ready():
+            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
+            event.defer()
+            return
+        self._web_container.add_layer("web", self._web_pebble_layer, combine=True)
+        self._web_container.replan()
+        self._set_unit_status()
+
+    def _on_pfcp_agent_pebble_ready(
+        self, event: Union[PebbleReadyEvent, ConfigChangedEvent]
+    ) -> None:
+        """Handle pfcp agent Pebble ready event."""
+        if not self._pfcp_agent_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
+            event.defer()
+            return
+        if not self._bessd_config_file_is_written():
+            self.unit.status = WaitingStatus("Waiting for config file to be written")
+            event.defer()
+            return
+        if not self._service_is_running_on_container(
+            self._bessd_container, self._bessd_service_name
+        ):
+            self.unit.status = WaitingStatus("Waiting for bessd service to be running")
+            event.defer()
+            return
+        if not self._kubernetes_multus.is_ready():
+            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
+            event.defer()
+            return
+        self._pfcp_agent_container.add_layer("pfcp", self._pfcp_agent_pebble_layer, combine=True)
+        self._pfcp_agent_container.replan()
+        self._set_unit_status()
 
     def _set_unit_status(self) -> None:
         """Set the unit status based on config and container services running."""
@@ -553,14 +542,6 @@ class UPFOperatorCharm(CharmBase):
     def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
 
-    def _core_ip_config_is_valid(self) -> bool:
-        """Checks whether the core-ip config is valid.
-
-        Returns:
-            bool: Whether the core-ip config is valid
-        """
-        return self._ip_config_is_valid("core-ip")
-
     def _get_core_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-ip")
 
@@ -575,35 +556,11 @@ class UPFOperatorCharm(CharmBase):
     def _get_access_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-ip")
 
-    def _core_gateway_ip_config_is_valid(self) -> bool:
-        """Checks whether the core-gateway-ip config is valid.
-
-        Returns:
-            bool: Whether the core-gateway-ip config is valid
-        """
-        return self._ip_config_is_valid("core-gateway-ip")
-
     def _get_core_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-gateway-ip")
 
-    def _access_gateway_ip_config_is_valid(self) -> bool:
-        """Checks whether the access-gateway-ip config is valid.
-
-        Returns:
-            bool: Whether the access-gateway-ip config is valid
-        """
-        return self._ip_config_is_valid("access-gateway-ip")
-
     def _get_access_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-gateway-ip")
-
-    def _gnb_subnet_config_is_valid(self) -> bool:
-        """Checks whether the gnb-subnet config is valid.
-
-        Returns:
-            bool: Whether the gnb-subnet config is valid
-        """
-        return self._ip_config_is_valid("gnb-subnet")
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
@@ -618,24 +575,11 @@ class UPFOperatorCharm(CharmBase):
             bool: True if given IP config_name is valid
         """
         try:
-            ipaddress.ip_network(self.model.config.get(config_name), strict=False)  # type: ignore[arg-type]  # noqa: E501
+            ipaddress.ip_network(self.model.config.get(config_name),
+                                 strict=False)  # type: ignore[arg-type]  # noqa: E501
             return True
         except ValueError:
             return False
-
-    def _get_upf_ip_from_relation_data_bag(self, relation: Relation) -> Optional[str]:
-        """Gets UPF IP address from the relation data.
-
-        Args:
-            relation: Juju relation
-
-        Returns:
-            str: UPF IP address
-        """
-        try:
-            return relation.data[self.app]["upf_ip_address"]
-        except KeyError:
-            return None
 
 
 if __name__ == "__main__":  # pragma: no cover
