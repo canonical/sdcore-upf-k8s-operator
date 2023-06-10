@@ -315,11 +315,11 @@ class UPFOperatorCharm(CharmBase):
             invalid_configs.append("access-ip")
         if not self._core_ip_is_valid():
             invalid_configs.append("core-ip")
-        if not self._get_access_network_gateway_ip_config():
+        if not self._access_gateway_ip_config_is_valid():
             invalid_configs.append("access-gateway-ip")
-        if not self._get_core_network_gateway_ip_config():
+        if not self._core_gateway_ip_config_is_valid():
             invalid_configs.append("core-gateway-ip")
-        if not self._get_gnb_subnet_config():
+        if not self._gnb_subnet_config_is_valid():
             invalid_configs.append("gnb-subnet")
         return invalid_configs
 
@@ -488,9 +488,6 @@ class UPFOperatorCharm(CharmBase):
     def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
 
-    def _get_core_network_ip_config(self) -> Optional[str]:
-        return self.model.config.get("core-ip")
-
     def _access_ip_is_valid(self) -> bool:
         """Checks whether the access-ip config is valid.
 
@@ -502,25 +499,61 @@ class UPFOperatorCharm(CharmBase):
             return False
         return ip_is_valid(access_ip)
 
+    def _get_access_network_ip_config(self) -> Optional[str]:
+        return self.model.config.get("access-ip")
+
     def _core_ip_is_valid(self) -> bool:
-        """Checks whether the access-ip config is valid.
+        """Checks whether the core-ip config is valid.
 
         Returns:
-            bool: Whether the access-ip config is valid
+            bool: Whether the core-ip config is valid
         """
-        core_ip = self._get_access_network_ip_config()
+        core_ip = self._get_core_network_ip_config()
         if not core_ip:
             return False
         return ip_is_valid(core_ip)
 
-    def _get_access_network_ip_config(self) -> Optional[str]:
-        return self.model.config.get("access-ip")
+    def _get_core_network_ip_config(self) -> Optional[str]:
+        return self.model.config.get("core-ip")
+
+    def _access_gateway_ip_config_is_valid(self) -> bool:
+        """Checks whether the access-gateway-ip config is valid.
+
+        Returns:
+            bool: Whether the access-gateway-ip config is valid
+        """
+        access_gateway_ip = self._get_access_network_gateway_ip_config()
+        if not access_gateway_ip:
+            return False
+        return ip_is_valid(access_gateway_ip)
+
+    def _get_access_network_gateway_ip_config(self) -> Optional[str]:
+        return self.model.config.get("access-gateway-ip")
+
+    def _core_gateway_ip_config_is_valid(self) -> bool:
+        """Checks whether the core-gateway-ip config is valid.
+
+        Returns:
+            bool: Whether the core-gateway-ip config is valid
+        """
+        core_gateway_ip = self._get_core_network_gateway_ip_config()
+        if not core_gateway_ip:
+            return False
+        return ip_is_valid(core_gateway_ip)
 
     def _get_core_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-gateway-ip")
 
-    def _get_access_network_gateway_ip_config(self) -> Optional[str]:
-        return self.model.config.get("access-gateway-ip")
+    def _gnb_subnet_config_is_valid(self) -> bool:
+        """Checks whether the gnb-subnet config is valid.
+
+        Returns:
+            bool: Whether the gnb-subnet config is valid
+        """
+        gnb_subnet = self._get_gnb_subnet_config()
+        if not gnb_subnet:
+            return False
+        return ip_is_valid(gnb_subnet)
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
