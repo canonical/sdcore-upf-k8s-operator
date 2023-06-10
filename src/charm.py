@@ -8,7 +8,7 @@ import ipaddress
 import json
 import logging
 import time
-from typing import Optional, Union
+from typing import Optional
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     KubernetesMultusCharmLib,
@@ -25,7 +25,7 @@ from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.models.core_v1 import ServicePort
 from lightkube.models.meta_v1 import ObjectMeta
-from ops.charm import CharmBase, ConfigChangedEvent, EventBase, PebbleReadyEvent
+from ops.charm import CharmBase, EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -179,37 +179,6 @@ class UPFOperatorCharm(CharmBase):
         )
         logger.info("Pushed %s config file", CONFIG_FILE_NAME)
 
-    @staticmethod
-    def _render_bessd_config_file(
-        upf_hostname: str,
-        upf_mode: str,
-        access_interface_name: str,
-        core_interface_name: str,
-        dnn: str,
-        pod_share_path: str,
-    ) -> str:
-        """Renders the configuration file for the 5G UPF service.
-
-        Args:
-            upf_hostname: UPF hostname
-            upf_mode: UPF mode
-            access_interface_name: Access network interface name
-            core_interface_name: Core network interface name
-            dnn: Data Network Name (DNN)
-            pod_share_path: pod_share path
-        """
-        jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
-        template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
-        content = template.render(
-            upf_hostname=upf_hostname,
-            mode=upf_mode,
-            access_interface_name=access_interface_name,
-            core_interface_name=core_interface_name,
-            dnn=dnn,
-            pod_share_path=pod_share_path,
-        )
-        return content
-
     @property
     def _upf_hostname(self) -> str:
         return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
@@ -276,9 +245,7 @@ class UPFOperatorCharm(CharmBase):
         """Handle pfcp agent Pebble ready event."""
         if not self.unit.is_leader():
             return
-        if not self._service_is_running_on_container(
-            self._bessd_container, self._bessd_service_name
-        ):
+        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus(
                 "Waiting to be able to connect to the `bessd` container"
             )
@@ -294,7 +261,7 @@ class UPFOperatorCharm(CharmBase):
         Writes configuration file, creates routes, creates iptable rule and pebble layer.
         """
         restart = False
-        content = self._render_bessd_config_file(
+        content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=UPF_MODE,
             access_interface_name=ACCESS_INTERFACE_NAME,
@@ -420,7 +387,7 @@ class UPFOperatorCharm(CharmBase):
             )
             self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
 
-    def _on_routectl_pebble_ready(self, event: PebbleReadyEvent) -> None:
+    def _on_routectl_pebble_ready(self, event: EventBase) -> None:
         """Handle routectl Pebble ready event."""
         if not self.unit.is_leader():
             return
@@ -434,41 +401,20 @@ class UPFOperatorCharm(CharmBase):
                 f"The following configurations are not valid: {invalid_configs}"
             )
             return
-        if not self._service_is_running_on_container(
-            self._bessd_container, self._bessd_service_name
-        ):
+        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
             return
-        if not self._service_is_running_on_container(
+        if not service_is_running_on_container(
             self._routectl_container, self._routectl_service_name
         ):
             self.unit.status = WaitingStatus("Waiting for routectl service to run")
             return
-        if not self._service_is_running_on_container(
+        if not service_is_running_on_container(
             self._pfcp_agent_container, self._pfcp_agent_service_name
         ):
             self.unit.status = WaitingStatus("Waiting for pfcp agent service to run")
             return
         self.unit.status = ActiveStatus()
-
-    @staticmethod
-    def _service_is_running_on_container(container: Container, service_name: str) -> bool:
-        """Returns whether a Pebble service is running in a container.
-
-        Args:
-            container: Container object
-            service_name: Service name
-
-        Returns:
-            bool: Whether service is running
-        """
-        if not container.can_connect():
-            return False
-        try:
-            service = container.get_service(service_name)
-        except ModelError:
-            return False
-        return service.is_running()
 
     @property
     def _bessd_pebble_layer(self) -> Layer:
@@ -554,7 +500,7 @@ class UPFOperatorCharm(CharmBase):
         access_ip = self._get_access_network_ip_config()
         if not access_ip:
             return False
-        return _ip_is_valid(access_ip)
+        return ip_is_valid(access_ip)
 
     def _core_ip_is_valid(self) -> bool:
         """Checks whether the access-ip config is valid.
@@ -565,7 +511,7 @@ class UPFOperatorCharm(CharmBase):
         core_ip = self._get_access_network_ip_config()
         if not core_ip:
             return False
-        return _ip_is_valid(core_ip)
+        return ip_is_valid(core_ip)
 
     def _get_access_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-ip")
@@ -580,7 +526,57 @@ class UPFOperatorCharm(CharmBase):
         return self.model.config.get("gnb-subnet")
 
 
-def _ip_is_valid(ip_address: str) -> bool:
+def render_bessd_config_file(
+    upf_hostname: str,
+    upf_mode: str,
+    access_interface_name: str,
+    core_interface_name: str,
+    dnn: str,
+    pod_share_path: str,
+) -> str:
+    """Renders the configuration file for the 5G UPF service.
+
+    Args:
+        upf_hostname: UPF hostname
+        upf_mode: UPF mode
+        access_interface_name: Access network interface name
+        core_interface_name: Core network interface name
+        dnn: Data Network Name (DNN)
+        pod_share_path: pod_share path
+    """
+    jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
+    template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
+    content = template.render(
+        upf_hostname=upf_hostname,
+        mode=upf_mode,
+        access_interface_name=access_interface_name,
+        core_interface_name=core_interface_name,
+        dnn=dnn,
+        pod_share_path=pod_share_path,
+    )
+    return content
+
+
+def service_is_running_on_container(container: Container, service_name: str) -> bool:
+    """Returns whether a Pebble service is running in a container.
+
+    Args:
+        container: Container object
+        service_name: Service name
+
+    Returns:
+        bool: Whether service is running
+    """
+    if not container.can_connect():
+        return False
+    try:
+        service = container.get_service(service_name)
+    except ModelError:
+        return False
+    return service.is_running()
+
+
+def ip_is_valid(ip_address: str) -> bool:
     """Check whether given IP config is valid.
 
     Args:
