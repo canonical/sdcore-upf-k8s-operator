@@ -311,9 +311,9 @@ class UPFOperatorCharm(CharmBase):
         invalid_configs = []
         if not self._get_dnn_config():
             invalid_configs.append("dnn")
-        if not self._access_ip_is_valid():
+        if not self._access_ip_config_is_valid():
             invalid_configs.append("access-ip")
-        if not self._core_ip_is_valid():
+        if not self._core_ip_config_is_valid():
             invalid_configs.append("core-ip")
         if not self._access_gateway_ip_config_is_valid():
             invalid_configs.append("access-gateway-ip")
@@ -488,21 +488,7 @@ class UPFOperatorCharm(CharmBase):
     def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
 
-    def _access_ip_is_valid(self) -> bool:
-        """Checks whether the access-ip config is valid.
-
-        Returns:
-            bool: Whether the access-ip config is valid
-        """
-        access_ip = self._get_access_network_ip_config()
-        if not access_ip:
-            return False
-        return ip_is_valid(access_ip)
-
-    def _get_access_network_ip_config(self) -> Optional[str]:
-        return self.model.config.get("access-ip")
-
-    def _core_ip_is_valid(self) -> bool:
+    def _core_ip_config_is_valid(self) -> bool:
         """Checks whether the core-ip config is valid.
 
         Returns:
@@ -516,19 +502,19 @@ class UPFOperatorCharm(CharmBase):
     def _get_core_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-ip")
 
-    def _access_gateway_ip_config_is_valid(self) -> bool:
-        """Checks whether the access-gateway-ip config is valid.
+    def _access_ip_config_is_valid(self) -> bool:
+        """Checks whether the access-ip config is valid.
 
         Returns:
-            bool: Whether the access-gateway-ip config is valid
+            bool: Whether the access-ip config is valid
         """
-        access_gateway_ip = self._get_access_network_gateway_ip_config()
-        if not access_gateway_ip:
+        access_ip = self._get_access_network_ip_config()
+        if not access_ip:
             return False
-        return ip_is_valid(access_gateway_ip)
+        return ip_is_valid(access_ip)
 
-    def _get_access_network_gateway_ip_config(self) -> Optional[str]:
-        return self.model.config.get("access-gateway-ip")
+    def _get_access_network_ip_config(self) -> Optional[str]:
+        return self.model.config.get("access-ip")
 
     def _core_gateway_ip_config_is_valid(self) -> bool:
         """Checks whether the core-gateway-ip config is valid.
@@ -543,6 +529,20 @@ class UPFOperatorCharm(CharmBase):
 
     def _get_core_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-gateway-ip")
+
+    def _access_gateway_ip_config_is_valid(self) -> bool:
+        """Checks whether the access-gateway-ip config is valid.
+
+        Returns:
+            bool: Whether the access-gateway-ip config is valid
+        """
+        access_gateway_ip = self._get_access_network_gateway_ip_config()
+        if not access_gateway_ip:
+            return False
+        return ip_is_valid(access_gateway_ip)
+
+    def _get_access_network_gateway_ip_config(self) -> Optional[str]:
+        return self.model.config.get("access-gateway-ip")
 
     def _gnb_subnet_config_is_valid(self) -> bool:
         """Checks whether the gnb-subnet config is valid.
