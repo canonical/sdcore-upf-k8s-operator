@@ -118,32 +118,6 @@ class UPFOperatorCharm(CharmBase):
                 upf_ip_address=upf_access_ip_address,
             )
 
-    def _on_config_changed(self, event: ConfigChangedEvent) -> None:
-        if not self.unit.is_leader():
-            return
-        if invalid_configs := self._get_invalid_configs():
-            self.unit.status = BlockedStatus(
-                f"The following configurations are not valid: {invalid_configs}"
-            )
-            return
-        if not self._kubernetes_multus.is_ready():
-            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
-            return
-        if not self._bessd_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `bessd` container"
-            )
-            event.defer()
-            return
-        if not self._pfcp_agent_container.can_connect():
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `pfcp-agent` container"
-            )
-            event.defer()
-            return
-        self._on_bessd_pebble_ready(event)
-        self._on_pfcp_agent_pebble_ready(event)
-
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         return [
             NetworkAttachmentDefinition(
@@ -263,19 +237,55 @@ class UPFOperatorCharm(CharmBase):
             return False
         return True
 
-    def _on_bessd_pebble_ready(self, event: Union[PebbleReadyEvent, ConfigChangedEvent]) -> None:
-        """Handle Pebble ready event."""
+    def _on_config_changed(self, event: EventBase):
+        """Handler for config changed events."""
         if not self.unit.is_leader():
+            return
+        if invalid_configs := self._get_invalid_configs():
+            self.unit.status = BlockedStatus(
+                f"The following configurations are not valid: {invalid_configs}"
+            )
             return
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
             event.defer()
             return
+        if not self._pfcp_agent_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
+            event.defer()
+            return
+        self._on_bessd_pebble_ready(event)
+        self._on_pfcp_agent_pebble_ready(event)
+
+    def _on_bessd_pebble_ready(self, event: EventBase) -> None:
+        """Handle Pebble ready event."""
+        if not self.unit.is_leader():
+            return
         if not self._kubernetes_multus.is_ready():
             self.unit.status = WaitingStatus("Waiting for Multus to be ready")
             event.defer()
             return
+        if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+            self.unit.status = WaitingStatus("Waiting for storage to be attached")
+            event.defer()
+            return
         self._configure_bessd_workload()
+        self._set_unit_status()
+
+    def _on_pfcp_agent_pebble_ready(self, event: EventBase) -> None:
+        """Handle pfcp agent Pebble ready event."""
+        if not self.unit.is_leader():
+            return
+        if not self._service_is_running_on_container(
+            self._bessd_container, self._bessd_service_name
+        ):
+            self.unit.status = WaitingStatus(
+                "Waiting to be able to connect to the `bessd` container"
+            )
+            event.defer()
+            return
+        self._configure_pfcp_agent_workload()
+        self._update_fiveg_n3_relation_data()
         self._set_unit_status()
 
     def _configure_bessd_workload(self) -> None:
@@ -346,6 +356,34 @@ class UPFOperatorCharm(CharmBase):
             invalid_configs.append("gnb-subnet")
         return invalid_configs
 
+    def _create_default_route(self) -> None:
+        """Creates ip route towards core network."""
+        self._exec_command_in_bessd_workload(
+            command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
+        )
+        logger.info("Default core network route created")
+
+    def _ip_tables_rule_exists(self) -> bool:
+        """Returns whether iptables rule already exists using the `--check` parameter.
+
+        Returns:
+            bool: Whether iptables rule exists
+        """
+        try:
+            self._exec_command_in_bessd_workload(
+                command="iptables --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+            )
+            return True
+        except ExecError:
+            return False
+
+    def _create_ip_tables_rule(self) -> None:
+        """Creates iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
+        self._exec_command_in_bessd_workload(
+            command="iptables -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+        )
+        logger.info("Iptables rule for ICMP created")
+
     def _exec_command_in_bessd_workload(
         self, command: str, environment: Optional[dict] = None
     ) -> tuple:
@@ -372,7 +410,7 @@ class UPFOperatorCharm(CharmBase):
             )
             self._routectl_container.restart(self._routectl_service_name)
 
-    def _configure_pfcp_agent_workoad(self) -> None:
+    def _configure_pfcp_agent_workload(self) -> None:
         """Configures pebble layer for `pfcp-agent` container."""
         plan = self._pfcp_agent_container.get_plan()
         layer = self._pfcp_agent_pebble_layer
@@ -382,76 +420,11 @@ class UPFOperatorCharm(CharmBase):
             )
             self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
 
-    def _create_default_route(self) -> None:
-        """Creates ip route towards core network."""
-        self._exec_command_in_bessd_workload(
-            command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
-        )
-        logger.info("Default core network route created")
-
-    def _ip_tables_rule_exists(self) -> bool:
-        """Returns whether iptables rule already exists using the `--check` parameter.
-
-        Returns:
-            bool: Whether iptables rule exists
-        """
-        try:
-            self._exec_command_in_bessd_workload(
-                command="iptables --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
-            )
-            logger.info("Iptables rule already exists")
-            return True
-        except ExecError:
-            logger.info("Iptables rule doesn't exist")
-            return False
-
-    def _create_ip_tables_rule(self) -> None:
-        self._exec_command_in_bessd_workload(
-            command="iptables -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
-        )
-        logger.info("Iptables rule for ICMP created")
-
     def _on_routectl_pebble_ready(self, event: PebbleReadyEvent) -> None:
         """Handle routectl Pebble ready event."""
         if not self.unit.is_leader():
             return
-        if not self._routectl_container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for routectl container to be ready")
-            event.defer()
-            return
-        if not self._kubernetes_multus.is_ready():
-            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
-            event.defer()
-            return
         self._configure_routectl_workload()
-        self._set_unit_status()
-
-    def _on_pfcp_agent_pebble_ready(
-        self, event: Union[PebbleReadyEvent, ConfigChangedEvent]
-    ) -> None:
-        """Handle pfcp agent Pebble ready event."""
-        if not self.unit.is_leader():
-            return
-        if not self._pfcp_agent_container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
-            event.defer()
-            return
-        if not self._bessd_config_file_is_written():
-            self.unit.status = WaitingStatus("Waiting for config file to be written")
-            event.defer()
-            return
-        if not self._service_is_running_on_container(
-            self._bessd_container, self._bessd_service_name
-        ):
-            self.unit.status = WaitingStatus("Waiting for bessd service to be running")
-            event.defer()
-            return
-        if not self._kubernetes_multus.is_ready():
-            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
-            event.defer()
-            return
-        self._configure_pfcp_agent_workoad()
-        self._update_fiveg_n3_relation_data()
         self._set_unit_status()
 
     def _set_unit_status(self) -> None:
