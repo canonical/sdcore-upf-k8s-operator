@@ -74,7 +74,8 @@ class UPFOperatorCharm(CharmBase):
         )
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
-            containers_requiring_net_admin_capability=[self._bessd_container_name],
+            container_name=self._bessd_container_name,
+            cap_net_admin=True,
             network_annotations=[
                 NetworkAnnotation(
                     name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
