@@ -120,6 +120,7 @@ class UPFOperatorCharm(CharmBase):
             )
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
+        """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
         return [
             NetworkAttachmentDefinition(
                 metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
