@@ -53,7 +53,7 @@ class TestCharm(unittest.TestCase):
     @patch("ops.model.Container.exec", new=Mock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
-    def test_given_bessd_config_file_not_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
+    def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
         self,
         patch_push,
         patch_exists,
