@@ -159,7 +159,7 @@ class TestCharm(unittest.TestCase):
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
-    def test_given_iptables_rule_is_not_created_when_bessd_pebble_ready_then_rule_is_created(
+    def test_given_iptables_rule_is_not_yet_created_when_bessd_pebble_ready_then_rule_is_created(
         self, patch_exists, patch_exec, patch_is_ready
     ):
         self.harness.set_leader(is_leader=True)
