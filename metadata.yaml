@@ -15,9 +15,6 @@ containers:
   routectl:
     resource: routectl-image
 
-  web:
-    resource: web-image
-
   pfcp-agent:
     resource: pfcp-agent-image
     mounts:
@@ -35,11 +32,6 @@ resources:
   routectl-image:
     type: oci-image
     description: OCI image for 5G upf routectl
-    upstream-source: omecproject/upf-epc-bess:master-5786085
-
-  web-image:
-    type: oci-image
-    description: OCI image for 5G upf web
     upstream-source: omecproject/upf-epc-bess:master-5786085
 
   pfcp-agent-image:
