@@ -115,8 +115,11 @@ class TestCharm(unittest.TestCase):
                 "bessd": {
                     "startup": "enabled",
                     "override": "replace",
-                    "command": "bessd -f -grpc-url=0.0.0.0:10514 -m 0",
-                    "environment": {"CONF_FILE": "/etc/bess/conf/upf.json"},
+                    "command": "/bin/bessd -f -grpc-url=0.0.0.0:10514 -m 0",
+                    "environment": {
+                        "CONF_FILE": "/etc/bess/conf/upf.json",
+                        "PYTHONPATH": "/opt/bess",
+                    },
                 }
             }
         }
@@ -176,7 +179,7 @@ class TestCharm(unittest.TestCase):
 
         patch_exec.assert_any_call(
             command=[
-                "iptables",
+                "iptables-legacy",
                 "-I",
                 "OUTPUT",
                 "-p",
@@ -238,9 +241,9 @@ class TestCharm(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="bessd")
 
         patch_exec.assert_any_call(
-            command=["bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+            command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
             timeout=30,
-            environment={"CONF_FILE": "/etc/bess/conf/upf.json"},
+            environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
         )
 
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
@@ -324,7 +327,7 @@ class TestCharm(unittest.TestCase):
                     "startup": "enabled",
                     "override": "replace",
                     "command": "/opt/bess/bessctl/conf/route_control.py -i access core",
-                    "environment": {"PYTHONUNBUFFERED": "1"},
+                    "environment": {"PYTHONPATH": "/opt/bess", "PYTHONUNBUFFERED": "1"},
                 }
             }
         }

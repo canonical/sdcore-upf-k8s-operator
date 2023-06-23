@@ -295,7 +295,7 @@ class UPFOperatorCharm(CharmBase):
         while time.time() - initial_time <= timeout:
             try:
                 self._exec_command_in_bessd_workload(
-                    command="bessctl run /opt/bess/bessctl/conf/up4",
+                    command="/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4",
                     environment=self._bessd_environment_variables,
                 )
                 return
@@ -340,7 +340,7 @@ class UPFOperatorCharm(CharmBase):
         """
         try:
             self._exec_command_in_bessd_workload(
-                command="iptables --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+                command="iptables-legacy --check OUTPUT -p icmp --icmp-type port-unreachable -j DROP"  # noqa: E501
             )
             return True
         except ExecError:
@@ -349,7 +349,7 @@ class UPFOperatorCharm(CharmBase):
     def _create_ip_tables_rule(self) -> None:
         """Creates iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
         self._exec_command_in_bessd_workload(
-            command="iptables -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+            command="iptables-legacy -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
         )
         logger.info("Iptables rule for ICMP created")
 
@@ -428,7 +428,7 @@ class UPFOperatorCharm(CharmBase):
                     self._bessd_service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": f"bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} -m 0",  # "-m 0" means that we are not using hugepages  # noqa: E501
+                        "command": f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} -m 0",  # "-m 0" means that we are not using hugepages  # noqa: E501
                         "environment": self._bessd_environment_variables,
                     },
                 },
@@ -479,11 +479,13 @@ class UPFOperatorCharm(CharmBase):
     def _bessd_environment_variables(self) -> dict:
         return {
             "CONF_FILE": f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}",
+            "PYTHONPATH": "/opt/bess",
         }
 
     @property
     def _routectl_environment_variables(self) -> dict:
         return {
+            "PYTHONPATH": "/opt/bess",
             "PYTHONUNBUFFERED": "1",
         }
 
