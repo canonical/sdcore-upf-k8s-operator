@@ -248,9 +248,7 @@ class UPFOperatorCharm(CharmBase):
         if not self.unit.is_leader():
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `bessd` container"
-            )
+            self.unit.status = WaitingStatus("Waiting for bessd service to run")
             event.defer()
             return
         self._configure_pfcp_agent_workload()
@@ -392,6 +390,10 @@ class UPFOperatorCharm(CharmBase):
     def _on_routectl_pebble_ready(self, event: EventBase) -> None:
         """Handle routectl Pebble ready event."""
         if not self.unit.is_leader():
+            return
+        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
+            self.unit.status = WaitingStatus("Waiting for bessd service to run")
+            event.defer()
             return
         self._configure_routectl_workload()
         self._set_unit_status()
