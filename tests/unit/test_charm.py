@@ -302,10 +302,15 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
 
+    @patch("ops.model.Container.get_service")
     def test_given_bessd_service_not_running_when_routectl_pebble_ready_then_status_is_waiting(
-        self,
+        self, patched_get_service
     ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = False
+        patched_get_service.return_value = service_info_mock
         self.harness.set_leader(is_leader=True)
+        self.harness.set_can_connect(container="bessd", val=True)
 
         self.harness.container_pebble_ready(container_name="routectl")
 
@@ -313,8 +318,15 @@ class TestCharm(unittest.TestCase):
             self.harness.model.unit.status, WaitingStatus("Waiting for bessd service to run")
         )
 
-    def test_given_config_file_exists_when_routectl_pebble_ready_then_pebble_plan_is_applied(self):
+    @patch("ops.model.Container.get_service")
+    def test_given_config_file_exists_when_routectl_pebble_ready_then_pebble_plan_is_applied(
+        self, patched_get_service
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patched_get_service.return_value = service_info_mock
         self.harness.set_leader(is_leader=True)
+        self.harness.set_can_connect(container="bessd", val=True)
 
         self.harness.container_pebble_ready(container_name="routectl")
 
@@ -369,8 +381,7 @@ class TestCharm(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="pfcp-agent")
 
         self.assertEqual(
-            self.harness.model.unit.status,
-            WaitingStatus("Waiting to be able to connect to the `bessd` container"),
+            self.harness.model.unit.status, WaitingStatus("Waiting for bessd service to run")
         )
 
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")

@@ -248,9 +248,7 @@ class UPFOperatorCharm(CharmBase):
         if not self.unit.is_leader():
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
-            self.unit.status = WaitingStatus(
-                "Waiting to be able to connect to the `bessd` container"
-            )
+            self.unit.status = WaitingStatus("Waiting for bessd service to run")
             event.defer()
             return
         self._configure_pfcp_agent_workload()
@@ -286,6 +284,7 @@ class UPFOperatorCharm(CharmBase):
             restart = True
         if restart:
             self._bessd_container.restart(self._bessd_service_name)
+            logger.info("Service `bessd` restarted")
         self._run_bess_configuration()
 
     def _run_bess_configuration(self) -> None:
@@ -298,6 +297,7 @@ class UPFOperatorCharm(CharmBase):
                     command="bessctl run /opt/bess/bessctl/conf/up4",
                     environment=self._bessd_environment_variables,
                 )
+                logger.info("Service `bessd` configured")
                 return
             except ExecError:
                 logger.info("Failed running configuration for bess")
@@ -378,6 +378,7 @@ class UPFOperatorCharm(CharmBase):
                 "routectl", self._routectl_pebble_layer, combine=True
             )
             self._routectl_container.restart(self._routectl_service_name)
+            logger.info("Service `routectl` restarted")
 
     def _configure_pfcp_agent_workload(self) -> None:
         """Configures pebble layer for `pfcp-agent` container."""
@@ -388,10 +389,15 @@ class UPFOperatorCharm(CharmBase):
                 "pfcp", self._pfcp_agent_pebble_layer, combine=True
             )
             self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
+            logger.info("Service `pfcp` restarted")
 
     def _on_routectl_pebble_ready(self, event: EventBase) -> None:
         """Handle routectl Pebble ready event."""
         if not self.unit.is_leader():
+            return
+        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
+            self.unit.status = WaitingStatus("Waiting for bessd service to run")
+            event.defer()
             return
         self._configure_routectl_workload()
         self._set_unit_status()
