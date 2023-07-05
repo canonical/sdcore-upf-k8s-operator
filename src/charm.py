@@ -377,8 +377,8 @@ class UPFOperatorCharm(CharmBase):
             self._routectl_container.add_layer(
                 "routectl", self._routectl_pebble_layer, combine=True
             )
-            self._routectl_container.restart(self._routectl_service_name)
-            logger.info("Service `routectl` restarted")
+        self._routectl_container.restart(self._routectl_service_name)
+        logger.info("Service `routectl` restarted")
 
     def _configure_pfcp_agent_workload(self) -> None:
         """Configures pebble layer for `pfcp-agent` container."""

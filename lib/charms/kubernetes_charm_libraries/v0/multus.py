@@ -102,7 +102,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 4
+LIBPATCH = 5
 
 
 logger = logging.getLogger(__name__)
@@ -178,8 +178,12 @@ class KubernetesClient:
         """
         try:
             pod = self.client.get(Pod, name=pod_name, namespace=self.namespace)
-        except ApiError:
-            raise KubernetesMultusError(f"Pod {pod_name} not found")
+        except ApiError as e:
+            if e.status.reason == "Unauthorized":
+                logger.debug("kube-apiserver not ready yet")
+            else:
+                raise KubernetesMultusError(f"Pod {pod_name} not found")
+            return False
         return self._pod_is_patched(
             pod=pod,  # type: ignore[arg-type]
             network_annotations=network_annotations,
@@ -207,7 +211,11 @@ class KubernetesClient:
             )
             return existing_nad == network_attachment_definition
         except ApiError as e:
-            if e.status.reason != "NotFound":
+            if e.status.reason == "NotFound":
+                logger.debug("NetworkAttachmentDefinition not found")
+            elif e.status.reason == "Unauthorized":
+                logger.debug("kube-apiserver not ready yet")
+            else:
                 raise KubernetesMultusError(
                     f"Unexpected outcome when retrieving NetworkAttachmentDefinition "
                     f"{network_attachment_definition.metadata.name}"
@@ -360,8 +368,12 @@ class KubernetesClient:
         """
         try:
             statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
-        except ApiError:
-            raise KubernetesMultusError(f"Could not get statefulset {name}")
+        except ApiError as e:
+            if e.status.reason == "Unauthorized":
+                logger.debug("kube-apiserver not ready yet")
+            else:
+                raise KubernetesMultusError(f"Could not get statefulset {name}")
+            return False
         return self._pod_is_patched(
             container_name=container_name,
             cap_net_admin=cap_net_admin,
