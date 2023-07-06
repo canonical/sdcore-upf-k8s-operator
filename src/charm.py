@@ -121,52 +121,50 @@ class UPFOperatorCharm(CharmBase):
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
+        access_nad_config = {
+            "cniVersion": "0.3.1",
+            "type": "macvlan",
+            "ipam": {
+                "type": "static",
+                "routes": [
+                    {
+                        "dst": self._get_gnb_subnet_config(),
+                        "gw": self._get_access_network_gateway_ip_config(),
+                    },
+                ],
+                "addresses": [
+                    {
+                        "address": self._get_access_network_ip_config(),
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        if (access_interface := self._get_access_interface_config()) is not None:
+            access_nad_config.update({"master": access_interface})
+        core_nad_config = {
+            "cniVersion": "0.3.1",
+            "type": "macvlan",
+            "ipam": {
+                "type": "static",
+                "addresses": [
+                    {
+                        "address": self._get_core_network_ip_config(),
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        if (core_interface := self._get_core_interface_config()) is not None:
+            core_nad_config.update({"master": core_interface})
         return [
             NetworkAttachmentDefinition(
                 metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                spec={
-                    "config": json.dumps(
-                        {
-                            "cniVersion": "0.3.1",
-                            "type": "macvlan",
-                            "ipam": {
-                                "type": "static",
-                                "routes": [
-                                    {
-                                        "dst": self._get_gnb_subnet_config(),
-                                        "gw": self._get_access_network_gateway_ip_config(),
-                                    },
-                                ],
-                                "addresses": [
-                                    {
-                                        "address": self._get_access_network_ip_config(),
-                                    }
-                                ],
-                            },
-                            "capabilities": {"mac": True},
-                        }
-                    )
-                },
+                spec={"config": json.dumps(access_nad_config)},
             ),
             NetworkAttachmentDefinition(
                 metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                spec={
-                    "config": json.dumps(
-                        {
-                            "cniVersion": "0.3.1",
-                            "type": "macvlan",
-                            "ipam": {
-                                "type": "static",
-                                "addresses": [
-                                    {
-                                        "address": self._get_core_network_ip_config(),
-                                    }
-                                ],
-                            },
-                            "capabilities": {"mac": True},
-                        }
-                    )
-                },
+                spec={"config": json.dumps(core_nad_config)},
             ),
         ]
 
@@ -512,6 +510,9 @@ class UPFOperatorCharm(CharmBase):
     def _get_core_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-ip")
 
+    def _get_core_interface_config(self) -> Optional[str]:
+        return self.model.config.get("core-interface")
+
     def _access_ip_config_is_valid(self) -> bool:
         """Checks whether the access-ip config is valid.
 
@@ -525,6 +526,9 @@ class UPFOperatorCharm(CharmBase):
 
     def _get_access_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-ip")
+
+    def _get_access_interface_config(self) -> Optional[str]:
+        return self.model.config.get("access-interface")
 
     def _core_gateway_ip_config_is_valid(self) -> bool:
         """Checks whether the core-gateway-ip config is valid.
