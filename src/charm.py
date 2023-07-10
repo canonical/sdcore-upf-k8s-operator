@@ -51,10 +51,9 @@ class UPFOperatorCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
         self._bessd_container_name = self._bessd_service_name = "bessd"
-        self._routectl_container_name = self._routectl_service_name = "routectl"
+        self._routectl_service_name = "routectl"
         self._pfcp_agent_container_name = self._pfcp_agent_service_name = "pfcp-agent"
         self._bessd_container = self.unit.get_container(self._bessd_container_name)
-        self._routectl_container = self.unit.get_container(self._routectl_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
         self.fiveg_n3_provider = N3Provides(charm=self, relation_name="fiveg_n3")
         self._metrics_endpoint = MetricsEndpointProvider(
@@ -90,7 +89,6 @@ class UPFOperatorCharm(CharmBase):
         )
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
-        self.framework.observe(self.on.routectl_pebble_ready, self._on_routectl_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
@@ -240,6 +238,7 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
             event.defer()
             return
+        self._configure_routectl_workload()
         self._configure_bessd_workload()
         self._set_unit_status()
 
@@ -370,14 +369,12 @@ class UPFOperatorCharm(CharmBase):
         return process.wait_output()
 
     def _configure_routectl_workload(self) -> None:
-        """Configures pebble layer for routectl container."""
-        plan = self._routectl_container.get_plan()
+        """Configures pebble layer for routectl service."""
+        plan = self._bessd_container.get_plan()
         layer = self._routectl_pebble_layer
         if plan.services != layer.services:
-            self._routectl_container.add_layer(
-                "routectl", self._routectl_pebble_layer, combine=True
-            )
-        self._routectl_container.restart(self._routectl_service_name)
+            self._bessd_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
+        self._bessd_container.restart(self._routectl_service_name)
         logger.info("Service `routectl` restarted")
 
     def _configure_pfcp_agent_workload(self) -> None:
@@ -391,17 +388,6 @@ class UPFOperatorCharm(CharmBase):
             self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
             logger.info("Service `pfcp` restarted")
 
-    def _on_routectl_pebble_ready(self, event: EventBase) -> None:
-        """Handle routectl Pebble ready event."""
-        if not self.unit.is_leader():
-            return
-        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
-            self.unit.status = WaitingStatus("Waiting for bessd service to run")
-            event.defer()
-            return
-        self._configure_routectl_workload()
-        self._set_unit_status()
-
     def _set_unit_status(self) -> None:
         """Set the unit status based on config and container services running."""
         if invalid_configs := self._get_invalid_configs():
@@ -412,9 +398,7 @@ class UPFOperatorCharm(CharmBase):
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
             return
-        if not service_is_running_on_container(
-            self._routectl_container, self._routectl_service_name
-        ):
+        if not service_is_running_on_container(self._bessd_container, self._routectl_service_name):
             self.unit.status = WaitingStatus("Waiting for routectl service to run")
             return
         if not service_is_running_on_container(
