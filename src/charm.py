@@ -238,7 +238,6 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
             event.defer()
             return
-        self._configure_routectl_workload()
         self._configure_bessd_workload()
         self._set_unit_status()
 
@@ -282,6 +281,8 @@ class UPFOperatorCharm(CharmBase):
             self._bessd_container.add_layer("bessd", self._bessd_pebble_layer, combine=True)
             restart = True
         if restart:
+            self._bessd_container.restart(self._routectl_service_name)
+            logger.info("Service `routectl` restarted")
             self._bessd_container.restart(self._bessd_service_name)
             logger.info("Service `bessd` restarted")
         self._run_bess_configuration()
@@ -368,15 +369,6 @@ class UPFOperatorCharm(CharmBase):
         )
         return process.wait_output()
 
-    def _configure_routectl_workload(self) -> None:
-        """Configures pebble layer for routectl service."""
-        plan = self._bessd_container.get_plan()
-        layer = self._routectl_pebble_layer
-        if plan.services != layer.services:
-            self._bessd_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
-        self._bessd_container.restart(self._routectl_service_name)
-        logger.info("Service `routectl` restarted")
-
     def _configure_pfcp_agent_workload(self) -> None:
         """Configures pebble layer for `pfcp-agent` container."""
         plan = self._pfcp_agent_container.get_plan()
@@ -415,6 +407,12 @@ class UPFOperatorCharm(CharmBase):
                 "summary": "bessd layer",
                 "description": "pebble config layer for bessd",
                 "services": {
+                    self._routectl_service_name: {
+                        "override": "replace",
+                        "startup": "enabled",
+                        "command": f"/opt/bess/bessctl/conf/route_control.py -i {ACCESS_INTERFACE_NAME} {CORE_INTERFACE_NAME}",  # noqa: E501
+                        "environment": self._routectl_environment_variables,
+                    },
                     self._bessd_service_name: {
                         "override": "replace",
                         "startup": "enabled",
@@ -428,23 +426,6 @@ class UPFOperatorCharm(CharmBase):
                         "level": "ready",
                         "tcp": {"port": BESSD_PORT},
                     }
-                },
-            }
-        )
-
-    @property
-    def _routectl_pebble_layer(self) -> Layer:
-        return Layer(
-            {
-                "summary": "routectl layer",
-                "description": "pebble config layer for routectl",
-                "services": {
-                    self._routectl_service_name: {
-                        "override": "replace",
-                        "startup": "enabled",
-                        "command": f"/opt/bess/bessctl/conf/route_control.py -i {ACCESS_INTERFACE_NAME} {CORE_INTERFACE_NAME}",  # noqa: E501
-                        "environment": self._routectl_environment_variables,
-                    },
                 },
             }
         )
