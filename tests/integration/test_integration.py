@@ -22,7 +22,6 @@ async def build_and_deploy(ops_test):
     charm = await ops_test.build_charm(".")
     resources = {
         "bessd-image": METADATA["resources"]["bessd-image"]["upstream-source"],
-        "routectl-image": METADATA["resources"]["routectl-image"]["upstream-source"],
         "pfcp-agent-image": METADATA["resources"]["pfcp-agent-image"]["upstream-source"],
     }
     await ops_test.model.deploy(

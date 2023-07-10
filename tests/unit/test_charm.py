@@ -120,7 +120,16 @@ class TestCharm(unittest.TestCase):
                         "CONF_FILE": "/etc/bess/conf/upf.json",
                         "PYTHONPATH": "/opt/bess",
                     },
-                }
+                },
+                "routectl": {
+                    "startup": "enabled",
+                    "override": "replace",
+                    "command": "/opt/bess/bessctl/conf/route_control.py -i access core",
+                    "environment": {
+                        "PYTHONPATH": "/opt/bess",
+                        "PYTHONUNBUFFERED": "1",
+                    },
+                },
             }
         }
 
@@ -298,55 +307,11 @@ class TestCharm(unittest.TestCase):
         self.harness.set_leader(is_leader=True)
         patch_exists.return_value = True
         patch_is_ready.return_value = True
-        self.harness.set_can_connect(container="routectl", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
 
         self.harness.container_pebble_ready(container_name="bessd")
 
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
-
-    @patch("ops.model.Container.get_service")
-    def test_given_bessd_service_not_running_when_routectl_pebble_ready_then_status_is_waiting(
-        self, patched_get_service
-    ):
-        service_info_mock = Mock()
-        service_info_mock.is_running.return_value = False
-        patched_get_service.return_value = service_info_mock
-        self.harness.set_leader(is_leader=True)
-        self.harness.set_can_connect(container="bessd", val=True)
-
-        self.harness.container_pebble_ready(container_name="routectl")
-
-        self.assertEqual(
-            self.harness.model.unit.status, WaitingStatus("Waiting for bessd service to run")
-        )
-
-    @patch("ops.model.Container.get_service")
-    def test_given_config_file_exists_when_routectl_pebble_ready_then_pebble_plan_is_applied(
-        self, patched_get_service
-    ):
-        service_info_mock = Mock()
-        service_info_mock.is_running.return_value = True
-        patched_get_service.return_value = service_info_mock
-        self.harness.set_leader(is_leader=True)
-        self.harness.set_can_connect(container="bessd", val=True)
-
-        self.harness.container_pebble_ready(container_name="routectl")
-
-        expected_plan = {
-            "services": {
-                "routectl": {
-                    "startup": "enabled",
-                    "override": "replace",
-                    "command": "/opt/bess/bessctl/conf/route_control.py -i access core",
-                    "environment": {"PYTHONPATH": "/opt/bess", "PYTHONUNBUFFERED": "1"},
-                }
-            }
-        }
-
-        updated_plan = self.harness.get_container_pebble_plan("routectl").to_dict()
-
-        self.assertEqual(expected_plan, updated_plan)
 
     @patch("ops.model.Container.get_service")
     def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
@@ -426,7 +391,6 @@ class TestCharm(unittest.TestCase):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
-        self.harness.set_can_connect(container="routectl", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
         n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
@@ -453,7 +417,6 @@ class TestCharm(unittest.TestCase):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
-        self.harness.set_can_connect(container="routectl", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
         n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
