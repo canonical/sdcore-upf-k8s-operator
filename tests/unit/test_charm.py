@@ -484,6 +484,8 @@ class TestCharm(unittest.TestCase):
         for nad in nads:
             config = json.loads(nad.spec["config"])
             self.assertNotIn("master", config)
+            self.assertEqual("bridge", config["type"])
+            self.assertIn(config["bridge"], ("core-br", "access-br"))
 
     def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
         self,
@@ -504,3 +506,4 @@ class TestCharm(unittest.TestCase):
         for nad in nads:
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["master"], nad.metadata.name)
+            self.assertEqual(config["type"], "macvlan")

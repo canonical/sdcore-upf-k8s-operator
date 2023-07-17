@@ -123,7 +123,6 @@ class UPFOperatorCharm(CharmBase):
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
         access_nad_config = {
             "cniVersion": "0.3.1",
-            "type": "macvlan",
             "ipam": {
                 "type": "static",
                 "routes": [
@@ -141,10 +140,11 @@ class UPFOperatorCharm(CharmBase):
             "capabilities": {"mac": True},
         }
         if (access_interface := self._get_access_interface_config()) is not None:
-            access_nad_config.update({"master": access_interface})
+            access_nad_config.update({"type": "macvlan", "master": access_interface})
+        else:
+            access_nad_config.update({"type": "bridge", "bridge": "access-br"})
         core_nad_config = {
             "cniVersion": "0.3.1",
-            "type": "macvlan",
             "ipam": {
                 "type": "static",
                 "addresses": [
@@ -156,7 +156,9 @@ class UPFOperatorCharm(CharmBase):
             "capabilities": {"mac": True},
         }
         if (core_interface := self._get_core_interface_config()) is not None:
-            core_nad_config.update({"master": core_interface})
+            core_nad_config.update({"type": "macvlan", "master": core_interface})
+        else:
+            core_nad_config.update({"type": "bridge", "bridge": "core-br"})
         return [
             NetworkAttachmentDefinition(
                 metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
