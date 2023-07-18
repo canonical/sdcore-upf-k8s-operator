@@ -228,6 +228,10 @@ class UPFOperatorCharm(CharmBase):
         """Handle Pebble ready event."""
         if not self.unit.is_leader():
             return
+        if not self._bessd_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
+            event.defer()
+            return
         if not self._kubernetes_multus.is_ready():
             self.unit.status = WaitingStatus("Waiting for Multus to be ready")
             event.defer()
@@ -242,6 +246,10 @@ class UPFOperatorCharm(CharmBase):
     def _on_pfcp_agent_pebble_ready(self, event: EventBase) -> None:
         """Handle pfcp agent Pebble ready event."""
         if not self.unit.is_leader():
+            return
+        if not self._pfcp_agent_container.can_connect():
+            self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
+            event.defer()
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
