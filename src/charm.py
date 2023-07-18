@@ -217,11 +217,9 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
-            event.defer()
             return
         if not self._pfcp_agent_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
-            event.defer()
             return
         self._on_bessd_pebble_ready(event)
         self._on_pfcp_agent_pebble_ready(event)
