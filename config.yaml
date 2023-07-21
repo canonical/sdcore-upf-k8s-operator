@@ -7,6 +7,9 @@ options:
     type: string
     default: 192.168.251.0/24
     description: gNodeB subnet.
+  core-interface:
+    type: string
+    description: Interface on the host to use for the Core Network.
   core-ip:
     type: string
     default: 192.168.250.3/24
@@ -15,6 +18,9 @@ options:
     type: string
     default: 192.168.250.1
     description: Gateway IP address to the Core Network.
+  access-interface:
+    type: string
+    description: Interface on the host to use for the Access Network.
   access-ip:
     type: string
     default: 192.168.252.3/24

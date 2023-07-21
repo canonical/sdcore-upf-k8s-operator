@@ -1,6 +1,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import json
 import unittest
 from io import StringIO
 from unittest.mock import Mock, call, patch
@@ -428,3 +429,44 @@ class TestCharm(unittest.TestCase):
         patched_publish_upf_information.assert_called_once_with(
             relation_id=n3_relation_id, upf_ip_address="192.168.252.3"
         )
+
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_specified_in_nad(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "access-ip": "192.168.252.3/24",
+                "access-gateway-ip": "192.168.252.1",
+                "gnb-subnet": "192.168.251.0/24",
+                "core-ip": "192.168.250.3/24",
+                "core-gateway-ip": "192.168.250.1",
+            }
+        )
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            config = json.loads(nad.spec["config"])
+            self.assertNotIn("master", config)
+            self.assertEqual("bridge", config["type"])
+            self.assertIn(config["bridge"], ("core-br", "access-br"))
+
+    def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "access-interface": "access-net",
+                "access-ip": "192.168.252.3/24",
+                "access-gateway-ip": "192.168.252.1",
+                "gnb-subnet": "192.168.251.0/24",
+                "core-interface": "core-net",
+                "core-ip": "192.168.250.3/24",
+                "core-gateway-ip": "192.168.250.1",
+            }
+        )
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            config = json.loads(nad.spec["config"])
+            self.assertEqual(config["master"], nad.metadata.name)
+            self.assertEqual(config["type"], "macvlan")
