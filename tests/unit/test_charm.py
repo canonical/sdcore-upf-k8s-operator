@@ -4,7 +4,7 @@
 import json
 import unittest
 from io import StringIO
-from unittest.mock import Mock, call, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
@@ -51,7 +51,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=Mock)
+    @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
     def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
@@ -74,7 +74,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=Mock)
+    @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
     @patch("ops.model.Container.pull")
@@ -97,7 +97,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
-    @patch("ops.model.Container.exec", new=Mock)
+    @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
     def test_given_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
@@ -177,10 +177,10 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.set_leader(is_leader=True)
         patch_exec.side_effect = [
-            Mock(),
+            MagicMock(),
             ExecError(command=[], exit_code=1, stdout="", stderr=""),
-            Mock(),
-            Mock(),
+            MagicMock(),
+            MagicMock(),
         ]
         patch_exists.return_value = True
         patch_is_ready.return_value = True
@@ -293,7 +293,7 @@ class TestCharm(unittest.TestCase):
     @patch("ops.model.Container.get_service")
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
-    @patch("ops.model.Container.exec", new=Mock)
+    @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
     def test_given_config_file_is_written_and_all_services_are_running_when_bessd_pebble_ready_then_status_is_active(  # noqa: E501
@@ -383,7 +383,7 @@ class TestCharm(unittest.TestCase):
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
-    @patch("ops.model.Container.exec", new=Mock)
+    @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
     def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_then_new_upf_ip_address_is_published(  # noqa: E501

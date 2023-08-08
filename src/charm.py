@@ -295,6 +295,7 @@ class UPFOperatorCharm(CharmBase):
             try:
                 self._exec_command_in_bessd_workload(
                     command="/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4",
+                    timeout=timeout,
                     environment=self._bessd_environment_variables,
                 )
                 logger.info("Service `bessd` configured")
@@ -354,19 +355,24 @@ class UPFOperatorCharm(CharmBase):
         logger.info("Iptables rule for ICMP created")
 
     def _exec_command_in_bessd_workload(
-        self, command: str, environment: Optional[dict] = None
+        self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None
     ) -> tuple:
         """Executes command in bessd container.
 
         Args:
             command: Command to execute
+            timeout: Timeout in seconds
             environment: Environment Variables
         """
         process = self._bessd_container.exec(
             command=command.split(),
-            timeout=30,
+            timeout=timeout,
             environment=environment,
         )
+        for line in process.stdout:
+            logger.info(line)
+        for line in process.stderr:
+            logger.error(line)
         return process.wait_output()
 
     def _configure_pfcp_agent_workload(self) -> None:
