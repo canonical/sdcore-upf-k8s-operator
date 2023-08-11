@@ -230,7 +230,7 @@ class TestCharm(unittest.TestCase):
                     "-j",
                     "DROP",
                 ],
-                timeout=30,
+                timeout=300,
                 environment=None,
             )
             not in patch_exec.mock_calls
@@ -252,7 +252,7 @@ class TestCharm(unittest.TestCase):
 
         patch_exec.assert_any_call(
             command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
-            timeout=30,
+            timeout=300,
             environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
         )
 
