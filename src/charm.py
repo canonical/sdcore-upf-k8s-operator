@@ -290,9 +290,10 @@ class UPFOperatorCharm(CharmBase):
     def _run_bess_configuration(self) -> None:
         """Runs bessd configuration in workload."""
         initial_time = time.time()
-        timeout = 30
+        timeout = 300
         while time.time() - initial_time <= timeout:
             try:
+                logger.info("Starting configuration of the `bessd` service")
                 self._exec_command_in_bessd_workload(
                     command="/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4",
                     timeout=timeout,
