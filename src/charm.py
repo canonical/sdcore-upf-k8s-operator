@@ -40,6 +40,7 @@ CORE_NETWORK_ATTACHMENT_DEFINITION_NAME = "core-net"
 ACCESS_INTERFACE_NAME = "access"
 CORE_INTERFACE_NAME = "core"
 CONFIG_FILE_NAME = "upf.json"
+BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
 UPF_MODE = "af_packet"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
@@ -64,13 +65,7 @@ class UPFOperatorCharm(CharmBase):
                 }
             ],
         )
-        self._service_patcher = KubernetesServicePatch(
-            charm=self,
-            ports=[
-                ServicePort(name="pfcp", port=8805, protocol="UDP"),
-                ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
-            ],
-        )
+        self._service_patcher = self._get_k8s_service_patcher()
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
@@ -93,6 +88,18 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
         )
+
+    def _get_k8s_service_patcher(self) -> KubernetesServicePatch:
+        try:
+            return KubernetesServicePatch(
+                charm=self,
+                ports=[
+                    ServicePort(name="pfcp", port=8805, protocol="UDP"),
+                    ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
+                ],
+            )
+        except FileNotFoundError as e:
+            logger.warning("Can not create Kubernetes service patcher: %s", str(e))
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.
@@ -293,18 +300,42 @@ class UPFOperatorCharm(CharmBase):
         timeout = 300
         while time.time() - initial_time <= timeout:
             try:
-                logger.info("Starting configuration of the `bessd` service")
-                self._exec_command_in_bessd_workload(
-                    command="/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4",
-                    timeout=timeout,
-                    environment=self._bessd_environment_variables,
-                )
-                logger.info("Service `bessd` configured")
+                if not self._is_bessctl_executed():
+                    logger.info("Starting configuration of the `bessd` service")
+                    self._exec_command_in_bessd_workload(
+                        command="/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4",
+                        timeout=timeout,
+                        environment=self._bessd_environment_variables,
+                    )
+                    message = "Service `bessd` configured"
+                    logger.info(message)
+                    self._create_bessctl_executed_validation_file(message)
+                    return
                 return
             except ExecError:
                 logger.info("Failed running configuration for bess")
                 time.sleep(2)
         raise TimeoutError("Timed out trying to run configuration for bess")
+
+    def _is_bessctl_executed(self) -> bool:
+        """Check if BESSD_CONFIG_CHECK_FILE_NAME exists.
+
+        If bessctl configure is executed once this file exists.
+
+        Returns:
+            bool:   True/False
+        """
+        return self._bessd_container.exists(
+            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}"
+        )
+
+    def _create_bessctl_executed_validation_file(self, content) -> None:
+        """This creates BESSCTL_CONFIGURE_EXECUTED_FILE_NAME under BESSD_CONTAINER_CONFIG_PATH."""
+        self._bessd_container.push(
+            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
+            source=content,
+        )
+        logger.info("Pushed %s configuration check file", BESSCTL_CONFIGURE_EXECUTED_FILE_NAME)
 
     def _get_invalid_configs(self) -> list[str]:
         """Returns list of invalid configurations.
