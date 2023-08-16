@@ -61,7 +61,7 @@ class TestCharm(unittest.TestCase):
         patch_is_ready,
     ):
         self.harness.set_leader(is_leader=True)
-        patch_exists.side_effect = [True, False]
+        patch_exists.side_effect = [True, False, False]
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -245,7 +245,50 @@ class TestCharm(unittest.TestCase):
         self, patch_exists, patch_exec, patch_is_ready
     ):
         self.harness.set_leader(is_leader=True)
-        patch_exists.return_value = True
+        patch_exists.side_effect = [True, True, False]
+        patch_is_ready.return_value = True
+
+        self.harness.container_pebble_ready(container_name="bessd")
+
+        patch_exec.assert_any_call(
+            command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+            timeout=300,
+            environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
+        )
+
+    @patch("lib.charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch("ops.model.Container.push", new=Mock)
+    @patch("ops.model.Container.exec")
+    @patch("ops.model.Container.pull", new=Mock)
+    @patch("ops.model.Container.exists")
+    def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
+        self, patch_exists, patch_exec, patch_is_ready
+    ):
+        self.harness.set_leader(is_leader=True)
+        patch_exists.side_effect = [True, True, True]
+        patch_is_ready.return_value = True
+
+        self.harness.container_pebble_ready(container_name="bessd")
+
+        assert (
+            call(
+                command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+                timeout=30,
+                environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
+            )
+            not in patch_exec.mock_calls
+        )
+
+    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch("ops.model.Container.push", new=Mock)
+    @patch("ops.model.Container.exec")
+    @patch("ops.model.Container.pull", new=Mock)
+    @patch("ops.model.Container.exists")
+    def test_given_connects_and_bessctl_executed_file_dont_exist_then_bessctl_configure_executed(
+        self, patch_exists, patch_exec, patch_is_ready
+    ):
+        self.harness.set_leader(is_leader=True)
+        patch_exists.side_effect = [True, True, False]
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
