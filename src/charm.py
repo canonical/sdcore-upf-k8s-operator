@@ -65,7 +65,13 @@ class UPFOperatorCharm(CharmBase):
                 }
             ],
         )
-        self._service_patcher = self._get_k8s_service_patcher()
+        self._service_patcher = KubernetesServicePatch(
+            charm=self,
+            ports=[
+                ServicePort(name="pfcp", port=8805, protocol="UDP"),
+                ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
+            ],
+        )
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
@@ -88,18 +94,6 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
         )
-
-    def _get_k8s_service_patcher(self) -> KubernetesServicePatch:
-        try:
-            return KubernetesServicePatch(
-                charm=self,
-                ports=[
-                    ServicePort(name="pfcp", port=8805, protocol="UDP"),
-                    ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
-                ],
-            )
-        except FileNotFoundError as e:
-            logger.warning("Can not create Kubernetes service patcher: %s", str(e))
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.
