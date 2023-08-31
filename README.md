@@ -36,7 +36,7 @@ juju add-model user-plane
 Deploy the UPF:
 
 ```bash
-juju deploy upf-operator --trust --channel=edge
+juju deploy sdcore-upf --trust --channel=edge
 ```
 
 ## Image
