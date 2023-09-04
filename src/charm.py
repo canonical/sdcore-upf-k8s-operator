@@ -85,6 +85,7 @@ class UPFOperatorCharm(CharmBase):
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
+
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
@@ -101,6 +102,8 @@ class UPFOperatorCharm(CharmBase):
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
         )
+        self.framework.observe(self.on.install, self._on_install)
+        self._kubernetes_multus = self._get_kubernetes_multus()
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
@@ -201,7 +204,7 @@ class UPFOperatorCharm(CharmBase):
         else:
             access_nad_config.update({"type": "bridge", "bridge": "access-br"})
 
-        if (access_interface_mtu := self._get_accesss_interface_mtu_config()) is not None:
+        if (access_interface_mtu := self._get_access_interface_mtu_config()) is not None:
             access_nad_config.update({"mtu": int(access_interface_mtu)})
 
         core_nad_config = self._get_core_nad_config()
@@ -279,6 +282,8 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
             event.defer()
             return
+        del self._kubernetes_multus
+        self._kubernetes_multus = self._get_kubernetes_multus()
         self._on_bessd_pebble_ready(event)
         self._on_pfcp_agent_pebble_ready(event)
 
@@ -405,6 +410,10 @@ class UPFOperatorCharm(CharmBase):
             invalid_configs.append("core-gateway-ip")
         if not self._gnb_subnet_config_is_valid():
             invalid_configs.append("gnb-subnet")
+        if not self._access_interface_mtu_size_is_valid():
+            invalid_configs.append("access-interface-mtu-size")
+        if not self._core_interface_mtu_size_is_valid():
+            invalid_configs.append("core-interface-mtu-size")
         return invalid_configs
 
     def _create_default_route(self) -> None:
@@ -689,8 +698,62 @@ class UPFOperatorCharm(CharmBase):
     def _get_core_interface_mtu_config(self) -> Optional[str]:
         return self.model.config.get("core-interface-mtu-size")
 
-    def _get_accesss_interface_mtu_config(self) -> Optional[str]:
+    def _get_access_interface_mtu_config(self) -> Optional[str]:
         return self.model.config.get("access-interface-mtu-size")
+
+    def _access_interface_mtu_size_is_valid(self) -> bool:
+        """Checks whether the access interface MTU size is valid.
+
+        Returns:
+            bool: Whether access interface MTU size is valid
+        """
+        if access_interface_mtu_size := self._get_access_interface_mtu_config() is None:
+            return True
+        return self._mtu_size_is_valid(int(access_interface_mtu_size))
+
+    def _core_interface_mtu_size_is_valid(self) -> bool:
+        """Checks whether the core interface MTU size is valid.
+
+        Returns:
+            bool: Whether core interface MTU size is valid
+        """
+        if core_interface_mtu_size := self._get_core_interface_mtu_config() is None:
+            return True
+        return self._mtu_size_is_valid(int(core_interface_mtu_size))
+
+    @staticmethod
+    def _mtu_size_is_valid(mtu_size: Any) -> bool:
+        """Checks whether the given MTU size is valid.
+
+        Returns:
+            bool: Whether the MTU size is valid
+        """
+        if not isinstance(mtu_size, int):
+            return False
+        return 0 < mtu_size <= 9000
+
+    def _get_kubernetes_multus(self) -> KubernetesMultusCharmLib:
+        """Get the Kubernetes Multus object.
+
+        Returns:
+            kubernetes multus object
+        """
+        return KubernetesMultusCharmLib(
+            charm=self,
+            container_name=self._bessd_container_name,
+            cap_net_admin=True,
+            network_annotations=[
+                NetworkAnnotation(
+                    name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=ACCESS_INTERFACE_NAME,
+                ),
+                NetworkAnnotation(
+                    name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                    interface=CORE_INTERFACE_NAME,
+                ),
+            ],
+            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
+        )
 
 
 def render_bessd_config_file(

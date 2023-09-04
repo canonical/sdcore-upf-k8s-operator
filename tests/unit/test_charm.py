@@ -15,6 +15,13 @@ from ops.pebble import ExecError
 
 from charm import IncompatibleCPUError, UPFOperatorCharm
 
+NEGATIF_MTU_SIZE = -23
+TOO_BIG_MTU_SIZE = 20000
+VALID_MTU_SIZE = 2000
+ZERO_MTU_SIZE = 0
+STRING_MTU_SIZE = "some value"
+MTU_SIZE_9000 = 9000
+
 
 def read_file(path: str) -> str:
     """Reads a file and returns as a string.
@@ -426,6 +433,7 @@ class TestCharm(unittest.TestCase):
 
         patched_publish_upf_information.assert_not_called()
 
+    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesClient", new=Mock)
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
@@ -601,14 +609,51 @@ class TestCharm(unittest.TestCase):
             key_values={
                 "access-ip": "192.168.252.3/24",
                 "access-gateway-ip": "192.168.252.1",
-                "access-interface-mtu-size": 9000,
+                "access-interface-mtu-size": MTU_SIZE_9000,
                 "gnb-subnet": "192.168.251.0/24",
                 "core-ip": "192.168.250.3/24",
                 "core-gateway-ip": "192.168.250.1",
-                "core-interface-mtu-size": 9000,
+                "core-interface-mtu-size": MTU_SIZE_9000,
             }
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["mtu"], 9000)
+
+    def test_given_default_config_with_interfaces_invalid_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
+        self,
+    ):
+        self.harness.set_leader(is_leader=True)
+        self.harness.update_config(
+            key_values={
+                "access-interface-mtu-size": NEGATIF_MTU_SIZE,
+                "core-interface-mtu-size": TOO_BIG_MTU_SIZE,
+            }
+        )
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus(
+                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']"  # noqa: E501, W505
+            ),
+        )
+
+    def test_given_string_mtu_size_then_mtu_size_is_invalid(self):
+        expected_result = UPFOperatorCharm._mtu_size_is_valid(STRING_MTU_SIZE)
+        self.assertEqual(False, expected_result)
+
+    def test_given_negatif_mtu_size_then_mtu_size_is_invalid(self):
+        expected_result = UPFOperatorCharm._mtu_size_is_valid(NEGATIF_MTU_SIZE)
+        self.assertEqual(False, expected_result)
+
+    def test_given_zero_mtu_size_then_mtu_size_is_invalid(self):
+        expected_result = UPFOperatorCharm._mtu_size_is_valid(ZERO_MTU_SIZE)
+        self.assertEqual(False, expected_result)
+
+    def test_given_too_large_mtu_size_then_mtu_size_is_invalid(self):
+        expected_result = UPFOperatorCharm._mtu_size_is_valid(TOO_BIG_MTU_SIZE)
+        self.assertEqual(False, expected_result)
+
+    def test_given_valid_integer_mtu_size_then_mtu_size_is_valid(self):
+        expected_result = UPFOperatorCharm._mtu_size_is_valid(VALID_MTU_SIZE)
+        self.assertEqual(True, expected_result)

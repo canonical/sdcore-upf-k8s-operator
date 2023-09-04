@@ -20,7 +20,7 @@ options:
     description: Gateway IP address to the Core Network.
   core-interface-mtu-size:
     type: int
-    description: MTU size of UPF's Core Interface.
+    description: MTU size of UPF's Core Interface which is allowed between 0 < MTU <= 9000.
   access-interface:
     type: string
     description: Interface on the host to use for the Access Network.
@@ -34,4 +34,4 @@ options:
     description: Gateway IP address to the Access Network.
   access-interface-mtu-size:
     type: int
-    description: MTU size of UPF's Access Interface.
+    description: MTU size of UPF's Access Interface which is allowed between 0 < MTU <= 9000.
