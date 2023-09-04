@@ -18,6 +18,9 @@ options:
     type: string
     default: 192.168.250.1
     description: Gateway IP address to the Core Network.
+  core-interface-mtu-size:
+    type: int
+    description: MTU size of UPF's Core Interface.
   access-interface:
     type: string
     description: Interface on the host to use for the Access Network.
@@ -29,3 +32,6 @@ options:
     type: string
     default: 192.168.252.1
     description: Gateway IP address to the Access Network.
+  access-interface-mtu-size:
+    type: int
+    description: MTU size of UPF's Access Interface.

@@ -574,3 +574,41 @@ class TestCharm(unittest.TestCase):
             name=f"{self.harness.charm.app.name}-external",
             namespace=self.namespace,
         )
+
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "access-ip": "192.168.252.3/24",
+                "access-gateway-ip": "192.168.252.1",
+                "gnb-subnet": "192.168.251.0/24",
+                "core-ip": "192.168.250.3/24",
+                "core-gateway-ip": "192.168.250.1",
+            }
+        )
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            config = json.loads(nad.spec["config"])
+            self.assertNotIn("mtu", config)
+
+    def test_given_default_config_with_interfaces_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_mtu_sizes_specified_in_nad(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "access-ip": "192.168.252.3/24",
+                "access-gateway-ip": "192.168.252.1",
+                "access-interface-mtu-size": 9000,
+                "gnb-subnet": "192.168.251.0/24",
+                "core-ip": "192.168.250.3/24",
+                "core-gateway-ip": "192.168.250.1",
+                "core-interface-mtu-size": 9000,
+            }
+        )
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            config = json.loads(nad.spec["config"])
+            self.assertEqual(config["mtu"], 9000)
