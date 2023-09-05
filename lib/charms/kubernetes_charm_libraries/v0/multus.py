@@ -496,13 +496,6 @@ class KubernetesMultusCharmLib(Object):
         Args:
             event: EventBase
         """
-        for network_attachment_definition in self.network_attachment_definitions_func():
-            if self.kubernetes.network_attachment_definition_is_created(
-                    network_attachment_definition=network_attachment_definition
-            ):
-                self.kubernetes.delete_network_attachment_definition(
-                    name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
-                )
         self._configure_network_attachment_definitions()
         if not self._statefulset_is_patched():
             self.kubernetes.patch_statefulset(
@@ -537,6 +530,8 @@ class KubernetesMultusCharmLib(Object):
         2. Goes through the list of NetworkAttachmentDefinitions to create and create them all
         """
         network_attachment_definitions_to_create = self.network_attachment_definitions_func()
+        if not network_attachment_definitions_to_create:
+            return
         for (
             existing_network_attachment_definition
         ) in self.kubernetes.list_network_attachment_definitions():

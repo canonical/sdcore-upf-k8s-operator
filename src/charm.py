@@ -85,7 +85,6 @@ class UPFOperatorCharm(CharmBase):
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
-
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
@@ -198,10 +197,16 @@ class UPFOperatorCharm(CharmBase):
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
+        if invalid_configs := self._get_invalid_configs():
+            self.unit.status = BlockedStatus(
+                f"The following configurations are not valid: {invalid_configs}"
+            )
+            return None  # type: ignore
+
         access_nad_config = self._get_access_nad_config()
 
         if self._get_access_interface_mtu_config() is not None:
-            access_nad_config.update({"mtu": int(self._get_access_interface_mtu_config())})  # type: ignore[arg-type]  # noqa: E501
+            access_nad_config.update({"mtu": self._get_access_interface_mtu_config()})  # type: ignore[arg-type]  # noqa: E501
 
         if (access_interface := self._get_access_interface_config()) is not None:
             access_nad_config.update({"type": "macvlan", "master": access_interface})
@@ -211,7 +216,7 @@ class UPFOperatorCharm(CharmBase):
         core_nad_config = self._get_core_nad_config()
 
         if self._get_core_interface_mtu_config() is not None:
-            core_nad_config.update({"mtu": int(self._get_core_interface_mtu_config())})  # type: ignore[arg-type]  # noqa: E501
+            core_nad_config.update({"mtu": self._get_core_interface_mtu_config()})  # type: ignore[arg-type]  # noqa: E501
 
         if (core_interface := self._get_core_interface_config()) is not None:
             core_nad_config.update({"type": "macvlan", "master": core_interface})
@@ -284,8 +289,6 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
             event.defer()
             return
-        del self._kubernetes_multus
-        self._kubernetes_multus = self._get_kubernetes_multus()
         self._on_bessd_pebble_ready(event)
         self._on_pfcp_agent_pebble_ready(event)
 
@@ -697,11 +700,11 @@ class UPFOperatorCharm(CharmBase):
             "capabilities": {"mac": True},
         }
 
-    def _get_core_interface_mtu_config(self) -> Optional[str]:
-        return self.model.config.get("core-interface-mtu-size")
+    def _get_core_interface_mtu_config(self) -> Optional[int]:
+        return self.model.config.get("core-interface-mtu-size")  # type: ignore
 
-    def _get_access_interface_mtu_config(self) -> Optional[str]:
-        return self.model.config.get("access-interface-mtu-size")
+    def _get_access_interface_mtu_config(self) -> Optional[int]:
+        return self.model.config.get("access-interface-mtu-size")  # type: ignore
 
     def _access_interface_mtu_size_is_valid(self) -> bool:
         """Checks whether the access interface MTU size is valid.
@@ -712,7 +715,7 @@ class UPFOperatorCharm(CharmBase):
         if self._get_access_interface_mtu_config() is None:
             return True
         try:
-            return True if int(self._get_access_interface_mtu_config()) in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
+            return True if self._get_access_interface_mtu_config() in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
         except ValueError:
             return False
 
@@ -725,32 +728,9 @@ class UPFOperatorCharm(CharmBase):
         if self._get_core_interface_mtu_config() is None:
             return True
         try:
-            return True if int(self._get_core_interface_mtu_config()) in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
+            return True if self._get_core_interface_mtu_config() in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
         except ValueError:
             return False
-
-    def _get_kubernetes_multus(self) -> KubernetesMultusCharmLib:
-        """Get the Kubernetes Multus object.
-
-        Returns:
-            kubernetes multus object
-        """
-        return KubernetesMultusCharmLib(
-            charm=self,
-            container_name=self._bessd_container_name,
-            cap_net_admin=True,
-            network_annotations=[
-                NetworkAnnotation(
-                    name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                    interface=ACCESS_INTERFACE_NAME,
-                ),
-                NetworkAnnotation(
-                    name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                    interface=CORE_INTERFACE_NAME,
-                ),
-            ],
-            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
-        )
 
 
 def render_bessd_config_file(
