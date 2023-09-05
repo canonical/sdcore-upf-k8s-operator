@@ -17,7 +17,6 @@ from charm import IncompatibleCPUError, UPFOperatorCharm
 
 NEGATIF_MTU_SIZE = -23
 TOO_BIG_MTU_SIZE = 20000
-VALID_MTU_SIZE = 2000
 ZERO_MTU_SIZE = 0
 STRING_MTU_SIZE = "some value"
 MTU_SIZE_9000 = 9000
@@ -621,7 +620,7 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["mtu"], 9000)
 
-    def test_given_default_config_with_interfaces_invalid_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
+    def test_given_default_config_with_interfaces_negatif_big_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
         self.harness.set_leader(is_leader=True)
@@ -638,22 +637,18 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
-    def test_given_string_mtu_size_then_mtu_size_is_invalid(self):
-        expected_result = UPFOperatorCharm._mtu_size_is_valid(STRING_MTU_SIZE)
-        self.assertEqual(False, expected_result)
-
-    def test_given_negatif_mtu_size_then_mtu_size_is_invalid(self):
-        expected_result = UPFOperatorCharm._mtu_size_is_valid(NEGATIF_MTU_SIZE)
-        self.assertEqual(False, expected_result)
-
-    def test_given_zero_mtu_size_then_mtu_size_is_invalid(self):
-        expected_result = UPFOperatorCharm._mtu_size_is_valid(ZERO_MTU_SIZE)
-        self.assertEqual(False, expected_result)
-
-    def test_given_too_large_mtu_size_then_mtu_size_is_invalid(self):
-        expected_result = UPFOperatorCharm._mtu_size_is_valid(TOO_BIG_MTU_SIZE)
-        self.assertEqual(False, expected_result)
-
-    def test_given_valid_integer_mtu_size_then_mtu_size_is_valid(self):
-        expected_result = UPFOperatorCharm._mtu_size_is_valid(VALID_MTU_SIZE)
-        self.assertEqual(True, expected_result)
+    def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
+        self,
+    ):
+        self.harness.set_leader(is_leader=True)
+        self.harness.update_config(
+            key_values={
+                "core-interface-mtu-size": ZERO_MTU_SIZE,
+            }
+        )
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus(
+                "The following configurations are not valid: ['core-interface-mtu-size']"  # noqa: E501, W505
+            ),
+        )

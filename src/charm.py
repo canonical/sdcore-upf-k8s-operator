@@ -199,22 +199,24 @@ class UPFOperatorCharm(CharmBase):
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
         access_nad_config = self._get_access_nad_config()
+
+        if self._get_access_interface_mtu_config() is not None:
+            access_nad_config.update({"mtu": int(self._get_access_interface_mtu_config())})  # type: ignore[arg-type]  # noqa: E501
+
         if (access_interface := self._get_access_interface_config()) is not None:
             access_nad_config.update({"type": "macvlan", "master": access_interface})
         else:
             access_nad_config.update({"type": "bridge", "bridge": "access-br"})
 
-        if (access_interface_mtu := self._get_access_interface_mtu_config()) is not None:
-            access_nad_config.update({"mtu": int(access_interface_mtu)})
-
         core_nad_config = self._get_core_nad_config()
+
+        if self._get_core_interface_mtu_config() is not None:
+            core_nad_config.update({"mtu": int(self._get_core_interface_mtu_config())})  # type: ignore[arg-type]  # noqa: E501
+
         if (core_interface := self._get_core_interface_config()) is not None:
             core_nad_config.update({"type": "macvlan", "master": core_interface})
         else:
             core_nad_config.update({"type": "bridge", "bridge": "core-br"})
-
-        if (core_interface_mtu := self._get_core_interface_mtu_config()) is not None:
-            core_nad_config.update({"mtu": int(core_interface_mtu)})
 
         return [
             NetworkAttachmentDefinition(
@@ -410,9 +412,9 @@ class UPFOperatorCharm(CharmBase):
             invalid_configs.append("core-gateway-ip")
         if not self._gnb_subnet_config_is_valid():
             invalid_configs.append("gnb-subnet")
-        if not self._access_interface_mtu_size_is_valid():
+        if self._access_interface_mtu_size_is_valid() is False:
             invalid_configs.append("access-interface-mtu-size")
-        if not self._core_interface_mtu_size_is_valid():
+        if self._core_interface_mtu_size_is_valid() is False:
             invalid_configs.append("core-interface-mtu-size")
         return invalid_configs
 
@@ -707,9 +709,12 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether access interface MTU size is valid
         """
-        if access_interface_mtu_size := self._get_access_interface_mtu_config() is None:
+        if self._get_access_interface_mtu_config() is None:
             return True
-        return self._mtu_size_is_valid(int(access_interface_mtu_size))
+        try:
+            return True if int(self._get_access_interface_mtu_config()) in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
+        except ValueError:
+            return False
 
     def _core_interface_mtu_size_is_valid(self) -> bool:
         """Checks whether the core interface MTU size is valid.
@@ -717,20 +722,12 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether core interface MTU size is valid
         """
-        if core_interface_mtu_size := self._get_core_interface_mtu_config() is None:
+        if self._get_core_interface_mtu_config() is None:
             return True
-        return self._mtu_size_is_valid(int(core_interface_mtu_size))
-
-    @staticmethod
-    def _mtu_size_is_valid(mtu_size: Any) -> bool:
-        """Checks whether the given MTU size is valid.
-
-        Returns:
-            bool: Whether the MTU size is valid
-        """
-        if not isinstance(mtu_size, int):
+        try:
+            return True if int(self._get_core_interface_mtu_config()) in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
+        except ValueError:
             return False
-        return 0 < mtu_size <= 9000
 
     def _get_kubernetes_multus(self) -> KubernetesMultusCharmLib:
         """Get the Kubernetes Multus object.
