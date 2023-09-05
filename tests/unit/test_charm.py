@@ -5,12 +5,16 @@ import json
 import unittest
 from io import StringIO
 from unittest.mock import MagicMock, Mock, call, patch
+from lightkube.models.core_v1 import ServicePort, ServiceSpec
+from lightkube.models.meta_v1 import ObjectMeta
 
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
 from ops.pebble import ExecError
 
 from charm import UPFOperatorCharm
+
+from lightkube.resources.core_v1 import Service
 
 
 def read_file(path: str) -> str:
@@ -513,3 +517,47 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["master"], nad.metadata.name)
             self.assertEqual(config["type"], "macvlan")
+
+    @patch("lightkube.core.client.Client")
+    def test_when_install_then_external_service_is_created(self, patch_client):
+        self.harness.charm.on.install.emit()
+
+        calls = [
+            call(
+                Service(
+                    apiVersion="v1",
+                    kind="Service",
+                    metadata=ObjectMeta(
+                        namespace=self.namespace,
+                        name=f"{self.harness.charm.app.name}-external",
+                    ),
+                    spec=ServiceSpec(
+                        selector={"app.kubernetes.io/name": self.harness.charm.app.name},
+                        ports=[
+                            ServicePort(
+                                name="pfcp",
+                                port=8805,
+                                protocol="UDP",
+                            ),
+                        ],
+                        type="LoadBalancer",
+                    ),
+                )
+            ),
+        ]
+
+        patch_client.create.assert_has_calls(calls=calls)
+
+    # @patch("lightkube.core.client.Client.delete")
+    # def test_when_remove_then_external_service_is_deleted(self, patch_delete):
+    #     self.harness.charm.on.remove.emit()
+
+    #     calls = [
+    #         call(
+    #             Service,
+    #             namespace=self.namespace,
+    #             name=f"{self.harness.charm.app.name}-external",
+    #         ),
+    #     ]
+
+    #     patch_delete.assert_has_calls(calls=calls)

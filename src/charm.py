@@ -10,6 +10,8 @@ import logging
 import time
 from typing import Optional
 
+from httpx import HTTPStatusError
+
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     KubernetesMultusCharmLib,
     NetworkAnnotation,
@@ -23,9 +25,12 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 )
 from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
-from lightkube.models.core_v1 import ServicePort
+from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from ops.charm import CharmBase, EventBase
+from lightkube.resources.core_v1 import Service
+from lightkube import Client
+from ops.charm import CharmBase
+from ops.framework import EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -65,6 +70,8 @@ class UPFOperatorCharm(CharmBase):
                 }
             ],
         )
+        # TODO: Should this be `self.service_patcher` instead? It is not clear
+        #       to me what storing this locally is doing.
         self._service_patcher = KubernetesServicePatch(
             charm=self,
             ports=[
@@ -72,6 +79,16 @@ class UPFOperatorCharm(CharmBase):
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
+
+        # TODO: Should we update KubernetesServicePatch to support multiple
+        #       instances?
+        # self._service_patcher_2 = KubernetesServicePatch(
+        #     charm=self,
+        #     ports=[
+        #         ServicePort(name="pfcp", port=8806, protocol="UDP"),
+        #     ],
+        #     service_type="LoadBalancer",
+        # )
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
@@ -94,6 +111,62 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
         )
+        self.framework.observe(self.on.install, self._on_install)
+
+    def _on_install(self, event: EventBase) -> None:
+        self._create_additional_services()
+
+    def _create_additional_services(self) -> None:
+        client = Client()
+        logger.info("Creating additional services")
+        services = [
+            Service(
+                apiVersion="v1",
+                kind="Service",
+                metadata=ObjectMeta(
+                    namespace=self._namespace,
+                    name="upf-external",
+                    labels={
+                        "app.kubernetes.io/name": self.app.name,
+                    },
+                ),
+                spec=ServiceSpec(
+                    selector={
+                        "app.kubernetes.io/name": self.app.name,
+                    },
+                    ports=[
+                        ServicePort(name="pfcp", port=8805, protocol="UDP"),
+                    ],
+                    type="LoadBalancer",
+                ),
+            ),
+        ]
+
+        for service in services:
+            if not self._service_is_created(service.metadata.name):
+                logger.info(f"Creating {service.metadata.name} service")
+                client.create(service)
+
+    def _service_is_created(self, service_name: str) -> bool:
+        """Checks whether given K8s service exists or not.
+
+        Args:
+            service_name: Kubernetes service name
+
+        Returns:
+            True if the service exists, False otherwise
+        """
+        client = Client()
+        try:
+            client.get(Service, name=service_name, namespace=self._namespace)
+            return True
+        except HTTPStatusError:
+            return False
+
+    @property
+    def _namespace(self) -> str:
+        """Returns the k8s namespace"""
+        return self.model.name
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.
