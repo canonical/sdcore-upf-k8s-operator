@@ -33,7 +33,7 @@ from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
-from ops.pebble import ExecError, Layer
+from ops.pebble import ConnectionError, ExecError, Layer
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,8 @@ ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME = "access-net"
 CORE_NETWORK_ATTACHMENT_DEFINITION_NAME = "core-net"
 ACCESS_INTERFACE_NAME = "access"
 CORE_INTERFACE_NAME = "core"
+ACCESS_INTERFACE_BRIDGE_NAME = "access-br"
+CORE_INTERFACE_BRIDGE_NAME = "core-br"
 CONFIG_FILE_NAME = "upf.json"
 BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
 UPF_MODE = "af_packet"
@@ -66,6 +68,7 @@ class UPFOperatorCharm(CharmBase):
         super().__init__(*args)
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_service_name = "routectl"
+        self._restart_pod = False
         self._pfcp_agent_container_name = self._pfcp_agent_service_name = "pfcp-agent"
         self._bessd_container = self.unit.get_container(self._bessd_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
@@ -172,6 +175,39 @@ class UPFOperatorCharm(CharmBase):
             )
         self._create_external_upf_service()
 
+    def _is_pod_restart_required(self) -> None:
+        """Checks if existing NAD config is different then the required ones which are set in the configuration  # noqa: E501, W505.
+
+        If there is difference, sets the _restart_pod attribute to True.
+        """
+        if (
+            self.get_nad_active_mtu_size(ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME)
+            != self._get_access_interface_mtu_config()  # noqa: W503
+        ):
+            self._restart_pod = True
+        if (
+            self.get_nad_active_mtu_size(CORE_NETWORK_ATTACHMENT_DEFINITION_NAME)
+            != self._get_core_interface_mtu_config()  # noqa: W503
+        ):
+            self._restart_pod = True
+
+    def get_nad_active_mtu_size(self, nad_name: str) -> Optional[int]:
+        """Gets active MTU size for a given NAD name.
+
+        Args:
+            nad_name    (str):  NAD name
+
+        Returns:
+            mtu_size    (int/None):  Active MTU size for a given NAD
+                                If NAD definition is not found, returns None
+        """
+        existing_nads = self._kubernetes_multus.get_nad_definitions()
+        logger.error(existing_nads)
+        for nad_item in existing_nads:
+            if nad_item["metadata"]["name"] == nad_name:
+                return json.loads(nad_item["spec"]["config"]).get("mtu")
+        return None
+
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.
 
@@ -196,32 +232,30 @@ class UPFOperatorCharm(CharmBase):
             )
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
+        """Returns list of Multus NetworkAttachmentDefinitions to be created based on config.
+
+        Checks if the config settings are correct before creating any NAD.
+        It also detects the MTU size change in NAD definitions to trigger the restart of pod.
+        """
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
             )
             return None  # type: ignore
-
+        self._is_pod_restart_required()
         access_nad_config = self._get_access_nad_config()
 
-        if self._get_access_interface_mtu_config() is not None:
-            access_nad_config.update({"mtu": self._get_access_interface_mtu_config()})  # type: ignore[arg-type]  # noqa: E501
-
-        if (access_interface := self._get_access_interface_config()) is not None:
+        if access_interface := self._get_access_interface_config():
             access_nad_config.update({"type": "macvlan", "master": access_interface})
         else:
-            access_nad_config.update({"type": "bridge", "bridge": "access-br"})
+            access_nad_config.update({"type": "bridge", "bridge": ACCESS_INTERFACE_BRIDGE_NAME})
 
         core_nad_config = self._get_core_nad_config()
 
-        if self._get_core_interface_mtu_config() is not None:
-            core_nad_config.update({"mtu": self._get_core_interface_mtu_config()})  # type: ignore[arg-type]  # noqa: E501
-
-        if (core_interface := self._get_core_interface_config()) is not None:
+        if core_interface := self._get_core_interface_config():
             core_nad_config.update({"type": "macvlan", "master": core_interface})
         else:
-            core_nad_config.update({"type": "bridge", "bridge": "core-br"})
+            core_nad_config.update({"type": "bridge", "bridge": CORE_INTERFACE_BRIDGE_NAME})
 
         return [
             NetworkAttachmentDefinition(
@@ -290,6 +324,13 @@ class UPFOperatorCharm(CharmBase):
             event.defer()
             return
         self._on_bessd_pebble_ready(event)
+        if self._restart_pod:
+            try:
+                self._kubernetes_multus.delete_pod()
+                self._restart_pod = False
+            except ConnectionError:
+                event.defer()
+                return
         self._on_pfcp_agent_pebble_ready(event)
 
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
@@ -415,9 +456,9 @@ class UPFOperatorCharm(CharmBase):
             invalid_configs.append("core-gateway-ip")
         if not self._gnb_subnet_config_is_valid():
             invalid_configs.append("gnb-subnet")
-        if self._access_interface_mtu_size_is_valid() is False:
+        if not self._access_interface_mtu_size_is_valid():
             invalid_configs.append("access-interface-mtu-size")
-        if self._core_interface_mtu_size_is_valid() is False:
+        if not self._core_interface_mtu_size_is_valid():
             invalid_configs.append("core-interface-mtu-size")
         return invalid_configs
 
@@ -667,7 +708,8 @@ class UPFOperatorCharm(CharmBase):
         return cpu_flags
 
     def _get_access_nad_config(self) -> Dict[Any, Any]:
-        return {
+        """Get access interface NAD config."""
+        config = {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
@@ -685,9 +727,13 @@ class UPFOperatorCharm(CharmBase):
             },
             "capabilities": {"mac": True},
         }
+        if self._get_access_interface_mtu_config():
+            config.update({"mtu": self._get_access_interface_mtu_config()})  # type: ignore
+        return config
 
     def _get_core_nad_config(self) -> Dict[Any, Any]:
-        return {
+        """Get core interface NAD config."""
+        config = {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
@@ -699,6 +745,11 @@ class UPFOperatorCharm(CharmBase):
             },
             "capabilities": {"mac": True},
         }
+        if self._get_core_interface_mtu_config():
+            config.update(
+                {"mtu": self._get_core_interface_mtu_config()}  # type: ignore
+            )  # type: ignore[arg-type]  # noqa: E501
+        return config
 
     def _get_core_interface_mtu_config(self) -> Optional[int]:
         return self.model.config.get("core-interface-mtu-size")  # type: ignore
@@ -715,7 +766,7 @@ class UPFOperatorCharm(CharmBase):
         if self._get_access_interface_mtu_config() is None:
             return True
         try:
-            return True if self._get_access_interface_mtu_config() in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
+            return self._get_access_interface_mtu_config() in range(1200, 65537)
         except ValueError:
             return False
 
@@ -728,7 +779,7 @@ class UPFOperatorCharm(CharmBase):
         if self._get_core_interface_mtu_config() is None:
             return True
         try:
-            return True if self._get_core_interface_mtu_config() in range(1, 9001) else False  # type: ignore[arg-type]  # noqa: E501
+            return self._get_core_interface_mtu_config() in range(1200, 65537)  # type: ignore[arg-type]  # noqa: E501
         except ValueError:
             return False
 

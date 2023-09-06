@@ -148,6 +148,17 @@ class KubernetesClient:
         self.client = Client()
         self.namespace = namespace
 
+    def delete_pod(self, pod_name: str) -> None:
+        """Deleting given pod.
+
+        Args:
+            pod_name    (str): Pod name to delete
+
+        Returns:
+            None
+        """
+        self.client.delete(Pod, pod_name, namespace=self.namespace)
+
     def pod_is_ready(
         self,
         pod_name: str,
@@ -529,9 +540,8 @@ class KubernetesMultusCharmLib(Object):
           - Else, delete it
         2. Goes through the list of NetworkAttachmentDefinitions to create and create them all
         """
-        network_attachment_definitions_to_create = self.network_attachment_definitions_func()
-        if not network_attachment_definitions_to_create:
-            return
+        # Making sure that network_attachment_definitions_to_create is iterable.
+        network_attachment_definitions_to_create = self.network_attachment_definitions_func() or []
         for (
             existing_network_attachment_definition
         ) in self.kubernetes.list_network_attachment_definitions():
@@ -549,7 +559,6 @@ class KubernetesMultusCharmLib(Object):
                     network_attachment_definitions_to_create.remove(
                         existing_network_attachment_definition
                     )
-
         for network_attachment_definition_to_create in network_attachment_definitions_to_create:
             self.kubernetes.create_network_attachment_definition(
                 network_attachment_definition=network_attachment_definition_to_create
@@ -621,3 +630,15 @@ class KubernetesMultusCharmLib(Object):
                 self.kubernetes.delete_network_attachment_definition(
                     name=network_attachment_definition.metadata.name  # type: ignore[union-attr]
                 )
+
+    def delete_pod(self) -> None:
+        """Delete the pod."""
+        self.kubernetes.delete_pod(self._pod)
+
+    def get_nad_definitions(self) -> list[NetworkAttachmentDefinition]:
+        """Get all existing network attachment definitions in the namespace.
+
+        Returns:
+            NetworkAttachmentDefinitions    (list) :    List of network attachment definitions
+        """
+        return self.kubernetes.list_network_attachment_definitions()
