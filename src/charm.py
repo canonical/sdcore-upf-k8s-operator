@@ -8,6 +8,7 @@ import ipaddress
 import json
 import logging
 import time
+from subprocess import check_output
 from typing import Optional
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
@@ -44,6 +45,7 @@ BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
 UPF_MODE = "af_packet"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
+REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 
 
 class UPFOperatorCharm(CharmBase):
@@ -88,12 +90,32 @@ class UPFOperatorCharm(CharmBase):
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
         )
+        self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
         )
+
+    def _on_start(self, event: EventBase) -> None:
+        """Handler for Juju start event.
+
+        This handler enforces usage of a CPU which supports instructions required to run this
+        charm. If the CPU doesn't meet the requirements, charm goes to Blocked state.
+
+        Args:
+            event: Juju event
+        """
+        if not self._is_cpu_compatible():
+            self.unit.status = BlockedStatus("CPU is not compatible")
+            logger.error(
+                "CPU is not compatible!\n"
+                "Please use a CPU that has the following capabilities: "
+                f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
+            )
+            event.defer()
+            return
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.
@@ -570,6 +592,32 @@ class UPFOperatorCharm(CharmBase):
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
+
+    def _is_cpu_compatible(self) -> bool:
+        """Returns whether the CPU meets requirements to run this charm.
+
+        Returns:
+            bool: Whether the CPU meets requirements to run this charm
+        """
+        return all(
+            required_extention in self._get_cpu_extensions()
+            for required_extention in REQUIRED_CPU_EXTENSIONS
+        )
+
+    @staticmethod
+    def _get_cpu_extensions() -> list[str]:
+        """Returns a list of extensions (instructions) supported by the CPU.
+
+        Returns:
+            list: List of extensions (instructions) supported by the CPU.
+        """
+        cpu_info = check_output(["lscpu"]).decode().split("\n")
+        cpu_flags = []
+        for cpu_info_item in cpu_info:
+            if "Flags:" in cpu_info_item:
+                cpu_flags = cpu_info_item.split()
+                del cpu_flags[0]
+        return cpu_flags
 
 
 def render_bessd_config_file(

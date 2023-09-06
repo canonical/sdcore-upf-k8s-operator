@@ -7,7 +7,7 @@ from io import StringIO
 from unittest.mock import MagicMock, Mock, call, patch
 
 from ops import testing
-from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ExecError
 
 from charm import UPFOperatorCharm
@@ -513,3 +513,41 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["master"], nad.metadata.name)
             self.assertEqual(config["type"], "macvlan")
+
+    @patch("charm.check_output")
+    def test_given_cpu_not_supporting_required_instructions_when_start_then_charm_goes_to_blocked_status(  # noqa: E501
+        self, patched_check_output
+    ):
+        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
+
+        self.harness.charm.on.start.emit()
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("CPU is not compatible"),
+        )
+
+    @patch("charm.check_output")
+    def test_given_cpu_not_supporting_required_instructions_when_start_then_error_message_is_logged(  # noqa: E501
+        self, patched_check_output
+    ):
+        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
+
+        with self.assertLogs() as logs:
+            self.harness.charm.on.start.emit()
+
+        self.assertEqual(
+            logs.records[0].message,
+            "CPU is not compatible!\n"
+            "Please use a CPU that has the following capabilities: avx2, rdrand",
+        )
+
+    @patch("charm.check_output")
+    def test_given_cpu_supporting_required_instructions_when_start_then_charm_goes_to_maintenance_status(  # noqa: E501
+        self, patched_check_output
+    ):
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
+
+        self.harness.charm.on.start.emit()
+
+        self.assertEqual(self.harness.model.unit.status, MaintenanceStatus())
