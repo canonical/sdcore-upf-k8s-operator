@@ -21,8 +21,10 @@ options:
   core-interface-mtu-size:
     type: int
     description: |
-      MTU size of UPF's Core Interface which is allowed between 1200 < MTU <= 65536 (bytes).
-      If config is not provided, Multus creates interface with default MTU size which is 1500 bytes.
+      MTU size of UPF's Core Interface which is allowed
+      between 1200 < MTU <= 65536 (bytes).
+      If config is not provided, Multus creates interface
+      with default MTU size which is 1500 bytes.
   access-interface:
     type: string
     description: Interface on the host to use for the Access Network.
@@ -37,5 +39,7 @@ options:
   access-interface-mtu-size:
     type: int
     description: |
-      MTU size of UPF's Access Interface which is allowed between 1200 < MTU <= 65536 (bytes).
-      If config is not provided, Multus creates interface with default MTU size which is 1500 bytes.
+      MTU size of UPF's Access Interface which is allowed
+      between 1200 < MTU <= 65536 (bytes).
+      If config is not provided, Multus creates interface
+      with default MTU size which is 1500 bytes.

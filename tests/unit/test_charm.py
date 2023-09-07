@@ -16,6 +16,7 @@ from sample_nad_defitions import modified_nad_descriptions, original_nad_descrip
 
 from charm import IncompatibleCPUError, UPFOperatorCharm
 
+MULTUS_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.multus"
 TOO_BIG_MTU_SIZE = 80000
 TOO_SMALL_MTU_SIZE = 0
 VALID_MTU_SIZE_1 = 9000
@@ -49,6 +50,10 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
 
+    @patch(
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
+        new=Mock,
+    )
     def test_given_bad_config_when_config_changed_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=True)
 
@@ -59,7 +64,7 @@ class TestCharm(unittest.TestCase):
             BlockedStatus("The following configurations are not valid: ['dnn']"),
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
@@ -82,7 +87,7 @@ class TestCharm(unittest.TestCase):
             source=expected_config_file_content,
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.exists")
     @patch("ops.model.Container.push")
@@ -104,7 +109,7 @@ class TestCharm(unittest.TestCase):
 
         patch_push.assert_not_called()
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
@@ -147,7 +152,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.pull", new=Mock)
@@ -176,7 +181,7 @@ class TestCharm(unittest.TestCase):
             environment=None,
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.pull", new=Mock)
@@ -212,7 +217,7 @@ class TestCharm(unittest.TestCase):
             environment=None,
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.pull", new=Mock)
@@ -245,7 +250,7 @@ class TestCharm(unittest.TestCase):
             not in patch_exec.mock_calls
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.pull", new=Mock)
@@ -265,7 +270,7 @@ class TestCharm(unittest.TestCase):
             environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
         )
 
-    @patch("lib.charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.pull", new=Mock)
@@ -288,7 +293,7 @@ class TestCharm(unittest.TestCase):
             not in patch_exec.mock_calls
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec")
     @patch("ops.model.Container.pull", new=Mock)
@@ -308,7 +313,7 @@ class TestCharm(unittest.TestCase):
             environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.exec", new=Mock)
     @patch("ops.model.Container.exists")
     def test_given_storage_not_attached_when_bessd_pebble_ready_then_status_is_waiting(
@@ -327,7 +332,7 @@ class TestCharm(unittest.TestCase):
             WaitingStatus("Waiting for storage to be attached"),
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_multus_not_configured_when_bessd_pebble_ready_then_status_is_waiting(
         self,
         patch_is_ready,
@@ -343,7 +348,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("ops.model.Container.get_service")
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
@@ -432,9 +437,9 @@ class TestCharm(unittest.TestCase):
 
         patched_publish_upf_information.assert_not_called()
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
@@ -459,8 +464,12 @@ class TestCharm(unittest.TestCase):
 
         patched_publish_upf_information.assert_has_calls(expected_calls)
 
+    @patch(
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
+        new=Mock,
+    )
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=Mock)
     @patch("ops.model.Container.pull", new=Mock)
@@ -506,7 +515,7 @@ class TestCharm(unittest.TestCase):
     def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
         self,
     ):
-        self.harness.set_leader(is_leader=True)
+        self.harness.disable_hooks()
         self.harness.update_config(
             key_values={
                 "access-interface": "access-net",
@@ -620,6 +629,10 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["mtu"], 9000)
 
+    @patch(
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
+        new=Mock,
+    )
     def test_given_default_config_with_interfaces_too_small_and_too_big_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
@@ -637,12 +650,10 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesClient", new=Mock)
-    @patch(
-        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.get_nad_definitions"
-    )
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.delete_pod")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_nad_definitions")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
@@ -659,17 +670,15 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_1})
         patch_delete_pod.assert_called_once()
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesClient", new=Mock)
-    @patch(
-        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.get_nad_definitions"
-    )
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.delete_pod")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_nad_definitions")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
-    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_twice_to_valid_values_then_delete_pod_called_twice(  # noqa: E501
+    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_to_different_valid_values_twice_then_delete_pod_called_twice(  # noqa: E501
         self, patch_exists, patch_delete_pod, patch_multus_is_ready, patch_get_nad_definitions
     ):
         patch_exists.return_value = True
@@ -687,16 +696,14 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         self.assertEqual(patch_delete_pod.call_count, 2)
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch(
-        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib._configure_multus",
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_multus",
         new=Mock,
     )
-    @patch(
-        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.get_nad_definitions"
-    )
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.delete_pod")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_nad_definitions")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
@@ -717,17 +724,19 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         patch_delete_pod.assert_not_called()
 
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesClient", new=Mock)
     @patch(
-        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.get_nad_definitions"
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
+        new=Mock,
     )
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
-    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.delete_pod")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_nad_definitions")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
-    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_once_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
+    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
         self, patch_exists, patch_delete_pod, patch_multus_is_ready, patch_get_nad_definitions
     ):
         patch_exists.return_value = True

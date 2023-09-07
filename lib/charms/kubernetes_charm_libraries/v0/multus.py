@@ -154,8 +154,6 @@ class KubernetesClient:
         Args:
             pod_name    (str): Pod name to delete
 
-        Returns:
-            None
         """
         self.client.delete(Pod, pod_name, namespace=self.namespace)
 
@@ -540,8 +538,7 @@ class KubernetesMultusCharmLib(Object):
           - Else, delete it
         2. Goes through the list of NetworkAttachmentDefinitions to create and create them all
         """
-        # Making sure that network_attachment_definitions_to_create is iterable.
-        network_attachment_definitions_to_create = self.network_attachment_definitions_func() or []
+        network_attachment_definitions_to_create = self.network_attachment_definitions_func()
         for (
             existing_network_attachment_definition
         ) in self.kubernetes.list_network_attachment_definitions():

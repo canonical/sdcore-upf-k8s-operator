@@ -202,7 +202,6 @@ class UPFOperatorCharm(CharmBase):
                                 If NAD definition is not found, returns None
         """
         existing_nads = self._kubernetes_multus.get_nad_definitions()
-        logger.error(existing_nads)
         for nad_item in existing_nads:
             if nad_item["metadata"]["name"] == nad_name:
                 return json.loads(nad_item["spec"]["config"]).get("mtu")
@@ -708,7 +707,12 @@ class UPFOperatorCharm(CharmBase):
         return cpu_flags
 
     def _get_access_nad_config(self) -> Dict[Any, Any]:
-        """Get access interface NAD config."""
+        """Get access interface NAD config.
+
+        Returns:
+            config   (dict): Access interface NAD config
+
+        """
         config = {
             "cniVersion": "0.3.1",
             "ipam": {
@@ -732,7 +736,12 @@ class UPFOperatorCharm(CharmBase):
         return config
 
     def _get_core_nad_config(self) -> Dict[Any, Any]:
-        """Get core interface NAD config."""
+        """Get core interface NAD config.
+
+        Returns:
+            config   (dict): Core interface NAD config
+
+        """
         config = {
             "cniVersion": "0.3.1",
             "ipam": {
@@ -746,15 +755,27 @@ class UPFOperatorCharm(CharmBase):
             "capabilities": {"mac": True},
         }
         if self._get_core_interface_mtu_config():
-            config.update(
-                {"mtu": self._get_core_interface_mtu_config()}  # type: ignore
-            )  # type: ignore[arg-type]  # noqa: E501
+            config.update({"mtu": self._get_core_interface_mtu_config()})  # type: ignore
         return config
 
     def _get_core_interface_mtu_config(self) -> Optional[int]:
+        """Get Core interface MTU size.
+
+        Returns:
+            mtu_size    (int/None): If MTU size is not configured return None
+                                    If it is set, returns the configured value expected in int
+
+        """
         return self.model.config.get("core-interface-mtu-size")  # type: ignore
 
     def _get_access_interface_mtu_config(self) -> Optional[int]:
+        """Get Access interface MTU size.
+
+        Returns:
+            mtu_size    (int/None): If MTU size is not configured return None
+                                    If it is set, returns the configured value expected in int
+
+        """
         return self.model.config.get("access-interface-mtu-size")  # type: ignore
 
     def _access_interface_mtu_size_is_valid(self) -> bool:
@@ -779,7 +800,7 @@ class UPFOperatorCharm(CharmBase):
         if self._get_core_interface_mtu_config() is None:
             return True
         try:
-            return self._get_core_interface_mtu_config() in range(1200, 65537)  # type: ignore[arg-type]  # noqa: E501
+            return self._get_core_interface_mtu_config() in range(1200, 65537)
         except ValueError:
             return False
 

@@ -19,7 +19,6 @@ original_core_nad = {
         "config": original_core_net_config,
     },
 }
-
 modified_core_nad = {
     "apiVersion": "k8s.cni.cncf.io/v1",
     "kind": "NetworkAttachmentDefinition",
@@ -30,7 +29,6 @@ modified_core_nad = {
         "config": modified_core_net_config,
     },
 }
-
 original_nad_descriptions = [
     access_nad,
     original_core_nad,
