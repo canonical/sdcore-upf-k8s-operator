@@ -90,7 +90,7 @@ class UPFOperatorCharm(CharmBase):
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
         )
-        self.framework.observe(self.on.start, self._on_start)
+        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
@@ -98,8 +98,8 @@ class UPFOperatorCharm(CharmBase):
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
         )
 
-    def _on_start(self, event: EventBase) -> None:
-        """Handler for Juju start event.
+    def _on_install(self, event: EventBase) -> None:
+        """Handler for Juju install event.
 
         This handler enforces usage of a CPU which supports instructions required to run this
         charm. If the CPU doesn't meet the requirements, charm goes to Blocked state.
@@ -600,8 +600,8 @@ class UPFOperatorCharm(CharmBase):
             bool: Whether the CPU meets requirements to run this charm
         """
         return all(
-            required_extention in self._get_cpu_extensions()
-            for required_extention in REQUIRED_CPU_EXTENSIONS
+            required_extension in self._get_cpu_extensions()
+            for required_extension in REQUIRED_CPU_EXTENSIONS
         )
 
     @staticmethod

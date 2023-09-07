@@ -520,7 +520,7 @@ class TestCharm(unittest.TestCase):
     ):
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
 
-        self.harness.charm.on.start.emit()
+        self.harness.charm.on.install.emit()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -534,7 +534,7 @@ class TestCharm(unittest.TestCase):
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
 
         with self.assertLogs() as logs:
-            self.harness.charm.on.start.emit()
+            self.harness.charm.on.install.emit()
 
         self.assertEqual(
             logs.records[0].message,
@@ -548,6 +548,6 @@ class TestCharm(unittest.TestCase):
     ):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
 
-        self.harness.charm.on.start.emit()
+        self.harness.charm.on.install.emit()
 
         self.assertEqual(self.harness.model.unit.status, MaintenanceStatus())
