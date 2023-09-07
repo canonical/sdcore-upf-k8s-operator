@@ -1,3 +1,6 @@
+# Copyright 2023 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 original_core_net_config = '{"cniVersion": "0.3.1", "ipam": {"type": "static", "addresses": [{"address": "192.168.250.3/24"}]}, "capabilities": {"mac": true}, "mtu": 1800, "type": "bridge", "bridge": "core-br"}'  # noqa: E501
 modified_core_net_config = '{"cniVersion": "0.3.1", "ipam": {"type": "static", "addresses": [{"address": "192.168.250.3/24"}]}, "capabilities": {"mac": true}, "mtu": 9000, "type": "bridge", "bridge": "core-br"}'  # noqa: E501
 access_net_config = '{"cniVersion": "0.3.1", "ipam": {"type": "static", "routes": [{"dst": "192.168.251.0/24", "gw": "192.168.252.1"}], "addresses": [{"address": "192.168.252.3/24"}]}, "capabilities": {"mac": true}, "type": "bridge", "bridge": "access-br"}'  # noqa: E501
