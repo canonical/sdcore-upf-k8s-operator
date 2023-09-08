@@ -185,6 +185,8 @@ class UPFOperatorCharm(CharmBase):
             != self._get_access_interface_mtu_config()  # noqa: W503
         ):
             self._restart_pod = True
+            return
+
         if (
             self.get_nad_active_mtu_size(CORE_NETWORK_ATTACHMENT_DEFINITION_NAME)
             != self._get_core_interface_mtu_config()  # noqa: W503
