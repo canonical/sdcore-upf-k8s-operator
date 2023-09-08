@@ -152,7 +152,7 @@ class KubernetesClient:
         """Deleting given pod.
 
         Args:
-            pod_name    (str): Pod name to delete
+            pod_name (str): Pod name
 
         """
         self.client.delete(Pod, pod_name, namespace=self.namespace)
@@ -632,10 +632,10 @@ class KubernetesMultusCharmLib(Object):
         """Delete the pod."""
         self.kubernetes.delete_pod(self._pod)
 
-    def get_nad_definitions(self) -> list[NetworkAttachmentDefinition]:
+    def get_network_attachment_definitions(self) -> list[NetworkAttachmentDefinition]:
         """Get all existing network attachment definitions in the namespace.
 
         Returns:
-            NetworkAttachmentDefinitions    (list) :    List of network attachment definitions
+            NetworkAttachmentDefinitions (list) : List of network attachment definitions
         """
         return self.kubernetes.list_network_attachment_definitions()

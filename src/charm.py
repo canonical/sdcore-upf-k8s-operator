@@ -176,34 +176,35 @@ class UPFOperatorCharm(CharmBase):
         self._create_external_upf_service()
 
     def _is_pod_restart_required(self) -> None:
-        """Checks if existing NAD config is different then the required ones which are set in the configuration  # noqa: E501, W505.
+        """Checks if existing NAD config is different from the required ones which are set in the configuration  # noqa: E501, W505.
 
         If there is difference, sets the _restart_pod attribute to True.
+
         """
         if (
-            self.get_nad_active_mtu_size(ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME)
+            self._get_nad_active_mtu_size(ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME)
             != self._get_access_interface_mtu_config()  # noqa: W503
         ):
             self._restart_pod = True
             return
 
         if (
-            self.get_nad_active_mtu_size(CORE_NETWORK_ATTACHMENT_DEFINITION_NAME)
+            self._get_nad_active_mtu_size(CORE_NETWORK_ATTACHMENT_DEFINITION_NAME)
             != self._get_core_interface_mtu_config()  # noqa: W503
         ):
             self._restart_pod = True
 
-    def get_nad_active_mtu_size(self, nad_name: str) -> Optional[int]:
+    def _get_nad_active_mtu_size(self, nad_name: str) -> Optional[int]:
         """Gets active MTU size for a given NAD name.
 
         Args:
-            nad_name    (str):  NAD name
+            nad_name (str): NAD name
 
         Returns:
-            mtu_size    (int/None):  Active MTU size for a given NAD
-                                If NAD definition is not found, returns None
+            mtu_size (int/None): Active MTU size for a given NAD
+                                If NAD is not found, returns None
         """
-        existing_nads = self._kubernetes_multus.get_nad_definitions()
+        existing_nads = self._kubernetes_multus.get_network_attachment_definitions()
         for nad_item in existing_nads:
             if nad_item["metadata"]["name"] == nad_name:
                 return json.loads(nad_item["spec"]["config"]).get("mtu")
@@ -236,7 +237,7 @@ class UPFOperatorCharm(CharmBase):
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config.
 
         Checks if the config settings are correct before creating any NAD.
-        It also detects the MTU size change in NAD definitions to trigger the restart of pod.
+        It also detects the MTU size change in the network attachment definitions to trigger the restart of pod.  # noqa: E501, W505
         """
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
@@ -712,7 +713,7 @@ class UPFOperatorCharm(CharmBase):
         """Get access interface NAD config.
 
         Returns:
-            config   (dict): Access interface NAD config
+            config (dict): Access interface NAD config
 
         """
         config = {
@@ -741,7 +742,7 @@ class UPFOperatorCharm(CharmBase):
         """Get core interface NAD config.
 
         Returns:
-            config   (dict): Core interface NAD config
+            config (dict): Core interface NAD config
 
         """
         config = {
@@ -764,7 +765,7 @@ class UPFOperatorCharm(CharmBase):
         """Get Core interface MTU size.
 
         Returns:
-            mtu_size    (int/None): If MTU size is not configured return None
+            mtu_size (int/None): If MTU size is not configured return None
                                     If it is set, returns the configured value expected in int
 
         """
@@ -774,7 +775,7 @@ class UPFOperatorCharm(CharmBase):
         """Get Access interface MTU size.
 
         Returns:
-            mtu_size    (int/None): If MTU size is not configured return None
+            mtu_size (int/None): If MTU size is not configured return None
                                     If it is set, returns the configured value expected in int
 
         """
