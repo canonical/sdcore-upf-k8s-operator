@@ -48,6 +48,12 @@ PROMETHEUS_PORT = 8080
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 
 
+class IncompatibleCPUError(Exception):
+    """Custom error to be raised when CPU doesn't support required instructions."""
+
+    pass
+
+
 class UPFOperatorCharm(CharmBase):
     """Main class to describe juju event handling for the 5G UPF operator."""
 
@@ -108,14 +114,11 @@ class UPFOperatorCharm(CharmBase):
             event: Juju event
         """
         if not self._is_cpu_compatible():
-            self.unit.status = BlockedStatus("CPU is not compatible")
-            logger.error(
-                "CPU is not compatible!\n"
+            raise IncompatibleCPUError(
+                "\nCPU is not compatible!\n"
                 "Please use a CPU that has the following capabilities: "
                 f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
             )
-            event.defer()
-            return
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.
