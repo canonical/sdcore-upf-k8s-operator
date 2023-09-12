@@ -44,7 +44,7 @@ class TestN4Provides(unittest.TestCase):
         self, patched_test_upf_port, patched_test_upf_hostname
     ):
         self.harness.set_leader(is_leader=True)
-        test_invalid_upf_hostname = 34566
+        test_invalid_upf_hostname = None
         test_upf_port = 1234
         patched_test_upf_hostname.return_value = test_invalid_upf_hostname
         patched_test_upf_port.return_value = test_upf_port
