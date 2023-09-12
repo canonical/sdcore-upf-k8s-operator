@@ -42,7 +42,7 @@ jobs:
       charm-file-name: "sdcore-upf_ubuntu-22.04-amd64.charm"
     secrets: inherit
 
-  lib-needs-publishing:
+  fiveg-n3-lib-needs-publishing:
     runs-on: ubuntu-22.04
     outputs:
       needs-publishing: ${{ steps.changes.outputs.fiveg_n3 }}
@@ -55,13 +55,37 @@ jobs:
             fiveg_n3:
               - 'lib/charms/sdcore_upf/v0/fiveg_n3.py'
 
-  publish-lib:
+  publish-fiveg-n3-lib:
     name: Publish Lib
     needs:
       - publish-charm
-      - lib-needs-publishing
+      - fiveg-n3-lib-needs-publishing
     if: ${{ github.ref_name == 'main' }}
     uses: canonical/sdcore-github-workflows/.github/workflows/publish-lib.yaml@main
     with:
       lib-name: "charms.sdcore_upf.v0.fiveg_n3"
+    secrets: inherit
+
+  fiveg-n4-lib-needs-publishing:
+    runs-on: ubuntu-22.04
+    outputs:
+      needs-publishing: ${{ steps.changes.outputs.fiveg_n4 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            fiveg_n4:
+              - 'lib/charms/sdcore_upf/v0/fiveg_n4.py'
+
+  publish-fiveg-n4-lib:
+    name: Publish Lib
+    needs:
+      - publish-charm
+      - fiveg-n4-lib-needs-publishing
+    if: ${{ github.ref_name == 'main' }}
+    uses: canonical/sdcore-github-workflows/.github/workflows/publish-lib.yaml@main
+    with:
+      lib-name: "charms.sdcore_upf.v0.fiveg_n4"
     secrets: inherit
