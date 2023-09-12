@@ -5,7 +5,9 @@ import unittest
 from unittest.mock import PropertyMock, patch
 
 from ops import testing
-from test_charms.test_fiveg_n3_provider.src.charm import WhateverCharm  # type: ignore[import]
+from test_charms.test_provider_charm.src.charm import WhateverCharm  # type: ignore[import]
+
+TEST_CHARM_PATH = "test_charms.test_provider_charm.src.charm.WhateverCharm"
 
 
 class TestN3Provides(unittest.TestCase):
@@ -15,10 +17,7 @@ class TestN3Provides(unittest.TestCase):
         self.harness.begin()
         self.relation_name = "fiveg_n3"
 
-    @patch(
-        "test_charms.test_fiveg_n3_provider.src.charm.WhateverCharm.TEST_UPF_IP_ADDRESS",
-        new_callable=PropertyMock,
-    )
+    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_IP_ADDRESS", new_callable=PropertyMock)
     def test_given_fiveg_n3_relation_when_relation_created_then_upf_ip_address_is_published_in_the_relation_data(  # noqa: E501
         self, patched_test_upf_ip
     ):
@@ -35,10 +34,7 @@ class TestN3Provides(unittest.TestCase):
         )
         self.assertEqual(test_upf_ip, relation_data["upf_ip_address"])
 
-    @patch(
-        "test_charms.test_fiveg_n3_provider.src.charm.WhateverCharm.TEST_UPF_IP_ADDRESS",
-        new_callable=PropertyMock,
-    )
+    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_IP_ADDRESS", new_callable=PropertyMock)
     def test_given_invalid_upf_ip_address_when_relation_created_then_value_error_is_raised(
         self, patched_test_upf_ip
     ):

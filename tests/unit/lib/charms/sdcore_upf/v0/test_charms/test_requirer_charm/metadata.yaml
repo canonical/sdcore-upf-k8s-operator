@@ -13,6 +13,9 @@ resources:
     type: oci-image
     description: whatever image
 
-provides:
+requires:
   fiveg_n3:
     interface: fiveg_n3
+
+  fiveg_n4:
+    interface: fiveg_n4
