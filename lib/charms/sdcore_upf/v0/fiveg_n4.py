@@ -136,7 +136,7 @@ class ProviderAppData(BaseModel):
 
 
 class ProviderSchema(DataBagSchema):
-    """Provider schema for fiveg_n3."""
+    """Provider schema for fiveg_n4."""
 
     app: ProviderAppData
 

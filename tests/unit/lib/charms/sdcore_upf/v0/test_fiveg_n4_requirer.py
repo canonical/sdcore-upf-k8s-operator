@@ -8,7 +8,7 @@ from ops import testing
 from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
 
 
-class TestN3Requires(unittest.TestCase):
+class TestN4Requires(unittest.TestCase):
     def setUp(self) -> None:
         self.harness = testing.Harness(WhateverCharm)
         self.addCleanup(self.harness.cleanup)
