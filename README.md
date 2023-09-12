@@ -16,6 +16,8 @@ Charmed Operator for SD-Core's User Plane Function (UPF). For more information, 
 
 ## Pre-requisites
 
+A Kubernetes host with a CPU supporting AVX2 and RDRAND instructions (Intel Haswell, AMD Excavator or equivalent)
+
 A Kubernetes cluster with the Multus addon enabled.
 
 ## Usage

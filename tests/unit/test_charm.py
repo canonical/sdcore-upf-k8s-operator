@@ -7,10 +7,10 @@ from io import StringIO
 from unittest.mock import MagicMock, Mock, call, patch
 
 from ops import testing
-from ops.model import ActiveStatus, BlockedStatus, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ExecError
 
-from charm import UPFOperatorCharm
+from charm import IncompatibleCPUError, UPFOperatorCharm
 
 
 def read_file(path: str) -> str:
@@ -513,3 +513,22 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["master"], nad.metadata.name)
             self.assertEqual(config["type"], "macvlan")
+
+    @patch("charm.check_output")
+    def test_given_cpu_not_supporting_required_instructions_when_install_then_incompatiblecpuerror_is_raised(  # noqa: E501
+        self, patched_check_output
+    ):
+        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
+
+        with self.assertRaises(IncompatibleCPUError):
+            self.harness.charm.on.install.emit()
+
+    @patch("charm.check_output")
+    def test_given_cpu_supporting_required_instructions_when_install_then_charm_goes_to_maintenance_status(  # noqa: E501
+        self, patched_check_output
+    ):
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
+
+        self.harness.charm.on.install.emit()
+
+        self.assertEqual(self.harness.model.unit.status, MaintenanceStatus())
