@@ -16,6 +16,8 @@ Charmed Operator for SD-Core's User Plane Function (UPF). For more information, 
 
 ## Pre-requisites
 
+A Kubernetes host with a CPU supporting AVX2 and RDRAND instructions (Intel Haswell, AMD Excavator or equivalent)
+
 A Kubernetes cluster with the Multus addon enabled.
 
 ## Usage
@@ -36,7 +38,7 @@ juju add-model user-plane
 Deploy the UPF:
 
 ```bash
-juju deploy upf-operator --trust --channel=edge
+juju deploy sdcore-upf --trust --channel=edge
 ```
 
 ### Exposing the UPF externally

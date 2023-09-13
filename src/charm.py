@@ -8,6 +8,7 @@ import ipaddress
 import json
 import logging
 import time
+from subprocess import check_output
 from typing import Optional
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
@@ -49,6 +50,13 @@ UPF_MODE = "af_packet"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
+REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
+
+
+class IncompatibleCPUError(Exception):
+    """Custom error to be raised when CPU doesn't support required instructions."""
+
+    pass
 
 
 class UPFOperatorCharm(CharmBase):
@@ -102,9 +110,6 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
 
-    def _on_install(self, event: EventBase) -> None:
-        self._create_external_upf_service()
-
     def _create_external_upf_service(self) -> None:
         client = Client()
         service = Service(
@@ -147,6 +152,23 @@ class UPFOperatorCharm(CharmBase):
     def _namespace(self) -> str:
         """Returns the k8s namespace."""
         return self.model.name
+
+    def _on_install(self, event: EventBase) -> None:
+        """Handler for Juju install event.
+
+        This handler enforces usage of a CPU which supports instructions required to run this
+        charm. If the CPU doesn't meet the requirements, charm goes to Blocked state.
+
+        Args:
+            event: Juju event
+        """
+        if not self._is_cpu_compatible():
+            raise IncompatibleCPUError(
+                "\nCPU is not compatible!\n"
+                "Please use a CPU that has the following capabilities: "
+                f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
+            )
+        self._create_external_upf_service()
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.
@@ -623,6 +645,32 @@ class UPFOperatorCharm(CharmBase):
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
+
+    def _is_cpu_compatible(self) -> bool:
+        """Returns whether the CPU meets requirements to run this charm.
+
+        Returns:
+            bool: Whether the CPU meets requirements to run this charm
+        """
+        return all(
+            required_extension in self._get_cpu_extensions()
+            for required_extension in REQUIRED_CPU_EXTENSIONS
+        )
+
+    @staticmethod
+    def _get_cpu_extensions() -> list[str]:
+        """Returns a list of extensions (instructions) supported by the CPU.
+
+        Returns:
+            list: List of extensions (instructions) supported by the CPU.
+        """
+        cpu_info = check_output(["lscpu"]).decode().split("\n")
+        cpu_flags = []
+        for cpu_info_item in cpu_info:
+            if "Flags:" in cpu_info_item:
+                cpu_flags = cpu_info_item.split()
+                del cpu_flags[0]
+        return cpu_flags
 
 
 def render_bessd_config_file(

@@ -47,7 +47,7 @@ jobs:
     outputs:
       needs-publishing: ${{ steps.changes.outputs.fiveg_n3 }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v2
         id: changes
         with:
