@@ -33,7 +33,7 @@ from ops.charm import CharmBase
 from ops.framework import EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
-from ops.pebble import ConnectionError, ExecError, Layer
+from ops.pebble import ExecError, Layer
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,6 @@ class UPFOperatorCharm(CharmBase):
         super().__init__(*args)
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_service_name = "routectl"
-        self._restart_pod = False
         self._pfcp_agent_container_name = self._pfcp_agent_service_name = "pfcp-agent"
         self._bessd_container = self.unit.get_container(self._bessd_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
@@ -237,14 +236,13 @@ class UPFOperatorCharm(CharmBase):
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config.
 
         Checks if the config settings are correct before creating any NAD.
-        It also detects the MTU size change in the network attachment definitions to trigger the restart of pod.  # noqa: E501, W505
+        If the NAD config is invalid, returns None as a protection not to process invalid configs.
         """
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
             )
             return None  # type: ignore
-        self._is_pod_restart_required()
         access_nad_config = self._get_access_nad_config()
 
         if access_interface := self._get_access_interface_config():
@@ -326,13 +324,6 @@ class UPFOperatorCharm(CharmBase):
             event.defer()
             return
         self._on_bessd_pebble_ready(event)
-        if self._restart_pod:
-            try:
-                self._kubernetes_multus.delete_pod()
-                self._restart_pod = False
-            except ConnectionError:
-                event.defer()
-                return
         self._on_pfcp_agent_pebble_ready(event)
 
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:

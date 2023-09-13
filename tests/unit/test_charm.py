@@ -12,7 +12,6 @@ from lightkube.resources.core_v1 import Service
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ExecError
-from sample_network_attachment_definitions import modified_nad_list, original_nad_list
 
 from charm import IncompatibleCPUError, UPFOperatorCharm
 
@@ -673,99 +672,137 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_network_attachment_definitions")
+    @patch(
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
-    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_to_a_different_valid_value_then_delete_pod_is_called(  # noqa: E501
-        self, patch_exists, patch_delete_pod, patch_multus_is_ready, patch_get_na_definitions
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_a_different_valid_value_then_delete_pod_is_called(  # noqa: E501
+        self,
+        patch_exists,
+        patch_delete_pod,
+        patch_multus_is_ready,
+        patch_list_na_definitions,
+        patch_nad_created_by_charm,
     ):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_get_na_definitions.return_value = original_nad_list
+        patch_nad_created_by_charm.return_value = True
+        original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_1})
         patch_delete_pod.assert_called_once()
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_network_attachment_definitions")
+    @patch(
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
-    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_to_different_valid_values_twice_then_delete_pod_called_twice(  # noqa: E501
-        self, patch_exists, patch_delete_pod, patch_multus_is_ready, patch_get_na_definitions
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_different_valid_values_then_delete_pod_called_twice(  # noqa: E501
+        self,
+        patch_exists,
+        patch_delete_pod,
+        patch_multus_is_ready,
+        patch_list_na_definitions,
+        patch_nad_created_by_charm,
     ):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_get_na_definitions.side_effect = [
-            original_nad_list,
-            original_nad_list,
-            modified_nad_list,
-            modified_nad_list,
-        ]
+        patch_nad_created_by_charm.return_value = True
+        original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_1})
+        modified_nads = self.harness.charm._network_attachment_definitions_from_config()
+        patch_list_na_definitions.return_value = modified_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         self.assertEqual(patch_delete_pod.call_count, 2)
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_multus",
-        new=Mock,
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
     )
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_network_attachment_definitions")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
-    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_to_same_valid_value_then_delete_pod_is_not_called(  # noqa: E501
-        self, patch_exists, patch_delete_pod, patch_multus_is_ready, patch_get_na_definitions
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_same_valid_value_multiple_times_then_delete_pod_called_once(  # noqa: E501
+        self,
+        patch_exists,
+        patch_delete_pod,
+        patch_multus_is_ready,
+        patch_list_na_definitions,
+        patch_nad_created_by_charm,
     ):
+        """Delete pod is called for the first config change, setting the same config value does not trigger pod restarts."""  # noqa: E501, W505
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_get_na_definitions.side_effect = [
-            original_nad_list,
-            original_nad_list,
-        ]
+        patch_nad_created_by_charm.return_value = True
+        original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
+        patch_delete_pod.assert_called_once()
+        nads_after_first_config_change = (
+            self.harness.charm._network_attachment_definitions_from_config()
+        )
+        patch_list_na_definitions.return_value = nads_after_first_config_change
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
-        patch_delete_pod.assert_not_called()
+        patch_delete_pod.assert_called_once()
+        nads_after_second_config_change = (
+            self.harness.charm._network_attachment_definitions_from_config()
+        )
+        patch_list_na_definitions.return_value = nads_after_second_config_change
+        self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
+        patch_delete_pod.assert_called_once()
 
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
-        new=Mock,
-    )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.get_network_attachment_definitions")
+    @patch(
+        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch("ops.model.Container.push", new=Mock)
     @patch("ops.model.Container.exec", new=MagicMock)
     @patch("ops.model.Container.pull", new=Mock)
     @patch("ops.model.Container.exists")
-    def test_given_bessd_and_pfcp_agent_container_can_connect_bessd_pebble_ready_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
-        self, patch_exists, patch_delete_pod, patch_multus_is_ready, patch_get_na_definitions
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
+        self,
+        patch_exists,
+        patch_delete_pod,
+        patch_multus_is_ready,
+        patch_list_na_definitions,
+        patch_nad_created_by_charm,
     ):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_get_na_definitions.return_value = original_nad_list
+        patch_nad_created_by_charm.return_value = True
+        original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
         patch_delete_pod.assert_not_called()
