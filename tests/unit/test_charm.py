@@ -518,6 +518,7 @@ class TestCharm(unittest.TestCase):
             self.assertEqual(config["type"], "macvlan")
 
     @patch("charm.check_output")
+    @patch("charm.Client", new=Mock)
     def test_given_cpu_not_supporting_required_instructions_when_install_then_incompatiblecpuerror_is_raised(  # noqa: E501
         self, patched_check_output
     ):
@@ -527,6 +528,7 @@ class TestCharm(unittest.TestCase):
             self.harness.charm.on.install.emit()
 
     @patch("charm.check_output")
+    @patch("charm.Client", new=Mock)
     def test_given_cpu_supporting_required_instructions_when_install_then_charm_goes_to_maintenance_status(  # noqa: E501
         self, patched_check_output
     ):
