@@ -48,6 +48,7 @@ BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
 UPF_MODE = "af_packet"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
+PFCP_PORT = 8805
 
 
 class UPFOperatorCharm(CharmBase):
@@ -72,7 +73,7 @@ class UPFOperatorCharm(CharmBase):
         self._service_patcher = KubernetesServicePatch(
             charm=self,
             ports=[
-                ServicePort(name="pfcp", port=8805, protocol="UDP"),
+                ServicePort(name="pfcp", port=PFCP_PORT, protocol="UDP"),
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
@@ -121,7 +122,7 @@ class UPFOperatorCharm(CharmBase):
                     "app.kubernetes.io/name": self.app.name,
                 },
                 ports=[
-                    ServicePort(name="pfcp", port=8805, protocol="UDP"),
+                    ServicePort(name="pfcp", port=PFCP_PORT, protocol="UDP"),
                 ],
                 type="LoadBalancer",
             ),
