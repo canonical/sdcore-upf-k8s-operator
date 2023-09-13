@@ -104,7 +104,6 @@ class UPFOperatorCharm(CharmBase):
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
         )
         self.framework.observe(self.on.install, self._on_install)
-        self._kubernetes_multus = self._get_kubernetes_multus()
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
@@ -173,25 +172,6 @@ class UPFOperatorCharm(CharmBase):
                 f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
             )
         self._create_external_upf_service()
-
-    def _is_pod_restart_required(self) -> None:
-        """Checks if existing NAD config is different from the required ones which are set in the configuration  # noqa: E501, W505.
-
-        If there is difference, sets the _restart_pod attribute to True.
-
-        """
-        if (
-            self._get_nad_active_mtu_size(ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME)
-            != self._get_access_interface_mtu_config()  # noqa: W503
-        ):
-            self._restart_pod = True
-            return
-
-        if (
-            self._get_nad_active_mtu_size(CORE_NETWORK_ATTACHMENT_DEFINITION_NAME)
-            != self._get_core_interface_mtu_config()  # noqa: W503
-        ):
-            self._restart_pod = True
 
     def _get_nad_active_mtu_size(self, nad_name: str) -> Optional[int]:
         """Gets active MTU size for a given NAD name.
