@@ -203,7 +203,7 @@ class N4Provides(Object):
     def publish_upf_n4_information(
         self, relation_id: int, upf_hostname: str, upf_n4_port: int
     ) -> None:
-        """Sets UPF's IP address in the relation data.
+        """Sets UPF's hostname and port in the relation data.
 
         Args:
             relation_id (str): Relation ID
