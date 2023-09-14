@@ -105,7 +105,7 @@ PYDEPS = ["pydantic", "pytest-interface-tester"]
 
 logger = logging.getLogger(__name__)
 
-"""Schemas definition for the provider and requirer sides of the `fiveg_n3` interface.
+"""Schemas definition for the provider and requirer sides of the `fiveg_n4` interface.
 It exposes two interfaces.schema_base.DataBagSchema subclasses called:
 - ProviderSchema
 - RequirerSchema
