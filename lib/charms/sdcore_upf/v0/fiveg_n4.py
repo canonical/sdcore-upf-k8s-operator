@@ -122,7 +122,7 @@ Examples:
 """
 
 
-class ProviderAppData(BaseModel):
+class FivegN4ProviderAppData(BaseModel):
     """Provider app data for fiveg_n4."""
 
     upf_hostname: str = Field(
@@ -138,7 +138,7 @@ class ProviderAppData(BaseModel):
 class ProviderSchema(DataBagSchema):
     """Provider schema for fiveg_n4."""
 
-    app: ProviderAppData
+    app: FivegN4ProviderAppData
 
 
 def data_matches_provider_schema(data: dict) -> bool:
