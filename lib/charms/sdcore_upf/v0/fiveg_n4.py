@@ -235,7 +235,7 @@ class N4AvailableEvent(EventBase):
     """Dataclass for the `fiveg_n4` available event."""
 
     def __init__(self, handle, upf_hostname: str, upf_port: int):
-        """Sets certificate."""
+        """Sets UPF's hostname and port."""
         super().__init__(handle)
         self.upf_hostname = upf_hostname
         self.upf_port = upf_port
