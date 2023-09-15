@@ -24,9 +24,13 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 )
 from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
-from lightkube.models.core_v1 import ServicePort
+from lightkube.core.client import Client
+from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from ops.charm import CharmBase, EventBase
+from lightkube.resources.core_v1 import Service
+from ops import RemoveEvent
+from ops.charm import CharmBase
+from ops.framework import EventBase
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -45,6 +49,7 @@ BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
 UPF_MODE = "af_packet"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
+PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 
 
@@ -76,7 +81,7 @@ class UPFOperatorCharm(CharmBase):
         self._service_patcher = KubernetesServicePatch(
             charm=self,
             ports=[
-                ServicePort(name="pfcp", port=8805, protocol="UDP"),
+                ServicePort(name="pfcp", port=PFCP_PORT, protocol="UDP"),
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
@@ -96,13 +101,57 @@ class UPFOperatorCharm(CharmBase):
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
         )
-        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
         )
+        self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.remove, self._on_remove)
+
+    def _create_external_upf_service(self) -> None:
+        client = Client()
+        service = Service(
+            apiVersion="v1",
+            kind="Service",
+            metadata=ObjectMeta(
+                namespace=self._namespace,
+                name=f"{self.app.name}-external",
+                labels={
+                    "app.kubernetes.io/name": self.app.name,
+                },
+            ),
+            spec=ServiceSpec(
+                selector={
+                    "app.kubernetes.io/name": self.app.name,
+                },
+                ports=[
+                    ServicePort(name="pfcp", port=PFCP_PORT, protocol="UDP"),
+                ],
+                type="LoadBalancer",
+            ),
+        )
+
+        client.create(service)
+        logger.info("Created external UPF service")
+
+    def _on_remove(self, event: RemoveEvent) -> None:
+        self._delete_external_upf_service()
+
+    def _delete_external_upf_service(self) -> None:
+        client = Client()
+        client.delete(
+            Service,
+            name=f"{self.app.name}-external",
+            namespace=self._namespace,
+        )
+        logger.info("Deleted external UPF service")
+
+    @property
+    def _namespace(self) -> str:
+        """Returns the k8s namespace."""
+        return self.model.name
 
     def _on_install(self, event: EventBase) -> None:
         """Handler for Juju install event.
@@ -119,6 +168,7 @@ class UPFOperatorCharm(CharmBase):
                 "Please use a CPU that has the following capabilities: "
                 f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
             )
+        self._create_external_upf_service()
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
         """Handles 5G N3 requests events.

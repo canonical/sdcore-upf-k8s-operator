@@ -41,6 +41,10 @@ Deploy the UPF:
 juju deploy sdcore-upf --trust --channel=edge
 ```
 
+### Exposing the UPF externally
+
+If a load balancer such as `metallb` is present, the charm will configure an externally accessible service port with the load balancer upon install of the charm.
+
 ## Image
 
 - **bessd**: ghcr.io/canonical/sdcore-upf-bess:1.3

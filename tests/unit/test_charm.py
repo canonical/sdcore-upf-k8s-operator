@@ -6,6 +6,9 @@ import unittest
 from io import StringIO
 from unittest.mock import MagicMock, Mock, call, patch
 
+from lightkube.models.core_v1 import ServicePort, ServiceSpec
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.core_v1 import Service
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ExecError
@@ -515,6 +518,7 @@ class TestCharm(unittest.TestCase):
             self.assertEqual(config["type"], "macvlan")
 
     @patch("charm.check_output")
+    @patch("charm.Client", new=Mock)
     def test_given_cpu_not_supporting_required_instructions_when_install_then_incompatiblecpuerror_is_raised(  # noqa: E501
         self, patched_check_output
     ):
@@ -524,6 +528,7 @@ class TestCharm(unittest.TestCase):
             self.harness.charm.on.install.emit()
 
     @patch("charm.check_output")
+    @patch("charm.Client", new=Mock)
     def test_given_cpu_supporting_required_instructions_when_install_then_charm_goes_to_maintenance_status(  # noqa: E501
         self, patched_check_output
     ):
@@ -532,3 +537,40 @@ class TestCharm(unittest.TestCase):
         self.harness.charm.on.install.emit()
 
         self.assertEqual(self.harness.model.unit.status, MaintenanceStatus())
+
+    @patch("charm.Client")
+    def test_when_install_then_external_service_is_created(self, patch_client):
+        self.harness.charm.on.install.emit()
+
+        expected_service = Service(
+            apiVersion="v1",
+            kind="Service",
+            metadata=ObjectMeta(
+                namespace=self.namespace,
+                name=f"{self.harness.charm.app.name}-external",
+                labels={
+                    "app.kubernetes.io/name": self.harness.charm.app.name,
+                },
+            ),
+            spec=ServiceSpec(
+                selector={
+                    "app.kubernetes.io/name": self.harness.charm.app.name,
+                },
+                ports=[
+                    ServicePort(name="pfcp", port=8805, protocol="UDP"),
+                ],
+                type="LoadBalancer",
+            ),
+        )
+
+        patch_client.return_value.create.assert_called_once_with(expected_service)
+
+    @patch("charm.Client")
+    def test_when_remove_then_external_service_is_deleted(self, patch_client):
+        self.harness.charm.on.remove.emit()
+
+        patch_client.return_value.delete.assert_called_once_with(
+            Service,
+            name=f"{self.harness.charm.app.name}-external",
+            namespace=self.namespace,
+        )
