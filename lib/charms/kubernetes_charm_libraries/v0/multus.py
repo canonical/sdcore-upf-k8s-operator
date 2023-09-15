@@ -74,7 +74,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from json.decoder import JSONDecodeError
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 import httpx
 from lightkube import Client
@@ -473,7 +473,9 @@ class KubernetesMultusCharmLib(Object):
     def __init__(
         self,
         charm: CharmBase,
-        network_attachment_definitions_func: Callable[[], list[NetworkAttachmentDefinition]],
+        network_attachment_definitions_func: Callable[
+            [], Optional[list[NetworkAttachmentDefinition]]
+        ],
         network_annotations: list[NetworkAnnotation],
         container_name: str,
         cap_net_admin: bool = False,
@@ -484,7 +486,7 @@ class KubernetesMultusCharmLib(Object):
         Args:
             charm: Charm object
             network_attachment_definitions_func: A callable to a function returning a list of
-              `NetworkAttachmentDefinition` to be created.
+              `NetworkAttachmentDefinition` to be created or None if config is invalid.
             network_annotations: List of NetworkAnnotation.
             container_name: Container name
             cap_net_admin: Container requires NET_ADMIN capability
@@ -541,8 +543,9 @@ class KubernetesMultusCharmLib(Object):
         3. Detects the NAD config changes and triggers pod restart
            if any there is any modification in existing NADs
         """
-        network_attachment_definitions_to_create = self.network_attachment_definitions_func()
-        if network_attachment_definitions_to_create is None:
+        if (
+            network_attachment_definitions_to_create := self.network_attachment_definitions_func()
+        ) is None:
             # If the NAD configs are not valid, this is set to None
             # by charm to exit without processing as a protection.
             return
@@ -576,7 +579,9 @@ class KubernetesMultusCharmLib(Object):
 
     def _network_attachment_definitions_are_created(self) -> bool:
         """Returns whether all network attachment definitions are created."""
-        for network_attachment_definition in self.network_attachment_definitions_func():
+        if (network_attachment_definitions := self.network_attachment_definitions_func()) is None:
+            return False
+        for network_attachment_definition in network_attachment_definitions:
             if not self.kubernetes.network_attachment_definition_is_created(
                 network_attachment_definition=network_attachment_definition
             ):
@@ -633,7 +638,9 @@ class KubernetesMultusCharmLib(Object):
         Args:
             event: RemoveEvent
         """
-        for network_attachment_definition in self.network_attachment_definitions_func():
+        if (network_attachment_definitions := self.network_attachment_definitions_func()) is None:
+            return
+        for network_attachment_definition in network_attachment_definitions:
             if self.kubernetes.network_attachment_definition_is_created(
                 network_attachment_definition=network_attachment_definition
             ):
