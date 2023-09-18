@@ -29,3 +29,10 @@ options:
     type: string
     default: 192.168.252.1
     description: Gateway IP address to the Access Network.
+  external-upf-hostname:
+    type: string
+    description: |-
+      Externally accessible FQDN for the UPF.
+      If not provided, this will default to the LoadBalancer Service hostname
+      if available. If that is not available, it will default to the internal
+      Kubernetes FQDN of the service.

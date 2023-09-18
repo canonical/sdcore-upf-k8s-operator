@@ -23,6 +23,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
 from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
+from charms.sdcore_upf.v0.fiveg_n4 import N4Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
@@ -70,6 +71,7 @@ class UPFOperatorCharm(CharmBase):
         self._bessd_container = self.unit.get_container(self._bessd_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
         self.fiveg_n3_provider = N3Provides(charm=self, relation_name="fiveg_n3")
+        self.fiveg_n4_provider = N4Provides(charm=self, relation_name="fiveg_n4")
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
             jobs=[
@@ -106,6 +108,9 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
+        )
+        self.framework.observe(
+            self.fiveg_n4_provider.on.fiveg_n4_request, self._on_fiveg_n4_request
         )
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
@@ -180,6 +185,16 @@ class UPFOperatorCharm(CharmBase):
             return
         self._update_fiveg_n3_relation_data()
 
+    def _on_fiveg_n4_request(self, event: EventBase) -> None:
+        """Handles 5G N4 requests events.
+
+        Args:
+            event: Juju event
+        """
+        if not self.unit.is_leader():
+            return
+        self._update_fiveg_n4_relation_data()
+
     def _update_fiveg_n3_relation_data(self) -> None:
         """Publishes UPF IP address in the `fiveg_n3` relation data bag."""
         upf_access_ip_address = self._get_access_network_ip_config().split("/")[0]  # type: ignore[union-attr]  # noqa: E501
@@ -192,6 +207,36 @@ class UPFOperatorCharm(CharmBase):
                 relation_id=fiveg_n3_relation.id,
                 upf_ip_address=upf_access_ip_address,
             )
+
+    def _update_fiveg_n4_relation_data(self) -> None:
+        """Publishes UPF hostname and the N4 port in the `fiveg_n4` relation data bag."""
+        fiveg_n4_relations = self.model.relations.get("fiveg_n4")
+        if not fiveg_n4_relations:
+            logger.info("No `fiveg_n4` relations found.")
+            return
+        for fiveg_n4_relation in fiveg_n4_relations:
+            self.fiveg_n4_provider.publish_upf_n4_information(
+                relation_id=fiveg_n4_relation.id,
+                upf_hostname=self._get_n4_upf_hostname(),
+                upf_n4_port=PFCP_PORT,
+            )
+
+    def _get_n4_upf_hostname(self) -> str:
+        """Returns the UPF hostname to be exposed over the `fiveg_n4` relation.
+
+        If a configuration is provided, it is returned. If that is
+        not available, returns the hostname of the external LoadBalancer
+        Service. If the LoadBalancer Service does not have a hostname,
+        returns the internal Kubernetes service FQDN.
+
+        Returns:
+            str: Hostname of the UPF
+        """
+        if configured_hostname := self._get_external_upf_hostname_config():
+            return configured_hostname
+        elif lb_hostname := self._upf_external_service_hostname():
+            return lb_hostname
+        return self._upf_external_hostname
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
@@ -255,10 +300,6 @@ class UPFOperatorCharm(CharmBase):
         )
         logger.info("Pushed %s config file", CONFIG_FILE_NAME)
 
-    @property
-    def _upf_hostname(self) -> str:
-        return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
-
     def _bessd_config_file_is_written(self) -> bool:
         """Returns whether the bessd config file was written to the workload container.
 
@@ -301,6 +342,8 @@ class UPFOperatorCharm(CharmBase):
             return
         self._on_bessd_pebble_ready(event)
         self._on_pfcp_agent_pebble_ready(event)
+        self._update_fiveg_n3_relation_data()
+        self._update_fiveg_n4_relation_data()
 
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
         """Handle Pebble ready event."""
@@ -326,7 +369,6 @@ class UPFOperatorCharm(CharmBase):
             event.defer()
             return
         self._configure_pfcp_agent_workload()
-        self._update_fiveg_n3_relation_data()
         self._set_unit_status()
 
     def _configure_bessd_workload(self) -> None:
@@ -645,6 +687,47 @@ class UPFOperatorCharm(CharmBase):
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
+
+    def _get_external_upf_hostname_config(self) -> Optional[str]:
+        return self.model.config.get("external-upf-hostname")
+
+    def _upf_external_service_hostname(self) -> str:
+        """Returns UPF's external service hostname.
+
+        Returns:
+            str: External Service hostname
+        """
+        client = Client()
+        service = client.get(
+            Service, name=f"{self.model.app.name}-external", namespace=self.model.name
+        )
+        try:
+            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[attr-defined]
+        except AttributeError:
+            logger.error(
+                "Service '%s-external' does not have a hostname:\n%s",
+                self.model.app.name,
+                service,
+            )
+            return ""
+
+    @property
+    def _upf_hostname(self) -> str:
+        """Builds and returns the UPF hostname in the cluster.
+
+        Returns:
+            str: The UPF hostname.
+        """
+        return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
+
+    @property
+    def _upf_external_hostname(self) -> str:
+        """Builds and returns the UPF hostname in the cluster.
+
+        Returns:
+            str: The UPF hostname.
+        """
+        return f"{self.model.app.name}-external.{self.model.name}.svc.cluster.local"
 
     def _is_cpu_compatible(self) -> bool:
         """Returns whether the CPU meets requirements to run this charm.

@@ -15,6 +15,8 @@ from ops.pebble import ExecError
 
 from charm import IncompatibleCPUError, UPFOperatorCharm
 
+TEST_PFCP_PORT = 1234
+
 
 def read_file(path: str) -> str:
     """Reads a file and returns as a string.
@@ -475,6 +477,124 @@ class TestCharm(unittest.TestCase):
         patched_publish_upf_information.assert_called_once_with(
             relation_id=n3_relation_id, upf_ip_address="192.168.252.3"
         )
+
+    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    def test_given_unit_is_not_leader_when_fiveg_n4_request_then_upf_ip_address_is_not_published(
+        self, patched_publish_upf_n4_information
+    ):
+        test_external_upf_hostname = "test-upf.external.hostname.com"
+        self.harness.update_config(
+            key_values={"external-upf-hostname": test_external_upf_hostname}
+        )
+
+        n4_relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
+        self.harness.add_relation_unit(n4_relation_id, "n4_requirer_app/0")
+
+        patched_publish_upf_n4_information.assert_not_called()
+
+    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
+    def test_given_external_upf_hostname_config_set_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+        self, patched_publish_upf_n4_information
+    ):
+        self.harness.set_leader(is_leader=True)
+        test_external_upf_hostname = "test-upf.external.hostname.com"
+        self.harness.update_config(
+            key_values={"external-upf-hostname": test_external_upf_hostname}
+        )
+
+        n4_relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
+        self.harness.add_relation_unit(n4_relation_id, "n4_requirer_app/0")
+
+        patched_publish_upf_n4_information.assert_called_once_with(
+            relation_id=n4_relation_id,
+            upf_hostname=test_external_upf_hostname,
+            upf_n4_port=TEST_PFCP_PORT,
+        )
+
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.get")
+    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
+    def test_given_external_upf_hostname_config_not_set_but_external_upf_service_hostname_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+        self, patched_publish_upf_n4_information, patched_lightkube_client_get
+    ):
+        self.harness.set_leader(is_leader=True)
+        test_external_upf_service_hostname = "test-upf.external.service.hostname.com"
+        service = Mock(
+            status=Mock(
+                loadBalancer=Mock(
+                    ingress=[Mock(ip="1.1.1.1", hostname=test_external_upf_service_hostname)]
+                )
+            )
+        )
+        patched_lightkube_client_get.return_value = service
+
+        n4_relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
+        self.harness.add_relation_unit(n4_relation_id, "n4_requirer_app/0")
+
+        patched_publish_upf_n4_information.assert_called_once_with(
+            relation_id=n4_relation_id,
+            upf_hostname=test_external_upf_service_hostname,
+            upf_n4_port=TEST_PFCP_PORT,
+        )
+
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.get")
+    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
+    def test_given_external_upf_hostname_config_not_set_and_external_upf_service_hostname_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+        self, patched_publish_upf_n4_information, patched_lightkube_client_get
+    ):
+        self.harness.set_leader(is_leader=True)
+        service = Mock(status=Mock(loadBalancer=Mock(ingress=[Mock(ip="1.1.1.1", spec=["ip"])])))
+        patched_lightkube_client_get.return_value = service
+
+        n4_relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
+        self.harness.add_relation_unit(n4_relation_id, "n4_requirer_app/0")
+
+        patched_publish_upf_n4_information.assert_called_once_with(
+            relation_id=n4_relation_id,
+            upf_hostname=f"{self.harness.charm.app.name}-external.{self.namespace}"
+            ".svc.cluster.local",
+            upf_n4_port=TEST_PFCP_PORT,
+        )
+
+    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib.is_ready")
+    @patch("ops.model.Container.push", new=Mock)
+    @patch("ops.model.Container.exec", new=MagicMock)
+    @patch("ops.model.Container.pull", new=Mock)
+    @patch("ops.model.Container.exists")
+    @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
+    def test_given_fiveg_n4_relation_exists_when_external_upf_hostname_config_changed_then_new_upf_hostname_is_published(  # noqa: E501
+        self, patch_exists, patch_multus_is_ready, patched_publish_upf_n4_information
+    ):
+        test_external_upf_hostname = "test-upf.external.hostname.com"
+        patch_exists.return_value = True
+        patch_multus_is_ready.return_value = True
+        self.harness.set_can_connect(container="bessd", val=True)
+        self.harness.set_can_connect(container="pfcp-agent", val=True)
+        self.harness.set_leader(is_leader=True)
+        self.harness.update_config(key_values={"external-upf-hostname": "whatever.com"})
+        n4_relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
+        self.harness.add_relation_unit(n4_relation_id, "n4_requirer_app/0")
+        expected_calls = [
+            call(
+                relation_id=n4_relation_id, upf_hostname="whatever.com", upf_n4_port=TEST_PFCP_PORT
+            ),
+            call(
+                relation_id=n4_relation_id,
+                upf_hostname=test_external_upf_hostname,
+                upf_n4_port=TEST_PFCP_PORT,
+            ),
+        ]
+
+        self.harness.update_config(
+            key_values={"external-upf-hostname": test_external_upf_hostname}
+        )
+
+        patched_publish_upf_n4_information.assert_has_calls(expected_calls)
 
     def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_specified_in_nad(  # noqa: E501
         self,
