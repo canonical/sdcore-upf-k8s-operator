@@ -103,7 +103,6 @@ class UPFOperatorCharm(CharmBase):
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
         )
-        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
