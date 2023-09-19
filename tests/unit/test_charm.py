@@ -479,7 +479,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
-    def test_given_unit_is_not_leader_when_fiveg_n4_request_then_upf_ip_address_is_not_published(
+    def test_given_unit_is_not_leader_when_fiveg_n4_request_then_upf_hostname_is_not_published(
         self, patched_publish_upf_n4_information
     ):
         test_external_upf_hostname = "test-upf.external.hostname.com"
