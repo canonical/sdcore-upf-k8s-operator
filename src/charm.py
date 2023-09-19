@@ -236,7 +236,7 @@ class UPFOperatorCharm(CharmBase):
             return configured_hostname
         elif lb_hostname := self._upf_external_service_hostname():
             return lb_hostname
-        return self._upf_external_hostname
+        return self._upf_hostname
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
@@ -713,15 +713,6 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _upf_hostname(self) -> str:
-        """Builds and returns the UPF hostname in the cluster.
-
-        Returns:
-            str: The UPF hostname.
-        """
-        return f"{self.model.app.name}.{self.model.name}.svc.cluster.local"
-
-    @property
-    def _upf_external_hostname(self) -> str:
         """Builds and returns the UPF hostname in the cluster.
 
         Returns:
