@@ -234,7 +234,7 @@ class UPFOperatorCharm(CharmBase):
         """
         if configured_hostname := self._get_external_upf_hostname_config():
             return configured_hostname
-        elif lb_hostname := self._upf_external_service_hostname():
+        elif lb_hostname := self._upf_load_balancer_service_hostname():
             return lb_hostname
         return self._upf_hostname
 
@@ -691,11 +691,11 @@ class UPFOperatorCharm(CharmBase):
     def _get_external_upf_hostname_config(self) -> Optional[str]:
         return self.model.config.get("external-upf-hostname")
 
-    def _upf_external_service_hostname(self) -> str:
-        """Returns UPF's external service hostname.
+    def _upf_load_balancer_service_hostname(self) -> str:
+        """Returns the hostname of UPF's LoadBalancer service.
 
         Returns:
-            str: External Service hostname
+            str: Hostname of UPF's LoadBalancer service
         """
         client = Client()
         service = client.get(
