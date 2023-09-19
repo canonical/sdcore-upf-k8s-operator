@@ -33,6 +33,6 @@ options:
     type: string
     description: |-
       Externally accessible FQDN for the UPF.
-      If not provided, this will default to the LoadBalancer Service hostname
-      if available. If that is not available, it will default to the internal
+      If not provided, it will default to the LoadBalancer Service hostname. 
+      If that is not available, it will default to the internal
       Kubernetes FQDN of the service.
