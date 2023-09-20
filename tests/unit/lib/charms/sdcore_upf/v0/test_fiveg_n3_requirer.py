@@ -16,7 +16,7 @@ class TestN3Requires(unittest.TestCase):
         self.relation_name = "fiveg_n3"
 
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3RequirerCharmEvents.fiveg_n3_available")
-    def test_given_relation_with_n3_profider_when_fiveg_n3_available_event_then_n3_information_is_provided(  # noqa: E501
+    def test_given_relation_with_n3_provider_when_fiveg_n3_available_event_then_n3_information_is_provided(  # noqa: E501
         self, patched_fiveg_n3_available_event
     ):
         test_upf_ip = "1.2.3.4"
