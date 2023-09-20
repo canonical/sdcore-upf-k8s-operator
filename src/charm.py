@@ -30,8 +30,8 @@ from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import RemoveEvent
-from ops.charm import CharmBase
-from ops.framework import EventBase
+from ops.charm import CharmBase, CharmEvents
+from ops.framework import EventBase, EventSource, Handle
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -60,8 +60,23 @@ class IncompatibleCPUError(Exception):
     pass
 
 
+class NadConfigChangedEvent(EventBase):
+    """Event triggered when an existing network attachment definition is changed."""
+
+    def __init__(self, handle: Handle):
+        super().__init__(handle)
+
+
+class KubernetesMultusCharmEvents(CharmEvents):
+    """Kubernetes Multus charm events."""
+
+    nad_config_changed = EventSource(NadConfigChangedEvent)
+
+
 class UPFOperatorCharm(CharmBase):
     """Main class to describe juju event handling for the 5G UPF operator."""
+
+    on = KubernetesMultusCharmEvents()
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -101,6 +116,7 @@ class UPFOperatorCharm(CharmBase):
                 ),
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
+            refresh_event=self.on.nad_config_changed,
         )
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
@@ -331,6 +347,7 @@ class UPFOperatorCharm(CharmBase):
                 f"The following configurations are not valid: {invalid_configs}"
             )
             return
+        self.on.nad_config_changed.emit()
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
             event.defer()

@@ -16,6 +16,10 @@ from ops.pebble import ExecError
 from charm import IncompatibleCPUError, UPFOperatorCharm
 
 TEST_PFCP_PORT = 1234
+ACCESS_INTERFACE_NAME = "access-net"
+DEFAULT_ACCESS_IP = "192.168.252.3/24"
+INVALID_ACCESS_IP = "192.168.252.3/44"
+VALID_ACCESS_IP = "192.168.252.5/24"
 
 
 def read_file(path: str) -> str:
@@ -602,7 +606,7 @@ class TestCharm(unittest.TestCase):
         self.harness.disable_hooks()
         self.harness.update_config(
             key_values={
-                "access-ip": "192.168.252.3/24",
+                "access-ip": DEFAULT_ACCESS_IP,
                 "access-gateway-ip": "192.168.252.1",
                 "gnb-subnet": "192.168.251.0/24",
                 "core-ip": "192.168.250.3/24",
@@ -622,8 +626,8 @@ class TestCharm(unittest.TestCase):
         self.harness.disable_hooks()
         self.harness.update_config(
             key_values={
-                "access-interface": "access-net",
-                "access-ip": "192.168.252.3/24",
+                "access-interface": ACCESS_INTERFACE_NAME,
+                "access-ip": DEFAULT_ACCESS_IP,
                 "access-gateway-ip": "192.168.252.1",
                 "gnb-subnet": "192.168.251.0/24",
                 "core-interface": "core-net",
@@ -636,6 +640,38 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["master"], nad.metadata.name)
             self.assertEqual(config["type"], "macvlan")
+
+    @patch(
+        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib._configure_multus"
+    )
+    def test_given_invalid_config_when_config_changed_then_multus_is_not_configured(
+        self,
+        patch_configure_multus,
+    ):
+        self.harness.set_leader(is_leader=True)
+        self.harness.update_config(
+            key_values={
+                "access-interface": ACCESS_INTERFACE_NAME,
+                "access-ip": INVALID_ACCESS_IP,
+            }
+        )
+        patch_configure_multus.assert_not_called()
+
+    @patch(
+        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib._configure_multus"
+    )
+    def test_given_valid_config_when_config_changed_then_multus_is_configured(
+        self,
+        patch_configure_multus,
+    ):
+        self.harness.set_leader(is_leader=True)
+        self.harness.update_config(
+            key_values={
+                "access-interface": ACCESS_INTERFACE_NAME,
+                "access-ip": VALID_ACCESS_IP,
+            }
+        )
+        patch_configure_multus.assert_called_once()
 
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
