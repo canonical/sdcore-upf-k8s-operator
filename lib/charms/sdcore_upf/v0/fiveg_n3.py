@@ -93,7 +93,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 PYDEPS = ["pydantic", "pytest-interface-tester"]
 
@@ -260,6 +260,6 @@ class N3Requires(Object):
             event (RelationChangedEvent): Juju event
         """
         relation_data = event.relation.data
-        upf_ip_address = relation_data[event.unit].get("upf_ip_address")  # type: ignore[index]
+        upf_ip_address = relation_data[event.app].get("upf_ip_address")  # type: ignore[index]
         if upf_ip_address:
             self.on.fiveg_n3_available.emit(upf_ip_address=upf_ip_address)

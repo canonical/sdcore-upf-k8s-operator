@@ -28,7 +28,7 @@ class TestN4Requires(unittest.TestCase):
 
         self.harness.update_relation_data(
             relation_id=relation_id,
-            app_or_unit="whatever-app/0",
+            app_or_unit="whatever-app",
             key_values={"upf_hostname": test_upf_hostname, "upf_port": str(test_upf_port)},
         )
 
