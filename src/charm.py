@@ -83,7 +83,6 @@ class UPFOperatorCharm(CharmBase):
         self._service_patcher = KubernetesServicePatch(
             charm=self,
             ports=[
-                ServicePort(name="pfcp", port=PFCP_PORT, protocol="UDP"),
                 ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
             ],
         )
