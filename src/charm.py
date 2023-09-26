@@ -31,7 +31,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import RemoveEvent
 from ops.charm import CharmBase, CharmEvents
-from ops.framework import EventBase, EventSource, Handle
+from ops.framework import EventBase, EventSource
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
@@ -62,9 +62,6 @@ class IncompatibleCPUError(Exception):
 
 class NadConfigChangedEvent(EventBase):
     """Event triggered when an existing network attachment definition is changed."""
-
-    def __init__(self, handle: Handle):
-        super().__init__(handle)
 
 
 class KubernetesMultusCharmEvents(CharmEvents):
