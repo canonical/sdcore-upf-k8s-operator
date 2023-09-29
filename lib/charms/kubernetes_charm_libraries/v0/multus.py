@@ -24,9 +24,6 @@ from charms.kubernetes_charm_libraries.v0.multus import (
 
 class NadConfigChangedEvent(EventBase):
 
-    def __init__(self, handle: Handle):
-        super().__init__(handle)
-
 
 class KubernetesMultusCharmEvents(CharmEvents):
 
@@ -97,7 +94,7 @@ import json
 import logging
 from dataclasses import asdict, dataclass
 from json.decoder import JSONDecodeError
-from typing import Callable, Optional, Union
+from typing import Callable, Union
 
 import httpx
 from lightkube import Client
@@ -126,7 +123,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 7
+LIBPATCH = 8
 
 
 logger = logging.getLogger(__name__)
@@ -496,9 +493,7 @@ class KubernetesMultusCharmLib(Object):
     def __init__(
         self,
         charm: CharmBase,
-        network_attachment_definitions_func: Callable[
-            [], Optional[list[NetworkAttachmentDefinition]]
-        ],
+        network_attachment_definitions_func: Callable[[], list[NetworkAttachmentDefinition]],
         network_annotations: list[NetworkAnnotation],
         container_name: str,
         refresh_event: BoundEvent,
@@ -510,7 +505,7 @@ class KubernetesMultusCharmLib(Object):
         Args:
             charm: Charm object
             network_attachment_definitions_func: A callable to a function returning a list of
-              `NetworkAttachmentDefinition` to be created or None if config is invalid.
+              `NetworkAttachmentDefinition` to be created.
             network_annotations: List of NetworkAnnotation.
             container_name: Container name
             cap_net_admin: Container requires NET_ADMIN capability
@@ -570,12 +565,7 @@ class KubernetesMultusCharmLib(Object):
         3. Detects the NAD config changes and triggers pod restart
            if any there is any modification in existing NADs
         """
-        if (
-            network_attachment_definitions_to_create := self.network_attachment_definitions_func()
-        ) is None:
-            # If the NAD configs are not valid, this is set to None
-            # by charm to exit without processing as a protection.
-            return
+        network_attachment_definitions_to_create = self.network_attachment_definitions_func()
         nad_config_changed = False
         for (
             existing_network_attachment_definition
@@ -602,13 +592,12 @@ class KubernetesMultusCharmLib(Object):
         if nad_config_changed:
             # We want to trigger the pod restart once if there is a change in NADs
             # after all the NADs are configured.
+            logger.warning("Restarting pod to make the new NAD configs effective.")
             self.delete_pod()
 
     def _network_attachment_definitions_are_created(self) -> bool:
         """Returns whether all network attachment definitions are created."""
-        if (network_attachment_definitions := self.network_attachment_definitions_func()) is None:
-            return False
-        for network_attachment_definition in network_attachment_definitions:
+        for network_attachment_definition in self.network_attachment_definitions_func():
             if not self.kubernetes.network_attachment_definition_is_created(
                 network_attachment_definition=network_attachment_definition
             ):
@@ -665,9 +654,7 @@ class KubernetesMultusCharmLib(Object):
         Args:
             event: RemoveEvent
         """
-        if (network_attachment_definitions := self.network_attachment_definitions_func()) is None:
-            return
-        for network_attachment_definition in network_attachment_definitions:
+        for network_attachment_definition in self.network_attachment_definitions_func():
             if self.kubernetes.network_attachment_definition_is_created(
                 network_attachment_definition=network_attachment_definition
             ):

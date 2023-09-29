@@ -15,18 +15,21 @@ from ops.pebble import ExecError
 
 from charm import IncompatibleCPUError, UPFOperatorCharm
 
-
 MULTUS_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.multus"
-TOO_BIG_MTU_SIZE = 65537  # Out of range
+TOO_BIG_MTU_SIZE = 65536  # Out of range
 TOO_SMALL_MTU_SIZE = 1199  # Out of range
 ZERO_MTU_SIZE = 0  # Out of range
-VALID_MTU_SIZE_1 = 65536  # Upper edge value
+VALID_MTU_SIZE_1 = 65535  # Upper edge value
 VALID_MTU_SIZE_2 = 1200  # Lower edge value
 TEST_PFCP_PORT = 1234
 ACCESS_INTERFACE_NAME = "access-net"
 DEFAULT_ACCESS_IP = "192.168.252.3/24"
 INVALID_ACCESS_IP = "192.168.252.3/44"
 VALID_ACCESS_IP = "192.168.252.5/24"
+ACCESS_GW_IP = "192.168.252.1"
+GNB_SUBNET = "192.168.251.0/24"
+CORE_IP = "192.168.250.3/24"
+CORE_GW_IP = "192.168.250.1"
 
 
 def read_file(path: str) -> str:
@@ -179,7 +182,7 @@ class TestCharm(unittest.TestCase):
                 "replace",
                 "default",
                 "via",
-                "192.168.250.1",
+                CORE_GW_IP,
                 "metric",
                 "110",
             ],
@@ -623,10 +626,10 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(
             key_values={
                 "access-ip": DEFAULT_ACCESS_IP,
-                "access-gateway-ip": "192.168.252.1",
-                "gnb-subnet": "192.168.251.0/24",
-                "core-ip": "192.168.250.3/24",
-                "core-gateway-ip": "192.168.250.1",
+                "access-gateway-ip": ACCESS_GW_IP,
+                "gnb-subnet": GNB_SUBNET,
+                "core-ip": CORE_IP,
+                "core-gateway-ip": CORE_GW_IP,
             }
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
@@ -644,11 +647,11 @@ class TestCharm(unittest.TestCase):
             key_values={
                 "access-interface": ACCESS_INTERFACE_NAME,
                 "access-ip": DEFAULT_ACCESS_IP,
-                "access-gateway-ip": "192.168.252.1",
-                "gnb-subnet": "192.168.251.0/24",
+                "access-gateway-ip": ACCESS_GW_IP,
+                "gnb-subnet": GNB_SUBNET,
                 "core-interface": "core-net",
-                "core-ip": "192.168.250.3/24",
-                "core-gateway-ip": "192.168.250.1",
+                "core-ip": CORE_IP,
+                "core-gateway-ip": CORE_GW_IP,
             }
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
@@ -754,10 +757,10 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(
             key_values={
                 "access-ip": "192.168.252.3/24",
-                "access-gateway-ip": "192.168.252.1",
-                "gnb-subnet": "192.168.251.0/24",
-                "core-ip": "192.168.250.3/24",
-                "core-gateway-ip": "192.168.250.1",
+                "access-gateway-ip": ACCESS_GW_IP,
+                "gnb-subnet": GNB_SUBNET,
+                "core-ip": CORE_IP,
+                "core-gateway-ip": CORE_GW_IP,
             }
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
@@ -772,18 +775,18 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(
             key_values={
                 "access-ip": "192.168.252.3/24",
-                "access-gateway-ip": "192.168.252.1",
+                "access-gateway-ip": ACCESS_GW_IP,
                 "access-interface-mtu-size": VALID_MTU_SIZE_1,
-                "gnb-subnet": "192.168.251.0/24",
-                "core-ip": "192.168.250.3/24",
-                "core-gateway-ip": "192.168.250.1",
+                "gnb-subnet": GNB_SUBNET,
+                "core-ip": CORE_IP,
+                "core-gateway-ip": CORE_GW_IP,
                 "core-interface-mtu-size": VALID_MTU_SIZE_1,
             }
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
             config = json.loads(nad.spec["config"])
-            self.assertEqual(config["mtu"], 65536)
+            self.assertEqual(config["mtu"], 65535)
 
     @patch(
         f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501

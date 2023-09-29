@@ -831,7 +831,7 @@ class UPFOperatorCharm(CharmBase):
         if (access_mtu := self._get_access_interface_mtu_config()) is None:
             return True
         try:
-            return 1200 <= int(access_mtu) < 65537
+            return 1200 <= int(access_mtu) <= 65535
         except ValueError:
             return False
 
@@ -844,7 +844,7 @@ class UPFOperatorCharm(CharmBase):
         if (core_mtu := self._get_core_interface_mtu_config()) is None:
             return True
         try:
-            return 1200 <= int(core_mtu) < 65537
+            return 1200 <= int(core_mtu) <= 65535
         except ValueError:
             return False
 

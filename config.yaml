@@ -21,7 +21,7 @@ options:
   core-interface-mtu-size:
     type: int
     description: |
-      MTU for the core interface (1200 <= MTU <= 65536) in bytes.
+      MTU for the core interface (1200 <= MTU <= 65535) in bytes.
       If not specified, Multus will use its default value (typically 1500).
   access-interface:
     type: string
@@ -37,7 +37,7 @@ options:
   access-interface-mtu-size:
     type: int
     description: |
-      MTU for the access interface (1200 <= MTU <= 65536) in bytes.
+      MTU for the access interface (1200 <= MTU <= 65535) in bytes.
       If not specified, Multus will use its default value (typically 1500).
   external-upf-hostname:
     type: string
