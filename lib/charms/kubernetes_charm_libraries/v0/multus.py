@@ -3,7 +3,8 @@
 
 """Charm Library used to leverage the Multus Kubernetes CNI in charms.
 
-- On config-changed, it will:
+- On a BoundEvent (e.g. self.on.nad_config_changed which is originated from NadConfigChangedEvent),
+ it will:
   - Configure the requested network attachment definitions
   - Patch the statefulset with the necessary annotations for the container to have interfaces
     that use those new network attachments.
@@ -21,7 +22,20 @@ from charms.kubernetes_charm_libraries.v0.multus import (
     NetworkAnnotation
 )
 
+class NadConfigChangedEvent(EventBase):
+
+    def __init__(self, handle: Handle):
+        super().__init__(handle)
+
+
+class KubernetesMultusCharmEvents(CharmEvents):
+
+    nad_config_changed = EventSource(NadConfigChangedEvent)
+
+
 class YourCharm(CharmBase):
+
+    on = KubernetesMultusCharmEvents()
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -37,6 +51,7 @@ class YourCharm(CharmBase):
                 )
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
+            refresh_event=self.on.nad_config_changed,
         )
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
@@ -67,6 +82,14 @@ class YourCharm(CharmBase):
                 },
             ),
         ]
+
+    def _on_config_changed(self, event: EventBase):
+        if not self.unit.is_leader():
+            return
+        if self._get_invalid_configs():
+            return
+        # Fire the NadConfigChangedEvent if the configs are valid.
+        self.on.nad_config_changed.emit()
 ```
 """
 
@@ -92,8 +115,8 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Pod
 from lightkube.types import PatchType
-from ops.charm import CharmBase, EventBase, RemoveEvent
-from ops.framework import Object
+from ops.charm import CharmBase, RemoveEvent
+from ops.framework import BoundEvent, Object
 
 # The unique Charmhub library identifier, never change it
 LIBID = "75283550e3474e7b8b5b7724d345e3c2"
@@ -478,6 +501,7 @@ class KubernetesMultusCharmLib(Object):
         ],
         network_annotations: list[NetworkAnnotation],
         container_name: str,
+        refresh_event: BoundEvent,
         cap_net_admin: bool = False,
         privileged: bool = False,
     ):
@@ -491,6 +515,8 @@ class KubernetesMultusCharmLib(Object):
             container_name: Container name
             cap_net_admin: Container requires NET_ADMIN capability
             privileged: Container requires privileged security context
+            refresh_event: A BoundEvent which will be observed
+                to configure_multus (e.g. NadConfigChangedEvent).
         """
         super().__init__(charm, "kubernetes-multus")
         self.kubernetes = KubernetesClient(namespace=self.model.name)
@@ -499,10 +525,11 @@ class KubernetesMultusCharmLib(Object):
         self.container_name = container_name
         self.cap_net_admin = cap_net_admin
         self.privileged = privileged
-        self.framework.observe(charm.on.config_changed, self._configure_multus)
+        # Apply custom events
+        self.framework.observe(refresh_event, self._configure_multus)
         self.framework.observe(charm.on.remove, self._on_remove)
 
-    def _configure_multus(self, event: EventBase) -> None:
+    def _configure_multus(self, event: BoundEvent) -> None:
         """Creates network attachment definitions and patches statefulset.
 
         Args:
