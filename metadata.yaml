@@ -2,6 +2,9 @@ name: sdcore-upf
 display-name: SD-Core 5G UPF
 summary: Charmed Operator for SD-Core's User Plane Function (UPF).
 description: Charmed Operator for SD-Core's User Plane Function (UPF).
+website: https://charmhub.io/sdcore-upf
+source: https://github.com/canonical/sdcore-upf-operator
+issues: https://github.com/canonical/sdcore-upf-operator/issues
 
 containers:
   bessd:
