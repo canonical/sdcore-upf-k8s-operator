@@ -254,14 +254,11 @@ class UPFOperatorCharm(CharmBase):
 
     def _network_attachment_definitions_from_config(
         self,
-    ) -> Optional[list[NetworkAttachmentDefinition]]:
+    ) -> list[NetworkAttachmentDefinition]:
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config.
 
-        Checks if the config settings are correct before creating any NAD.
-
         Returns:
-            network_attachment_definitions: list[NetworkAttachmentDefinition] if config is valid
-                                            None if config is invalid
+            network_attachment_definitions: list[NetworkAttachmentDefinition]
         """
         access_nad_config = self._get_access_nad_config()
 

@@ -6,6 +6,9 @@ import unittest
 from io import StringIO
 from unittest.mock import MagicMock, Mock, call, patch
 
+from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
+    NetworkAttachmentDefinition,
+)
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
@@ -46,6 +49,17 @@ def read_file(path: str) -> str:
     return content
 
 
+def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) -> None:
+    """Sets NetworkAttachmentDefinition metadata labels.
+
+    Args:
+        nads: list of NetworkAttachmentDefinition
+        app_name: application name
+    """
+    for nad in nads:
+        nad.metadata.labels = {"app.juju.is/created-by": app_name}
+
+
 class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
     @patch(
@@ -59,10 +73,6 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
 
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
-        new=Mock,
-    )
     def test_given_bad_config_when_config_changed_then_status_is_blocked(self):
         self.harness.set_leader(is_leader=True)
 
@@ -473,10 +483,6 @@ class TestCharm(unittest.TestCase):
 
         patched_publish_upf_information.assert_has_calls(expected_calls)
 
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
-        new=Mock,
-    )
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.push", new=Mock)
@@ -660,38 +666,6 @@ class TestCharm(unittest.TestCase):
             self.assertEqual(config["master"], nad.metadata.name)
             self.assertEqual(config["type"], "macvlan")
 
-    @patch(
-        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib._configure_multus"
-    )
-    def test_given_invalid_config_when_config_changed_then_multus_is_not_configured(
-        self,
-        patch_configure_multus,
-    ):
-        self.harness.set_leader(is_leader=True)
-        self.harness.update_config(
-            key_values={
-                "access-interface": ACCESS_INTERFACE_NAME,
-                "access-ip": INVALID_ACCESS_IP,
-            }
-        )
-        patch_configure_multus.assert_not_called()
-
-    @patch(
-        "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib._configure_multus"
-    )
-    def test_given_valid_config_when_config_changed_then_multus_is_configured(
-        self,
-        patch_configure_multus,
-    ):
-        self.harness.set_leader(is_leader=True)
-        self.harness.update_config(
-            key_values={
-                "access-interface": ACCESS_INTERFACE_NAME,
-                "access-ip": VALID_ACCESS_IP,
-            }
-        )
-        patch_configure_multus.assert_called_once()
-
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
     def test_given_cpu_not_supporting_required_instructions_when_install_then_incompatiblecpuerror_is_raised(  # noqa: E501
@@ -788,10 +762,6 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertEqual(config["mtu"], 65535)
 
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
-        new=Mock,
-    )
     def test_given_default_config_with_interfaces_too_small_and_too_big_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
@@ -809,10 +779,6 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._configure_network_attachment_definitions",  # noqa: E501
-        new=Mock,
-    )
     def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
@@ -831,9 +797,6 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
-    )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
@@ -847,23 +810,19 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
-        patch_nad_created_by_charm,
     ):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_nad_created_by_charm.return_value = True
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_1})
         patch_delete_pod.assert_called_once()
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
-    )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
@@ -877,26 +836,23 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
-        patch_nad_created_by_charm,
     ):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_nad_created_by_charm.return_value = True
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_1})
         modified_nads = self.harness.charm._network_attachment_definitions_from_config()
+        update_nad_labels(modified_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = modified_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         self.assertEqual(patch_delete_pod.call_count, 2)
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
-    )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.delete_pod")
@@ -910,7 +866,6 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
-        patch_nad_created_by_charm,
     ):
         """Delete pod is called for the first config change, setting the same config value does not trigger pod restarts."""  # noqa: E501, W505
         patch_exists.return_value = True
@@ -918,28 +873,29 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_nad_created_by_charm.return_value = True
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         patch_delete_pod.assert_called_once()
         nads_after_first_config_change = (
             self.harness.charm._network_attachment_definitions_from_config()
         )
+        update_nad_labels(nads_after_first_config_change, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = nads_after_first_config_change
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         patch_delete_pod.assert_called_once()
         nads_after_second_config_change = (
             self.harness.charm._network_attachment_definitions_from_config()
         )
+        update_nad_labels(nads_after_second_config_change, self.harness.charm.app.name)
+        for nad in nads_after_second_config_change:
+            nad.metadata.labels = {"app.juju.is/created-by": self.harness.charm.app.name}
         patch_list_na_definitions.return_value = nads_after_second_config_change
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         patch_delete_pod.assert_called_once()
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(
-        f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib._network_attachment_definition_created_by_charm"  # noqa: E501, W505
-    )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
@@ -953,15 +909,14 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
-        patch_nad_created_by_charm,
     ):
         patch_exists.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.set_leader(is_leader=True)
-        patch_nad_created_by_charm.return_value = True
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
         patch_delete_pod.assert_not_called()
