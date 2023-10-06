@@ -9,7 +9,7 @@ import json
 import logging
 import time
 from subprocess import check_output
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     KubernetesMultusCharmLib,
@@ -45,6 +45,8 @@ ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME = "access-net"
 CORE_NETWORK_ATTACHMENT_DEFINITION_NAME = "core-net"
 ACCESS_INTERFACE_NAME = "access"
 CORE_INTERFACE_NAME = "core"
+ACCESS_INTERFACE_BRIDGE_NAME = "access-br"
+CORE_INTERFACE_BRIDGE_NAME = "core-br"
 CONFIG_FILE_NAME = "upf.json"
 BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
 UPF_MODE = "af_packet"
@@ -250,46 +252,28 @@ class UPFOperatorCharm(CharmBase):
             return lb_hostname
         return self._upf_hostname
 
-    def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        """Returns list of Multus NetworkAttachmentDefinitions to be created based on config."""
-        access_nad_config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "routes": [
-                    {
-                        "dst": self._get_gnb_subnet_config(),
-                        "gw": self._get_access_network_gateway_ip_config(),
-                    },
-                ],
-                "addresses": [
-                    {
-                        "address": self._get_access_network_ip_config(),
-                    }
-                ],
-            },
-            "capabilities": {"mac": True},
-        }
-        if (access_interface := self._get_access_interface_config()) is not None:
+    def _network_attachment_definitions_from_config(
+        self,
+    ) -> list[NetworkAttachmentDefinition]:
+        """Returns list of Multus NetworkAttachmentDefinitions to be created based on config.
+
+        Returns:
+            network_attachment_definitions: list[NetworkAttachmentDefinition]
+        """
+        access_nad_config = self._get_access_nad_config()
+
+        if access_interface := self._get_access_interface_config():
             access_nad_config.update({"type": "macvlan", "master": access_interface})
         else:
-            access_nad_config.update({"type": "bridge", "bridge": "access-br"})
-        core_nad_config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "addresses": [
-                    {
-                        "address": self._get_core_network_ip_config(),
-                    }
-                ],
-            },
-            "capabilities": {"mac": True},
-        }
-        if (core_interface := self._get_core_interface_config()) is not None:
+            access_nad_config.update({"type": "bridge", "bridge": ACCESS_INTERFACE_BRIDGE_NAME})
+
+        core_nad_config = self._get_core_nad_config()
+
+        if core_interface := self._get_core_interface_config():
             core_nad_config.update({"type": "macvlan", "master": core_interface})
         else:
-            core_nad_config.update({"type": "bridge", "bridge": "core-br"})
+            core_nad_config.update({"type": "bridge", "bridge": CORE_INTERFACE_BRIDGE_NAME})
+
         return [
             NetworkAttachmentDefinition(
                 metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
@@ -480,6 +464,10 @@ class UPFOperatorCharm(CharmBase):
             invalid_configs.append("core-gateway-ip")
         if not self._gnb_subnet_config_is_valid():
             invalid_configs.append("gnb-subnet")
+        if not self._access_interface_mtu_size_is_valid():
+            invalid_configs.append("access-interface-mtu-size")
+        if not self._core_interface_mtu_size_is_valid():
+            invalid_configs.append("core-interface-mtu-size")
         return invalid_configs
 
     def _create_default_route(self) -> None:
@@ -758,6 +746,104 @@ class UPFOperatorCharm(CharmBase):
                 cpu_flags = cpu_info_item.split()
                 del cpu_flags[0]
         return cpu_flags
+
+    def _get_access_nad_config(self) -> Dict[Any, Any]:
+        """Get access interface NAD config.
+
+        Returns:
+            config (dict): Access interface NAD config
+
+        """
+        config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+                "routes": [
+                    {
+                        "dst": self._get_gnb_subnet_config(),
+                        "gw": self._get_access_network_gateway_ip_config(),
+                    },
+                ],
+                "addresses": [
+                    {
+                        "address": self._get_access_network_ip_config(),
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        if access_mtu := self._get_access_interface_mtu_config():
+            config.update({"mtu": access_mtu})
+        return config
+
+    def _get_core_nad_config(self) -> Dict[Any, Any]:
+        """Get core interface NAD config.
+
+        Returns:
+            config (dict): Core interface NAD config
+
+        """
+        config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+                "addresses": [
+                    {
+                        "address": self._get_core_network_ip_config(),
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        if core_mtu := self._get_core_interface_mtu_config():
+            config.update({"mtu": core_mtu})
+        return config
+
+    def _get_core_interface_mtu_config(self) -> Optional[str]:
+        """Get Core interface MTU size.
+
+        Returns:
+            mtu_size (str/None): If MTU size is not configured return None
+                                    If it is set, returns the configured value
+
+        """
+        return self.model.config.get("core-interface-mtu-size")
+
+    def _get_access_interface_mtu_config(self) -> Optional[str]:
+        """Get Access interface MTU size.
+
+        Returns:
+            mtu_size (str/None): If MTU size is not configured return None
+                                    If it is set, returns the configured value
+
+        """
+        return self.model.config.get("access-interface-mtu-size")
+
+    def _access_interface_mtu_size_is_valid(self) -> bool:
+        """Checks whether the access interface MTU size is valid.
+
+        Returns:
+            bool: Whether access interface MTU size is valid
+        """
+        if (access_mtu := self._get_access_interface_mtu_config()) is None:
+            return True
+        try:
+            return 1200 <= int(access_mtu) <= 65535
+        except ValueError:
+            return False
+
+    def _core_interface_mtu_size_is_valid(self) -> bool:
+        """Checks whether the core interface MTU size is valid.
+
+        Returns:
+            bool: Whether core interface MTU size is valid
+        """
+        if (core_mtu := self._get_core_interface_mtu_config()) is None:
+            return True
+        try:
+            return 1200 <= int(core_mtu) <= 65535
+        except ValueError:
+            return False
 
 
 def render_bessd_config_file(
