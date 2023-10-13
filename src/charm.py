@@ -11,6 +11,10 @@ import time
 from subprocess import check_output
 from typing import Any, Dict, Optional
 
+from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (  # type: ignore[import]
+    HugePagesVolume,
+    KubernetesHugePagesPatchCharmLib,
+)
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     KubernetesMultusCharmLib,
     NetworkAnnotation,
@@ -66,16 +70,21 @@ class NadConfigChangedEvent(EventBase):
     """Event triggered when an existing network attachment definition is changed."""
 
 
-class KubernetesMultusCharmEvents(CharmEvents):
-    """Kubernetes Multus charm events."""
+class K8sHugePagesVolumePatchChangedEvent(EventBase):
+    """Event triggered when a HugePages volume is changed."""
+
+
+class UpfOperatorCharmEvents(CharmEvents):
+    """Kubernetes UPF operator charm events."""
 
     nad_config_changed = EventSource(NadConfigChangedEvent)
+    hugepages_volumes_config_changed = EventSource(K8sHugePagesVolumePatchChangedEvent)
 
 
 class UPFOperatorCharm(CharmBase):
     """Main class to describe juju event handling for the 5G UPF operator."""
 
-    on = KubernetesMultusCharmEvents()
+    on = UpfOperatorCharmEvents()
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -116,6 +125,12 @@ class UPFOperatorCharm(CharmBase):
             ],
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
             refresh_event=self.on.nad_config_changed,
+        )
+        self._kubernetes_volumes_patch = KubernetesHugePagesPatchCharmLib(
+            charm=self,
+            container_name=self._bessd_container_name,
+            hugepages_volumes_func=self._volumes_request_func_from_config,
+            refresh_event=self.on.hugepages_volumes_config_changed,
         )
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
@@ -252,6 +267,16 @@ class UPFOperatorCharm(CharmBase):
             return lb_hostname
         return self._upf_hostname
 
+    def _volumes_request_func_from_config(self) -> list[HugePagesVolume]:
+        """Returns list of HugePages to be set based on the application config.
+
+        Returns:
+            list[HugePagesVolume]: list of HugePages to be set based on the application config.
+        """
+        if self.hugepages_is_enabled():
+            return [HugePagesVolume(mount_path="/dev/hugepages", size="1Gi", limit="2Gi")]
+        return []
+
     def _network_attachment_definitions_from_config(
         self,
     ) -> list[NetworkAttachmentDefinition]:
@@ -329,6 +354,7 @@ class UPFOperatorCharm(CharmBase):
             )
             return
         self.on.nad_config_changed.emit()
+        self.on.hugepages_volumes_config_changed.emit()
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
             event.defer()
@@ -566,7 +592,7 @@ class UPFOperatorCharm(CharmBase):
                     self._bessd_service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} -m 0",  # "-m 0" means that we are not using hugepages  # noqa: E501
+                        "command": f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} {'-m 0' if not self.hugepages_is_enabled() else ''}",  # "-m 0" means that we are not using hugepages  # noqa: E501
                         "environment": self._bessd_environment_variables,
                     },
                 },
@@ -844,6 +870,14 @@ class UPFOperatorCharm(CharmBase):
             return 1200 <= int(core_mtu) <= 65535
         except ValueError:
             return False
+
+    def hugepages_is_enabled(self) -> bool:
+        """Returns whether HugePages are enabled.
+
+        Returns:
+            bool: Whether HugePages are enabled
+        """
+        return bool(self.model.config.get("enable-hugepages", False))
 
 
 def render_bessd_config_file(
