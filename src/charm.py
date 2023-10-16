@@ -273,7 +273,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             list[HugePagesVolume]: list of HugePages to be set based on the application config.
         """
-        if self.hugepages_is_enabled():
+        if self._hugepages_is_enabled():
             return [HugePagesVolume(mount_path="/dev/hugepages", size="1Gi", limit="2Gi")]
         return []
 
@@ -592,7 +592,7 @@ class UPFOperatorCharm(CharmBase):
                     self._bessd_service_name: {
                         "override": "replace",
                         "startup": "enabled",
-                        "command": f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} {'-m 0' if not self.hugepages_is_enabled() else ''}",  # "-m 0" means that we are not using hugepages  # noqa: E501
+                        "command": self._generate_bessd_startup_command(),
                         "environment": self._bessd_environment_variables,
                     },
                 },
@@ -871,13 +871,24 @@ class UPFOperatorCharm(CharmBase):
         except ValueError:
             return False
 
-    def hugepages_is_enabled(self) -> bool:
+    def _hugepages_is_enabled(self) -> bool:
         """Returns whether HugePages are enabled.
 
         Returns:
             bool: Whether HugePages are enabled
         """
         return bool(self.model.config.get("enable-hugepages", False))
+
+    def _generate_bessd_startup_command(self) -> str:
+        """Returns bessd startup command.
+
+        Returns:
+            str: bessd startup command
+        """
+        hugepages_cmd = ""
+        if not self._hugepages_is_enabled():
+            hugepages_cmd = "-m 0"  # "-m 0" means that we are not using hugepages
+        return f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} {hugepages_cmd}"
 
 
 def render_bessd_config_file(
