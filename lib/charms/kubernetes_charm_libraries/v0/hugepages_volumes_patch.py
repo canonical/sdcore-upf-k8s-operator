@@ -300,10 +300,6 @@ class KubernetesClient:
             requested_resources: new resource requirements to be set in the given container
             container_name: Container name
         """
-        if not requested_volumes:
-            logger.warning("No requested volumes were provided")
-        if not requested_volumemounts:
-            logger.warning("No requested volume mounts were provided")
         try:
             statefulset = self.client.get(
                 res=StatefulSet, name=statefulset_name, namespace=self.namespace
@@ -610,6 +606,8 @@ class KubernetesHugePagesPatchCharmLib(Object):
         for current_volume in current_volumes:
             if not self._volume_is_hugepages(current_volume):
                 new_volumes.append(current_volume)
+        if not new_volumes:
+            logger.warning("StatefulSet `%s` will have no volumes", self.model.app.name)
         return new_volumes
 
     def _generate_volumemounts_to_be_replaced(self) -> list[VolumeMount]:
@@ -630,6 +628,8 @@ class KubernetesHugePagesPatchCharmLib(Object):
         for current_volumemount in current_volumemounts:
             if not self._volumemount_is_hugepages(current_volumemount):
                 new_volumemounts.append(current_volumemount)
+        if not new_volumemounts:
+            logger.warning("Container `%s` will have no volumeMounts", self.container_name)
         return new_volumemounts
 
     def _remove_hugepages_from_resource_requirements(self, resource_attribute: dict) -> dict:
