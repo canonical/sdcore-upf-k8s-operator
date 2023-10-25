@@ -75,7 +75,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 logger = logging.getLogger(__name__)
 
@@ -564,10 +564,8 @@ class KubernetesHugePagesPatchCharmLib(Object):
         for hugepage in self.hugepages_volumes_func():
             limits.update({f"hugepages-{hugepage.size}": hugepage.limit})
             limits.update({"cpu": "2"})
-            limits.update({"memory": "512Mi"})
             requests.update({f"hugepages-{hugepage.size}": hugepage.limit})
             requests.update({"cpu": "2"})
-            requests.update({"memory": "512Mi"})
         return ResourceRequirements(
             limits=limits,
             requests=requests,
