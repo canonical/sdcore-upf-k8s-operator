@@ -134,6 +134,7 @@ class UPFOperatorCharm(CharmBase):
         )
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
+        self.framework.observe(self.on.config_storage_attached, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
         self.framework.observe(
             self.fiveg_n3_provider.on.fiveg_n3_request, self._on_fiveg_n3_request
@@ -357,14 +358,8 @@ class UPFOperatorCharm(CharmBase):
         self.on.hugepages_volumes_config_changed.emit()
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
-            event.defer()
-            return
-        if not self._pfcp_agent_container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for pfcp agent container to be ready")
-            event.defer()
             return
         self._on_bessd_pebble_ready(event)
-        self._on_pfcp_agent_pebble_ready(event)
         self._update_fiveg_n3_relation_data()
         self._update_fiveg_n4_relation_data()
 
@@ -374,11 +369,9 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._kubernetes_multus.is_ready():
             self.unit.status = WaitingStatus("Waiting for Multus to be ready")
-            event.defer()
             return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             self.unit.status = WaitingStatus("Waiting for storage to be attached")
-            event.defer()
             return
         self._configure_bessd_workload()
         self._set_unit_status()

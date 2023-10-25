@@ -104,7 +104,26 @@ class TestCharm(unittest.TestCase):
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.exec", new=MagicMock)
-    def test_given_bessd_config_file_matches_when_bessd_pebble_ready_then_config_file_is_not_rewritten(  # noqa: E501
+    def test_given_bessd_config_file_not_yet_written_when_config_storage_attached_then_config_file_is_written(  # noqa: E501
+        self,
+        patch_is_ready,
+    ):
+        self.harness.set_leader(is_leader=True)
+
+        self.harness.set_can_connect("bessd", True)
+        (self.root / "etc/bess/conf").rmdir()
+        self.harness.add_storage(storage_name="config", count=1)
+        self.harness.attach_storage(storage_id="config/0")
+
+        expected_config_file_content = read_file("tests/unit/expected_upf.json")
+
+        self.assertEqual(
+            (self.root / "etc/bess/conf/upf.json").read_text(), expected_config_file_content
+        )
+
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_bessd_config_file_matches_when_bessd_pebble_ready_then_config_file_is_not_changed(  # noqa: E501
         self,
         patch_is_ready,
     ):
