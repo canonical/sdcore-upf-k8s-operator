@@ -59,6 +59,9 @@ PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 
+# The default field manager set when using kubectl to create resources
+DEFAULT_FIELD_MANAGER = "controller"
+
 
 class IncompatibleCPUError(Exception):
     """Custom error to be raised when CPU doesn't support required instructions."""
@@ -168,8 +171,8 @@ class UPFOperatorCharm(CharmBase):
             ),
         )
 
-        client.create(service)
-        logger.info("Created external UPF service")
+        client.apply(service, field_manager=DEFAULT_FIELD_MANAGER)
+        logger.info("Created/asserted existence of the external UPF service")
 
     def _on_remove(self, event: RemoveEvent) -> None:
         self._delete_external_upf_service()

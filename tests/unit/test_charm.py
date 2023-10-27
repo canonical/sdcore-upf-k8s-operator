@@ -693,7 +693,9 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
-        patch_client.return_value.create.assert_called_once_with(expected_service)
+        patch_client.return_value.apply.assert_called_once_with(
+            expected_service, field_manager="controller"
+        )
 
     @patch("charm.Client")
     def test_when_remove_then_external_service_is_deleted(self, patch_client):
