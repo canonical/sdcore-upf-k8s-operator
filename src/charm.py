@@ -95,7 +95,7 @@ class UPFOperatorCharm(CharmBase):
             # NOTE: In cases where leader status is lost before the charm is
             # finished processing all teardown events, this prevents teardown
             # event code from running. Luckily, for this charm, none of the
-            # teardown code is necessary to preform if we're removing the
+            # teardown code is necessary to perform if we're removing the
             # charm.
             self.unit.status = BlockedStatus("Scaling is not implemented for this charm")
             return
@@ -186,7 +186,7 @@ class UPFOperatorCharm(CharmBase):
         self._delete_external_upf_service()
 
     def _delete_external_upf_service(self) -> None:
-        # NOTE: We want to preform this removal only if the last remaining unit
+        # NOTE: We want to perform this removal only if the last remaining unit
         # is removed. This charm does not support scaling, so it *should* be
         # the only unit.
         #
