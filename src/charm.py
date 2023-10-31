@@ -91,6 +91,14 @@ class UPFOperatorCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        if not self.unit.is_leader():
+            # NOTE: In cases where leader status is lost before the charm is
+            # finished processing all teardown events, this prevents teardown
+            # event code from running. Luckily, for this charm, none of the
+            # teardown code is necessary to perform if we're removing the
+            # charm.
+            self.unit.status = BlockedStatus("Scaling is not implemented for this charm")
+            return
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_service_name = "routectl"
         self._pfcp_agent_container_name = self._pfcp_agent_service_name = "pfcp-agent"
@@ -178,6 +186,21 @@ class UPFOperatorCharm(CharmBase):
         self._delete_external_upf_service()
 
     def _delete_external_upf_service(self) -> None:
+        # NOTE: We want to perform this removal only if the last remaining unit
+        # is removed. This charm does not support scaling, so it *should* be
+        # the only unit.
+        #
+        # However, to account for the case where the charm was scaled up, and
+        # now needs to be scaled back down, we only remove the service if the
+        # leader is removed. This is presumed to be the only healthy unit, and
+        # therefore the last remaining one when removed (all other units will
+        # block if they are not leader)
+        #
+        # This is a best effort removal of the service. There are edge cases
+        # where the leader status is removed from the leader unit before all
+        # hooks are finished running. In this case, we will leave behind a
+        # dirty state in k8s, but it will be cleaned up when the juju model is
+        # destroyed. It will be re-used if the charm is re-deployed.
         client = Client()
         client.delete(
             Service,

@@ -70,6 +70,7 @@ class TestCharm(unittest.TestCase):
         self.namespace = "whatever"
         self.harness = testing.Harness(UPFOperatorCharm)
         self.harness.set_model_name(name=self.namespace)
+        self.harness.set_leader(is_leader=True)
 
         self.root = self.harness.get_filesystem_root("bessd")
         (self.root / "etc/bess/conf").mkdir(parents=True)
@@ -77,8 +78,6 @@ class TestCharm(unittest.TestCase):
         self.harness.begin()
 
     def test_given_bad_config_when_config_changed_then_status_is_blocked(self):
-        self.harness.set_leader(is_leader=True)
-
         self.harness.update_config(key_values={"dnn": ""})
 
         self.assertEqual(
@@ -92,8 +91,6 @@ class TestCharm(unittest.TestCase):
         self,
         patch_is_ready,
     ):
-        self.harness.set_leader(is_leader=True)
-
         self.harness.container_pebble_ready(container_name="bessd")
 
         expected_config_file_content = read_file("tests/unit/expected_upf.json")
@@ -108,8 +105,6 @@ class TestCharm(unittest.TestCase):
         self,
         patch_is_ready,
     ):
-        self.harness.set_leader(is_leader=True)
-
         self.harness.set_can_connect("bessd", True)
         (self.root / "etc/bess/conf").rmdir()
         self.harness.add_storage(storage_name="config", count=1)
@@ -127,7 +122,6 @@ class TestCharm(unittest.TestCase):
         self,
         patch_is_ready,
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
         expected_upf_content = read_file("tests/unit/expected_upf.json")
         (self.root / "etc/bess/conf/upf.json").write_text(expected_upf_content)
@@ -142,7 +136,6 @@ class TestCharm(unittest.TestCase):
         self,
         patch_is_ready,
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -179,7 +172,6 @@ class TestCharm(unittest.TestCase):
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_ip_route_is_created(
         self, patch_exec, patch_is_ready
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -204,7 +196,6 @@ class TestCharm(unittest.TestCase):
     def test_given_iptables_rule_is_not_yet_created_when_bessd_pebble_ready_then_rule_is_created(
         self, patch_exec, patch_is_ready
     ):
-        self.harness.set_leader(is_leader=True)
         patch_exec.side_effect = [
             MagicMock(),
             ExecError(command=[], exit_code=1, stdout="", stderr=""),
@@ -236,7 +227,6 @@ class TestCharm(unittest.TestCase):
     def test_given_iptables_rule_is_created_when_bessd_pebble_ready_then_rule_is_not_re_created(
         self, patch_exec, patch_is_ready
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -265,7 +255,6 @@ class TestCharm(unittest.TestCase):
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
         self, patch_exec, patch_is_ready
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -281,7 +270,6 @@ class TestCharm(unittest.TestCase):
     def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
         self, patch_exec, patch_is_ready
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -300,7 +288,6 @@ class TestCharm(unittest.TestCase):
     def test_given_connects_and_bessctl_executed_file_dont_exist_then_bessctl_configure_executed(
         self, patch_exec, patch_is_ready
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -317,7 +304,6 @@ class TestCharm(unittest.TestCase):
         self,
         patch_is_ready,
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
         (self.root / "etc/bess/conf").rmdir()
 
@@ -333,7 +319,6 @@ class TestCharm(unittest.TestCase):
         self,
         patch_is_ready,
     ):
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = False
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -354,7 +339,6 @@ class TestCharm(unittest.TestCase):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
-        self.harness.set_leader(is_leader=True)
         patch_is_ready.return_value = True
         self.harness.set_can_connect(container="pfcp-agent", val=True)
 
@@ -370,7 +354,6 @@ class TestCharm(unittest.TestCase):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
-        self.harness.set_leader(is_leader=True)
         self.harness.set_can_connect(container="bessd", val=True)
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
@@ -392,7 +375,6 @@ class TestCharm(unittest.TestCase):
     def test_given_cant_connect_to_bessd_container_when_pfcp_agent_pebble_ready_then_status_is_waiting(  # noqa: E501
         self,
     ):
-        self.harness.set_leader(is_leader=True)
         self.harness.set_can_connect(container="bessd", val=False)
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
@@ -409,7 +391,6 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched,
     ):
         patch_hugepages_is_patched.return_value = True
-        self.harness.set_leader(is_leader=True)
         test_upf_access_ip_cidr = "1.2.3.4/21"
         self.harness.update_config(key_values={"access-ip": test_upf_access_ip_cidr})
 
@@ -424,6 +405,7 @@ class TestCharm(unittest.TestCase):
     def test_given_unit_is_not_leader_when_fiveg_n3_request_then_upf_ip_address_is_not_published(
         self, patched_publish_upf_information
     ):
+        self.harness.set_leader(is_leader=False)
         test_upf_access_ip_cidr = "1.2.3.4/21"
         self.harness.update_config(key_values={"access-ip": test_upf_access_ip_cidr})
 
@@ -447,7 +429,6 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
-        self.harness.set_leader(is_leader=True)
         n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
         self.harness.add_relation_unit(n3_relation_id, "n3_requirer_app/0")
         test_upf_access_ip_cidr = "1.2.3.4/21"
@@ -469,7 +450,6 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
-        self.harness.set_leader(is_leader=True)
         n3_relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
         self.harness.add_relation_unit(n3_relation_id, "n3_requirer_app/0")
         invalid_test_upf_access_ip_cidr = "1111.2.3.4/21"
@@ -484,6 +464,7 @@ class TestCharm(unittest.TestCase):
     def test_given_unit_is_not_leader_when_fiveg_n4_request_then_upf_hostname_is_not_published(
         self, patched_publish_upf_n4_information
     ):
+        self.harness.set_leader(is_leader=False)
         test_external_upf_hostname = "test-upf.external.hostname.com"
         self.harness.update_config(
             key_values={"external-upf-hostname": test_external_upf_hostname}
@@ -503,7 +484,6 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched,
     ):
         patch_hugepages_is_patched.return_value = True
-        self.harness.set_leader(is_leader=True)
         test_external_upf_hostname = "test-upf.external.hostname.com"
         self.harness.update_config(
             key_values={"external-upf-hostname": test_external_upf_hostname}
@@ -525,7 +505,6 @@ class TestCharm(unittest.TestCase):
     def test_given_external_upf_hostname_config_not_set_but_external_upf_service_hostname_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
     ):
-        self.harness.set_leader(is_leader=True)
         test_external_upf_service_hostname = "test-upf.external.service.hostname.com"
         service = Mock(
             status=Mock(
@@ -552,7 +531,6 @@ class TestCharm(unittest.TestCase):
     def test_given_external_upf_hostname_config_not_set_and_external_upf_service_hostname_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
     ):
-        self.harness.set_leader(is_leader=True)
         service = Mock(status=Mock(loadBalancer=Mock(ingress=[Mock(ip="1.1.1.1", spec=["ip"])])))
         patched_lightkube_client_get.return_value = service
 
@@ -582,7 +560,6 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
-        self.harness.set_leader(is_leader=True)
         self.harness.update_config(key_values={"external-upf-hostname": "whatever.com"})
         n4_relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
         self.harness.add_relation_unit(n4_relation_id, "n4_requirer_app/0")
@@ -609,7 +586,6 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched,
     ):
         patch_hugepages_is_patched.return_value = True
-        self.harness.set_leader(is_leader=True)
         self.harness.update_config(
             key_values={
                 "access-ip": DEFAULT_ACCESS_IP,
@@ -713,7 +689,6 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched,
     ):
         patch_hugepages_is_patched.return_value = True
-        self.harness.set_leader(is_leader=True)
         self.harness.update_config(
             key_values={
                 "access-ip": "192.168.252.3/24",
@@ -734,7 +709,6 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched,
     ):
         patch_hugepages_is_patched.return_value = True
-        self.harness.set_leader(is_leader=True)
         self.harness.update_config(
             key_values={
                 "access-ip": "192.168.252.3/24",
@@ -754,7 +728,6 @@ class TestCharm(unittest.TestCase):
     def test_given_default_config_with_interfaces_too_small_and_too_big_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
-        self.harness.set_leader(is_leader=True)
         self.harness.update_config(
             key_values={
                 "access-interface-mtu-size": TOO_SMALL_MTU_SIZE,
@@ -771,7 +744,6 @@ class TestCharm(unittest.TestCase):
     def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
-        self.harness.set_leader(is_leader=True)
         self.harness.update_config(
             key_values={
                 "access-interface-mtu-size": ZERO_MTU_SIZE,
@@ -802,7 +774,6 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
-        self.harness.set_leader(is_leader=True)
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
         update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
@@ -826,7 +797,6 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
-        self.harness.set_leader(is_leader=True)
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
         update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
@@ -855,7 +825,6 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
-        self.harness.set_leader(is_leader=True)
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
         update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
@@ -892,7 +861,6 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
-        self.harness.set_leader(is_leader=True)
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
         update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
