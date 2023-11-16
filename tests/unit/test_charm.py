@@ -544,6 +544,26 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.get")
+    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
+    def test_given_external_upf_hostname_config_not_set_and_metallb_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+        self, patched_publish_upf_n4_information, patched_lightkube_client_get
+    ):
+        service = Mock(status=Mock(loadBalancer=Mock(ingress=None)))
+        patched_lightkube_client_get.return_value = service
+
+        n4_relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
+        self.harness.add_relation_unit(n4_relation_id, "n4_requirer_app/0")
+
+        patched_publish_upf_n4_information.assert_called_once_with(
+            relation_id=n4_relation_id,
+            upf_hostname=f"{self.harness.charm.app.name}-external.{self.namespace}"
+            ".svc.cluster.local",
+            upf_n4_port=TEST_PFCP_PORT,
+        )
+
     @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
