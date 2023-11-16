@@ -92,9 +92,10 @@ class YourCharm(CharmBase):
 
 import json
 import logging
-from dataclasses import asdict, dataclass
+from dataclass_wizard import asdict
+from dataclasses import dataclass
 from json.decoder import JSONDecodeError
-from typing import Callable, Union
+from typing import Callable, List, Optional, Union
 
 import httpx
 from lightkube import Client
@@ -150,8 +151,8 @@ class NetworkAnnotation:
 
     name: str
     interface: str
-
-    dict = asdict
+    mac: Optional[str] = None
+    ips: Optional[List[str]] = None
 
 
 class KubernetesMultusError(Exception):
@@ -353,7 +354,7 @@ class KubernetesClient:
                         annotations={
                             "k8s.v1.cni.cncf.io/networks": json.dumps(
                                 [
-                                    network_annotation.dict()
+                                    asdict(network_annotation, skip_defaults=True)
                                     for network_annotation in network_annotations
                                 ]
                             )
@@ -446,22 +447,24 @@ class KubernetesClient:
             return False
         return True
 
+    @staticmethod
     def _annotations_contains_multus_networks(
-        self, annotations: dict, network_annotations: list[NetworkAnnotation]
+        annotations: dict, network_annotations: list[NetworkAnnotation]
     ) -> bool:
         if "k8s.v1.cni.cncf.io/networks" not in annotations:
             return False
         try:
             if json.loads(annotations["k8s.v1.cni.cncf.io/networks"]) != [
-                network_annotation.dict() for network_annotation in network_annotations
+                asdict(network_annotation, skip_defaults=True)
+                for network_annotation in network_annotations
             ]:
                 return False
         except JSONDecodeError:
             return False
         return True
 
+    @staticmethod
     def _container_security_context_is_set(
-        self,
         containers: list[Container],
         container_name: str,
         cap_net_admin: bool,

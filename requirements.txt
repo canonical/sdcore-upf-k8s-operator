@@ -1,7 +1,11 @@
+dataclass-wizard
+httpx
+ipaddress
 ops
 jinja2
 lightkube
 lightkube-models
+macaddress
 pydantic
 pytest-interface-tester
 PyYAML>=6.0.1

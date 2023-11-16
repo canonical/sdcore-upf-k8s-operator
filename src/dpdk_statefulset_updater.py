@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+# Copyright 2023 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Module used to update Kubernetes Statefulset to support DPDK."""
+
+import logging
+from typing import Iterable, Optional
+
+from lightkube import Client
+from lightkube.core.exceptions import ApiError
+from lightkube.models.core_v1 import Container
+from lightkube.resources.apps_v1 import StatefulSet
+
+logger = logging.getLogger(__name__)
+
+
+class DPDKStatefulSetUpdaterError(Exception):
+    """DPDKStatefulSetUpdaterError."""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(self.message)
+
+
+class DPDKStatefulSetUpdater:
+    """Class used to update Kubernetes Statefulset to support DPDK."""
+
+    def __init__(
+        self,
+        statefulset_name: str,
+        namespace: str,
+        dpdk_access_interface_resource_name: str,
+        dpdk_core_interface_resource_name: str,
+    ):
+        self.k8s_client = Client()
+        self.statefulset_name = statefulset_name
+        self.namespace = namespace
+        self.dpdk_resource_requirements = {
+            "requests": {
+                dpdk_access_interface_resource_name: "1",
+                dpdk_core_interface_resource_name: "1",
+            },
+            "limits": {
+                dpdk_access_interface_resource_name: "1",
+                dpdk_core_interface_resource_name: "1",
+            },
+        }
+
+    def container_configured_for_dpdk(self, container_name: str) -> bool:
+        """Checks whether the container config required for DPDK has been applied or not.
+
+        Args:
+            container_name (str): Name of the container to update
+
+        Returns:
+            bool: True if container config required for DPDK is applied, otherwise False
+        """
+        statefulset = self._get_statefulset(self.statefulset_name, self.namespace)
+        if not statefulset:
+            raise RuntimeError("StatefulSet not found!")
+        container = self._get_container(
+            container_name=container_name,
+            containers=statefulset.spec.template.spec.containers,
+        )
+        if not container:
+            raise RuntimeError("Container not found!")
+        if not container.securityContext.privileged:
+            return False
+        if not self._resource_requirements_applied(container, self.dpdk_resource_requirements):
+            return False
+        return True
+
+    def configure_container_for_dpdk(self, container_name: str) -> None:
+        """Applies config required by DPDK to a given container.
+
+        Args:
+            container_name (str): Name of the container to update
+        """
+        statefulset = self._get_statefulset(self.statefulset_name, self.namespace)
+        if not statefulset:
+            raise RuntimeError("StatefulSet not found!")
+        container = self._get_container(
+            container_name=container_name,
+            containers=statefulset.spec.template.spec.containers,
+        )
+        if not container:
+            raise RuntimeError("Container not found!")
+        container.securityContext.privileged = True
+        self._apply_resource_requirements(
+            container=container,
+            resource_requirements=self.dpdk_resource_requirements,
+        )
+
+        self._replace_statefulset(statefulset=statefulset)
+
+    def _get_statefulset(self, statefulset_name: str, namespace: str) -> Optional[StatefulSet]:
+        """Returns StatefulSet object with given name from given namespace.
+
+        Args:
+            statefulset_name (str): Name of the StatefulSet to get
+            namespace (str): Namespace to get StatefulSet from
+
+        Returns:
+            StatefulSet: StatefulSet object
+        """
+        try:
+            return self.k8s_client.get(res=StatefulSet, name=statefulset_name, namespace=namespace)  # type: ignore[return-value]  # noqa: E501
+        except ApiError as e:
+            raise DPDKStatefulSetUpdaterError(
+                f"Could not get statefulset `{statefulset_name}`: {e.status.message}"
+            )
+
+    @staticmethod
+    def _get_container(
+        containers: Iterable[Container], container_name: str
+    ) -> Optional[Container]:
+        """Returns Container object with given name.
+
+        Args:
+            containers (Iterable[Container]): Containers to search among
+            container_name (str): Name of the Container to get
+
+        Returns:
+            Container: Container object
+        """
+        try:
+            return next(iter(filter(lambda ctr: ctr.name == container_name, containers)))
+        except StopIteration:
+            raise DPDKStatefulSetUpdaterError(f"Container `{container_name}` not found")
+
+    @staticmethod
+    def _apply_resource_requirements(container: Container, resource_requirements: dict) -> None:
+        """Applies given resource requests and limits to a given container.
+
+        Args:
+            container (Container): Container to update
+            resource_requirements (dict): Dictionary of `requests` and `limits`
+        """
+        for request, value in resource_requirements["requests"].items():
+            container.resources.requests.update({request: int(value)})
+        for limit, value in resource_requirements["limits"].items():
+            container.resources.limits.update({limit: int(value)})
+
+    @staticmethod
+    def _resource_requirements_applied(container: Container, resource_requirements: dict) -> bool:
+        """Checks whether the container ResourceRequirements have been applied or not.
+
+        Args:
+            container (Container): Container to check
+            resource_requirements (dict): Dictionary of `requests` and `limits`
+
+        Returns:
+            bool: True if container ResourceRequirements have been applied, otherwise False
+        """
+        for request, value in resource_requirements["requests"].items():
+            if not container.resources.requests.get(request) == value:
+                return False
+        for limit, value in resource_requirements["limits"].items():
+            if not container.resources.limits.get(limit) == value:
+                return False
+        return True
+
+    def _replace_statefulset(self, statefulset: StatefulSet) -> None:
+        """Replaces StatefulSet.
+
+        Args:
+            statefulset (StatefulSet): StatefulSet object to replace
+        """
+        try:
+            self.k8s_client.replace(obj=statefulset)
+        except ApiError as e:
+            raise DPDKStatefulSetUpdaterError(
+                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"
+            )

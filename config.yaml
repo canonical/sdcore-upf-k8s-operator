@@ -1,4 +1,10 @@
 options:
+  upf-mode:
+    type: string
+    default: af_packet
+    description: |
+      Either `af_packet` (default) or `dpdk`.
+      Please see README.md to learn about all required parameters.
   dnn:
     type: string
     default: internet
@@ -7,25 +13,14 @@ options:
     type: string
     default: 192.168.251.0/24
     description: gNodeB subnet.
-  core-interface:
-    type: string
-    description: Interface on the host to use for the Core Network.
-  core-ip:
-    type: string
-    default: 192.168.250.3/24
-    description: IP address used by the UPF's Core interface.
-  core-gateway-ip:
-    type: string
-    default: 192.168.250.1
-    description: Gateway IP address to the Core Network.
-  core-interface-mtu-size:
-    type: int
-    description: |
-      MTU for the core interface (1200 <= MTU <= 65535) in bytes.
-      If not specified, Multus will use its default value (typically 1500).
   access-interface:
     type: string
     description: Interface on the host to use for the Access Network.
+  access-interface-mac-address:
+    type: string
+    description: |
+      MAC address of the UPF's Access interface. 
+      Required only if `upf-mode` is `dpdk`.
   access-ip:
     type: string
     default: 192.168.252.3/24
@@ -39,9 +34,30 @@ options:
     description: |
       MTU for the access interface (1200 <= MTU <= 65535) in bytes.
       If not specified, Multus will use its default value (typically 1500).
+  core-interface:
+    type: string
+    description: Interface on the host to use for the Core Network.
+  core-interface-mac-address:
+    type: string
+    description: |
+      MAC address of the UPF's Core interface. 
+      Required only if `upf-mode` is `dpdk`.
+  core-ip:
+    type: string
+    default: 192.168.250.3/24
+    description: IP address used by the UPF's Core interface.
+  core-gateway-ip:
+    type: string
+    default: 192.168.250.1
+    description: Gateway IP address to the Core Network.
+  core-interface-mtu-size:
+    type: int
+    description: |
+      MTU for the core interface (1200 <= MTU <= 65535) in bytes.
+      If not specified, Multus will use its default value (typically 1500).
   external-upf-hostname:
     type: string
-    description: |-
+    description: |
       Externally accessible FQDN for the UPF.
       If not provided, it will default to the LoadBalancer Service hostname. 
       If that is not available, it will default to the internal

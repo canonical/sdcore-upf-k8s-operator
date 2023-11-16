@@ -15,7 +15,16 @@ from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 from ops.pebble import ExecError
 
-from charm import IncompatibleCPUError, UPFOperatorCharm
+from charm import (
+    ACCESS_INTERFACE_NAME,
+    ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+    CORE_INTERFACE_NAME,
+    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+    DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
+    DPDK_CORE_INTERFACE_RESOURCE_NAME,
+    IncompatibleCPUError,
+    UPFOperatorCharm,
+)
 
 MULTUS_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.multus"
 HUGEPAGES_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch"
@@ -25,14 +34,17 @@ ZERO_MTU_SIZE = 0  # Out of range
 VALID_MTU_SIZE_1 = 65535  # Upper edge value
 VALID_MTU_SIZE_2 = 1200  # Lower edge value
 TEST_PFCP_PORT = 1234
-ACCESS_INTERFACE_NAME = "access-net"
 DEFAULT_ACCESS_IP = "192.168.252.3/24"
 INVALID_ACCESS_IP = "192.168.252.3/44"
 VALID_ACCESS_IP = "192.168.252.5/24"
 ACCESS_GW_IP = "192.168.252.1"
 GNB_SUBNET = "192.168.251.0/24"
-CORE_IP = "192.168.250.3/24"
+VALID_CORE_IP = "192.168.250.3/24"
 CORE_GW_IP = "192.168.250.1"
+VALID_ACCESS_MAC = "00-b0-d0-63-c2-26"
+INVALID_ACCESS_MAC = "something"
+VALID_CORE_MAC = "00-b0-d0-63-c2-36"
+INVALID_CORE_MAC = "wrong"
 
 
 def read_file(path: str) -> str:
@@ -85,11 +97,88 @@ class TestCharm(unittest.TestCase):
             BlockedStatus("The following configurations are not valid: ['dnn']"),
         )
 
+    def test_given_empty_upf_mode_when_config_changed_then_status_is_blocked(self):
+        self.harness.update_config(key_values={"upf-mode": ""})
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("The following configurations are not valid: ['upf-mode']"),
+        )
+
+    def test_given_unsupported_upf_mode_when_config_changed_then_status_is_blocked(self):
+        self.harness.update_config(key_values={"upf-mode": "unsupported"})
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("The following configurations are not valid: ['upf-mode']"),
+        )
+
+    def test_given_upf_mode_set_to_dpdk_but_other_required_configs_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
+        self,
+    ):
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus(
+                "The following configurations are not valid: ['enable-hugepages', 'access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
+            ),
+        )
+
+    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
+        self,
+    ):
+        self.harness.update_config(key_values={"upf-mode": "dpdk", "enable-hugepages": True})
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus(
+                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
+            ),
+        )
+
+    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_access_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
+        self,
+    ):
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
+                "access-interface-mac-address": INVALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus(
+                "The following configurations are not valid: ['access-interface-mac-address']"
+            ),
+        )
+
+    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_core_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
+        self,
+    ):
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": INVALID_CORE_MAC,
+            }
+        )
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus(
+                "The following configurations are not valid: ['core-interface-mac-address']"
+            ),
+        )
+
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
-        self,
-        patch_is_ready,
+        self, _
     ):
         self.harness.container_pebble_ready(container_name="bessd")
 
@@ -102,8 +191,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_bessd_config_file_not_yet_written_when_config_storage_attached_then_config_file_is_written(  # noqa: E501
-        self,
-        patch_is_ready,
+        self, _
     ):
         self.harness.set_can_connect("bessd", True)
         (self.root / "etc/bess/conf").rmdir()
@@ -591,7 +679,7 @@ class TestCharm(unittest.TestCase):
                 "access-ip": DEFAULT_ACCESS_IP,
                 "access-gateway-ip": ACCESS_GW_IP,
                 "gnb-subnet": GNB_SUBNET,
-                "core-ip": CORE_IP,
+                "core-ip": VALID_CORE_IP,
                 "core-gateway-ip": CORE_GW_IP,
             }
         )
@@ -612,16 +700,332 @@ class TestCharm(unittest.TestCase):
                 "access-ip": DEFAULT_ACCESS_IP,
                 "access-gateway-ip": ACCESS_GW_IP,
                 "gnb-subnet": GNB_SUBNET,
-                "core-interface": "core-net",
-                "core-ip": CORE_IP,
+                "core-interface": CORE_INTERFACE_NAME,
+                "core-ip": VALID_CORE_IP,
                 "core-gateway-ip": CORE_GW_IP,
             }
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
             config = json.loads(nad.spec["config"])
-            self.assertEqual(config["master"], nad.metadata.name)
+            self.assertTrue(ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"])
             self.assertEqual(config["type"], "macvlan")
+
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_network_attachment_definitions_from_config_is_called_then_2_nads_are_returned(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        self.assertEqual(len(nads), 2)
+
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_network_attachment_definitions_from_config_is_called_then_nad_type_is_vfioveth(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            config = json.loads(nad.spec["config"])
+            self.assertEqual(config["type"], "vfioveth")
+
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_network_attachment_definitions_from_config_is_called_then_nad_has_valid_dpdk_resources_specified_in_annotations(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            annotations = nad.metadata.annotations
+            self.assertTrue("k8s.v1.cni.cncf.io/resourceName" in annotations.keys())
+            self.assertTrue(
+                DPDK_ACCESS_INTERFACE_RESOURCE_NAME
+                or DPDK_CORE_INTERFACE_RESOURCE_NAME  # noqa: W503
+                in annotations["k8s.v1.cni.cncf.io/resourceName"]
+            )
+
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_2_network_annotations_are_returned(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(len(network_annotations), 2)
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_2_network_annotations_are_returned(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(len(network_annotations), 2)
+
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_created(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(
+            any(
+                network_annotation.name == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
+                for network_annotation in network_annotations
+            )
+        )
+
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_created(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(
+            any(
+                network_annotation.name == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
+                for network_annotation in network_annotations
+            )
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_created(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(
+            any(
+                network_annotation.name == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
+                for network_annotation in network_annotations
+            )
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_created(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(
+            any(
+                network_annotation.name == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
+                for network_annotation in network_annotations
+            )
+        )
+
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_corresponds_to_access_interface(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).interface,
+            ACCESS_INTERFACE_NAME,
+        )
+
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_corresponds_to_core_interface(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).interface,
+            CORE_INTERFACE_NAME,
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_corresponds_to_access_interface(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).interface,
+            ACCESS_INTERFACE_NAME,
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_corresponds_to_core_interface(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).interface,
+            CORE_INTERFACE_NAME,
+        )
+
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_annotations_dont_have_mac_field_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(
+            not any(network_annotation.mac for network_annotation in network_annotations)
+        )
+
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_annotations_dont_have_ips_field_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(
+            not any(network_annotation.ips for network_annotation in network_annotations)
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_annotations_have_mac_field_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(all(network_annotation.mac for network_annotation in network_annotations))
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_has_access_mac_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).mac,
+            VALID_ACCESS_MAC,
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_has_core_mac_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).mac,
+            VALID_CORE_MAC,
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_annotations_have_ips_field_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertTrue(all(network_annotation.ips for network_annotation in network_annotations))
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_has_access_ip_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "access-ip": VALID_ACCESS_IP,
+                "core-ip": VALID_CORE_IP,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).ips,
+            [VALID_ACCESS_IP],
+        )
+
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_has_core_ip_set(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "access-ip": VALID_ACCESS_IP,
+                "core-ip": VALID_CORE_IP,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+        network_annotations = self.harness.charm._generate_network_annotations()
+        self.assertEqual(
+            next(
+                iter(
+                    filter(
+                        lambda network_annotation: network_annotation.name
+                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        network_annotations,
+                    )
+                )
+            ).ips,
+            [VALID_CORE_IP],
+        )
 
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
@@ -694,7 +1098,7 @@ class TestCharm(unittest.TestCase):
                 "access-ip": "192.168.252.3/24",
                 "access-gateway-ip": ACCESS_GW_IP,
                 "gnb-subnet": GNB_SUBNET,
-                "core-ip": CORE_IP,
+                "core-ip": VALID_CORE_IP,
                 "core-gateway-ip": CORE_GW_IP,
             }
         )
@@ -715,7 +1119,7 @@ class TestCharm(unittest.TestCase):
                 "access-gateway-ip": ACCESS_GW_IP,
                 "access-interface-mtu-size": VALID_MTU_SIZE_1,
                 "gnb-subnet": GNB_SUBNET,
-                "core-ip": CORE_IP,
+                "core-ip": VALID_CORE_IP,
                 "core-gateway-ip": CORE_GW_IP,
                 "core-interface-mtu-size": VALID_MTU_SIZE_1,
             }
