@@ -3,7 +3,8 @@
 
 import json
 import unittest
-from unittest.mock import MagicMock, Mock, call, patch
+from dataclasses import dataclass
+from unittest.mock import Mock, call, patch
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     NetworkAttachmentDefinition,
@@ -13,7 +14,6 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
-from ops.pebble import ExecError
 
 from charm import IncompatibleCPUError, UPFOperatorCharm
 
@@ -33,6 +33,13 @@ ACCESS_GW_IP = "192.168.252.1"
 GNB_SUBNET = "192.168.251.0/24"
 CORE_IP = "192.168.250.3/24"
 CORE_GW_IP = "192.168.250.1"
+
+
+@dataclass
+class HandleExecCallArgs:
+    command: list
+    timeout: float | None
+    environment: dict
 
 
 def read_file(path: str) -> str:
@@ -86,11 +93,11 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
         self,
         patch_is_ready,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         self.harness.container_pebble_ready(container_name="bessd")
 
         expected_config_file_content = read_file("tests/unit/expected_upf.json")
@@ -100,11 +107,11 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_bessd_config_file_not_yet_written_when_config_storage_attached_then_config_file_is_written(  # noqa: E501
         self,
         patch_is_ready,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         self.harness.set_can_connect("bessd", True)
         (self.root / "etc/bess/conf").rmdir()
         self.harness.add_storage(storage_name="config", count=1)
@@ -117,11 +124,11 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_bessd_config_file_matches_when_bessd_pebble_ready_then_config_file_is_not_changed(  # noqa: E501
         self,
         patch_is_ready,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_is_ready.return_value = True
         expected_upf_content = read_file("tests/unit/expected_upf.json")
         (self.root / "etc/bess/conf/upf.json").write_text(expected_upf_content)
@@ -131,11 +138,11 @@ class TestCharm(unittest.TestCase):
         self.assertEqual((self.root / "etc/bess/conf/upf.json").read_text(), expected_upf_content)
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_is_ready,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -168,71 +175,120 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(expected_plan, updated_plan)
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_ip_route_is_created(
-        self, patch_exec, patch_is_ready
+        self, patch_is_ready
     ):
+        call_list = []
+
+        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            call_list.append(
+                HandleExecCallArgs(
+                    command=args.command,
+                    timeout=args.timeout,
+                    environment=args.environment,
+                )
+            )
+            return testing.ExecResult(exit_code=0)
+
+        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        patch_exec.assert_any_call(
-            command=[
-                "ip",
-                "route",
-                "replace",
-                "default",
-                "via",
-                CORE_GW_IP,
-                "metric",
-                "110",
-            ],
-            timeout=30,
-            environment=None,
+        self.assertIn(
+            HandleExecCallArgs(
+                command=[
+                    "ip",
+                    "route",
+                    "replace",
+                    "default",
+                    "via",
+                    CORE_GW_IP,
+                    "metric",
+                    "110",
+                ],
+                timeout=30,
+                environment={},
+            ),
+            call_list,
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec")
     def test_given_iptables_rule_is_not_yet_created_when_bessd_pebble_ready_then_rule_is_created(
-        self, patch_exec, patch_is_ready
+        self, patch_is_ready
     ):
-        patch_exec.side_effect = [
-            MagicMock(),
-            ExecError(command=[], exit_code=1, stdout="", stderr=""),
-            MagicMock(),
-            MagicMock(),
-        ]
+        call_list = []
+
+        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            match args.command:
+                case [
+                    "iptables-legacy",
+                    "--check",
+                    "OUTPUT",
+                    "-p",
+                    "icmp",
+                    "--icmp-type",
+                    "port-unreachable",
+                    "-j",
+                    "DROP",
+                ]:
+                    return testing.ExecResult(exit_code=1)
+                case _:
+                    call_list.append(
+                        HandleExecCallArgs(
+                            command=args.command,
+                            timeout=args.timeout,
+                            environment=args.environment,
+                        )
+                    )
+                    return testing.ExecResult(exit_code=0)
+
+        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
-
-        patch_exec.assert_any_call(
-            command=[
-                "iptables-legacy",
-                "-I",
-                "OUTPUT",
-                "-p",
-                "icmp",
-                "--icmp-type",
-                "port-unreachable",
-                "-j",
-                "DROP",
-            ],
-            timeout=30,
-            environment=None,
+        self.assertIn(
+            HandleExecCallArgs(
+                command=[
+                    "iptables-legacy",
+                    "-I",
+                    "OUTPUT",
+                    "-p",
+                    "icmp",
+                    "--icmp-type",
+                    "port-unreachable",
+                    "-j",
+                    "DROP",
+                ],
+                timeout=30,
+                environment={},
+            ),
+            call_list,
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec")
     def test_given_iptables_rule_is_created_when_bessd_pebble_ready_then_rule_is_not_re_created(
-        self, patch_exec, patch_is_ready
+        self, patch_is_ready
     ):
+        call_list = []
+
+        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            call_list.append(
+                HandleExecCallArgs(
+                    command=args.command,
+                    timeout=args.timeout,
+                    environment=args.environment,
+                )
+            )
+            return testing.ExecResult(exit_code=0)
+
+        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        assert (
-            call(
+        self.assertNotIn(
+            HandleExecCallArgs(
                 command=[
                     "iptables",
                     "-I",
@@ -245,65 +301,108 @@ class TestCharm(unittest.TestCase):
                     "DROP",
                 ],
                 timeout=300,
-                environment=None,
-            )
-            not in patch_exec.mock_calls
+                environment={},
+            ),
+            call_list,
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
-        self, patch_exec, patch_is_ready
+        self, patch_is_ready
     ):
+        call_list = []
+
+        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            call_list.append(
+                HandleExecCallArgs(
+                    command=args.command,
+                    timeout=args.timeout,
+                    environment=args.environment,
+                )
+            )
+            return testing.ExecResult(exit_code=0)
+
+        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        patch_exec.assert_any_call(
-            command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
-            timeout=300,
-            environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
+        self.assertIn(
+            HandleExecCallArgs(
+                command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+                timeout=300,
+                environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
+            ),
+            call_list,
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec")
     def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
-        self, patch_exec, patch_is_ready
+        self, patch_is_ready
     ):
+        call_list = []
+
+        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            call_list.append(
+                HandleExecCallArgs(
+                    command=args.command,
+                    timeout=args.timeout,
+                    environment=args.environment,
+                )
+            )
+            return testing.ExecResult(exit_code=0)
+
+        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        assert (
-            call(
+        self.assertNotIn(
+            HandleExecCallArgs(
                 command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
                 timeout=30,
                 environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
-            )
-            not in patch_exec.mock_calls
+            ),
+            call_list,
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec")
     def test_given_connects_and_bessctl_executed_file_dont_exist_then_bessctl_configure_executed(
-        self, patch_exec, patch_is_ready
+        self, patch_is_ready
     ):
+        call_list = []
+
+        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            call_list.append(
+                HandleExecCallArgs(
+                    command=args.command,
+                    timeout=args.timeout,
+                    environment=args.environment,
+                )
+            )
+            return testing.ExecResult(exit_code=0)
+
+        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
+
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        patch_exec.assert_any_call(
-            command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
-            timeout=300,
-            environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
+        self.assertIn(
+            HandleExecCallArgs(
+                command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
+                timeout=300,
+                environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
+            ),
+            call_list,
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=Mock)
     def test_given_storage_not_attached_when_bessd_pebble_ready_then_status_is_waiting(
         self,
         patch_is_ready,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_is_ready.return_value = True
         (self.root / "etc/bess/conf").rmdir()
 
@@ -330,12 +429,12 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_config_file_is_written_and_all_services_are_running_when_bessd_pebble_ready_then_status_is_active(  # noqa: E501
         self,
         patch_is_ready,
         patch_get_service,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
@@ -418,13 +517,13 @@ class TestCharm(unittest.TestCase):
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_then_new_upf_ip_address_is_published(  # noqa: E501
         self,
         patch_multus_is_ready,
         patch_hugepages_is_patched,
         patched_publish_upf_information,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_multus_is_ready.return_value = True
         patch_hugepages_is_patched.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
@@ -443,10 +542,10 @@ class TestCharm(unittest.TestCase):
 
     @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch("ops.model.Container.exec", new=Mock)
     def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_to_invalid_cidr_then_new_upf_ip_address_is_not_published(  # noqa: E501
         self, patch_multus_is_ready, patched_publish_upf_information
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
@@ -567,7 +666,6 @@ class TestCharm(unittest.TestCase):
     @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    @patch("ops.model.Container.exec", new=MagicMock)
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
     def test_given_fiveg_n4_relation_exists_when_external_upf_hostname_config_changed_then_new_upf_hostname_is_published(  # noqa: E501
         self,
@@ -575,6 +673,7 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_ready,
         patched_publish_upf_n4_information,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         test_external_upf_hostname = "test-upf.external.hostname.com"
         patch_multus_is_ready.return_value = True
         patch_hugepages_is_ready.return_value = True
@@ -782,7 +881,6 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_a_different_valid_value_then_delete_pod_is_called(  # noqa: E501
         self,
         patch_hugepages_is_patched,
@@ -790,6 +888,7 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready,
         patch_list_na_definitions,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_hugepages_is_patched.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
@@ -805,7 +904,6 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_different_valid_values_then_delete_pod_called_twice(  # noqa: E501
         self,
         patch_hugepages_is_patched,
@@ -813,6 +911,7 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready,
         patch_list_na_definitions,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_hugepages_is_patched.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
@@ -832,7 +931,6 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.delete_pod")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_same_valid_value_multiple_times_then_delete_pod_called_once(  # noqa: E501
         self,
         patch_hugepages_is_patched,
@@ -840,6 +938,7 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready,
         patch_list_na_definitions,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         """Delete pod is called for the first config change, setting the same config value does not trigger pod restarts."""  # noqa: E501, W505
         patch_hugepages_is_patched.return_value = True
         patch_multus_is_ready.return_value = True
@@ -871,13 +970,13 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
         self,
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
     ):
+        self.harness.handle_exec("bessd", [], result=0)
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
