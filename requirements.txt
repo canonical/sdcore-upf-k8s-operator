@@ -1,4 +1,3 @@
-dataclass-wizard
 httpx
 ipaddress
 ops

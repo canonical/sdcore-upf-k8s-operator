@@ -92,8 +92,7 @@ class YourCharm(CharmBase):
 
 import json
 import logging
-from dataclass_wizard import asdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from json.decoder import JSONDecodeError
 from typing import Callable, List, Optional, Union
 
@@ -153,6 +152,14 @@ class NetworkAnnotation:
     interface: str
     mac: Optional[str] = None
     ips: Optional[List[str]] = None
+
+    def dict(self) -> dict:
+        """Returns a NetworkAnnotation in the form of a dictionary.
+
+        Returns:
+            dict: Dictionary representation of the NetworkAnnotation
+        """
+        return {key: value for key, value in asdict(self).items() if value}
 
 
 class KubernetesMultusError(Exception):
@@ -354,7 +361,7 @@ class KubernetesClient:
                         annotations={
                             "k8s.v1.cni.cncf.io/networks": json.dumps(
                                 [
-                                    asdict(network_annotation, skip_defaults=True)
+                                    network_annotation.dict()
                                     for network_annotation in network_annotations
                                 ]
                             )
@@ -455,8 +462,7 @@ class KubernetesClient:
             return False
         try:
             if json.loads(annotations["k8s.v1.cni.cncf.io/networks"]) != [
-                asdict(network_annotation, skip_defaults=True)
-                for network_annotation in network_annotations
+                network_annotation.dict() for network_annotation in network_annotations
             ]:
                 return False
         except JSONDecodeError:
