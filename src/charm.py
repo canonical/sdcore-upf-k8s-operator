@@ -532,12 +532,6 @@ class UPFOperatorCharm(CharmBase):
         """Handle pfcp agent Pebble ready event."""
         if not self.unit.is_leader():
             return
-        if invalid_configs := self._get_invalid_configs():
-            self.unit.status = BlockedStatus(
-                f"The following configurations are not valid: {invalid_configs}"
-            )
-            event.defer()
-            return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
             event.defer()
