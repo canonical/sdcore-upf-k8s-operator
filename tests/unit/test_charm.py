@@ -3,7 +3,6 @@
 
 import json
 import unittest
-from dataclasses import dataclass
 from unittest.mock import Mock, call, patch
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
@@ -33,13 +32,6 @@ ACCESS_GW_IP = "192.168.252.1"
 GNB_SUBNET = "192.168.251.0/24"
 CORE_IP = "192.168.250.3/24"
 CORE_GW_IP = "192.168.250.1"
-
-
-@dataclass
-class HandleExecCallArgs:
-    command: list
-    timeout: float | None
-    environment: dict
 
 
 def read_file(path: str) -> str:
@@ -95,7 +87,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
         self,
-        patch_is_ready,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.container_pebble_ready(container_name="bessd")
@@ -109,7 +101,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_bessd_config_file_not_yet_written_when_config_storage_attached_then_config_file_is_written(  # noqa: E501
         self,
-        patch_is_ready,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.set_can_connect("bessd", True)
@@ -178,223 +170,202 @@ class TestCharm(unittest.TestCase):
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_ip_route_is_created(
         self, patch_is_ready
     ):
-        call_list = []
+        ip_route_replace_called = False
+        timeout = 0
+        environment = {}
 
-        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
-            call_list.append(
-                HandleExecCallArgs(
-                    command=args.command,
-                    timeout=args.timeout,
-                    environment=args.environment,
-                )
-            )
+        def ip_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            nonlocal ip_route_replace_called
+            nonlocal timeout
+            nonlocal environment
+            ip_route_replace_called = True
+            timeout = args.timeout
+            environment = args.environment
             return testing.ExecResult(exit_code=0)
 
-        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
+        ip_cmd = ["ip", "route", "replace", "default", "via", CORE_GW_IP, "metric", "110"]
+        self.harness.handle_exec("bessd", ip_cmd, handler=ip_handler)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", ["/opt/bess/bessctl/bessctl"], result=0)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        self.assertIn(
-            HandleExecCallArgs(
-                command=[
-                    "ip",
-                    "route",
-                    "replace",
-                    "default",
-                    "via",
-                    CORE_GW_IP,
-                    "metric",
-                    "110",
-                ],
-                timeout=30,
-                environment={},
-            ),
-            call_list,
-        )
+        self.assertTrue(ip_route_replace_called)
+        self.assertEqual(timeout, 30)
+        self.assertEqual(environment, {})
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_iptables_rule_is_not_yet_created_when_bessd_pebble_ready_then_rule_is_created(
         self, patch_is_ready
     ):
-        call_list = []
+        iptables_drop_called = False
+        timeout = 0
+        environment = {}
 
-        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
-            match args.command:
-                case [
-                    "iptables-legacy",
-                    "--check",
-                    "OUTPUT",
-                    "-p",
-                    "icmp",
-                    "--icmp-type",
-                    "port-unreachable",
-                    "-j",
-                    "DROP",
-                ]:
-                    return testing.ExecResult(exit_code=1)
-                case _:
-                    call_list.append(
-                        HandleExecCallArgs(
-                            command=args.command,
-                            timeout=args.timeout,
-                            environment=args.environment,
-                        )
-                    )
-                    return testing.ExecResult(exit_code=0)
+        iptables_check_cmd = [
+            "iptables-legacy",
+            "--check",
+            "OUTPUT",
+            "-p",
+            "icmp",
+            "--icmp-type",
+            "port-unreachable",
+            "-j",
+            "DROP",
+        ]
+        iptables_drop_cmd = [
+            "iptables-legacy",
+            "-I",
+            "OUTPUT",
+            "-p",
+            "icmp",
+            "--icmp-type",
+            "port-unreachable",
+            "-j",
+            "DROP",
+        ]
 
-        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
+        def iptables_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            nonlocal iptables_drop_called
+            nonlocal timeout
+            nonlocal environment
+            iptables_drop_called = True
+            timeout = args.timeout
+            environment = args.environment
+            return testing.ExecResult(exit_code=0)
+
+        self.harness.handle_exec("bessd", ["ip", "route"], result=0)
+        self.harness.handle_exec("bessd", iptables_check_cmd, result=1)
+        self.harness.handle_exec("bessd", iptables_drop_cmd, handler=iptables_handler)
+        self.harness.handle_exec("bessd", ["/opt/bess/bessctl/bessctl"], result=0)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
-        self.assertIn(
-            HandleExecCallArgs(
-                command=[
-                    "iptables-legacy",
-                    "-I",
-                    "OUTPUT",
-                    "-p",
-                    "icmp",
-                    "--icmp-type",
-                    "port-unreachable",
-                    "-j",
-                    "DROP",
-                ],
-                timeout=30,
-                environment={},
-            ),
-            call_list,
-        )
+        self.assertTrue(iptables_drop_called)
+        self.assertEqual(timeout, 30)
+        self.assertEqual(environment, {})
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_iptables_rule_is_created_when_bessd_pebble_ready_then_rule_is_not_re_created(
         self, patch_is_ready
     ):
-        call_list = []
+        iptables_drop_called = False
 
-        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
-            call_list.append(
-                HandleExecCallArgs(
-                    command=args.command,
-                    timeout=args.timeout,
-                    environment=args.environment,
-                )
-            )
+        iptables_drop_cmd = [
+            "iptables-legacy",
+            "-I",
+            "OUTPUT",
+            "-p",
+            "icmp",
+            "--icmp-type",
+            "port-unreachable",
+            "-j",
+            "DROP",
+        ]
+
+        def iptables_handler(_: testing.ExecArgs) -> testing.ExecResult:
+            nonlocal iptables_drop_called
+            iptables_drop_called = True
             return testing.ExecResult(exit_code=0)
 
-        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
+        self.harness.handle_exec("bessd", ["ip", "route"], result=0)
+        self.harness.handle_exec("bessd", iptables_drop_cmd, handler=iptables_handler)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", ["/opt/bess/bessctl/bessctl"], result=0)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        self.assertNotIn(
-            HandleExecCallArgs(
-                command=[
-                    "iptables",
-                    "-I",
-                    "OUTPUT",
-                    "-p",
-                    "icmp",
-                    "--icmp-type",
-                    "port-unreachable",
-                    "-j",
-                    "DROP",
-                ],
-                timeout=300,
-                environment={},
-            ),
-            call_list,
-        )
+        self.assertFalse(iptables_drop_called)
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
         self, patch_is_ready
     ):
-        call_list = []
+        bessctl_called = False
+        timeout = 0
+        environment = {}
 
-        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
-            call_list.append(
-                HandleExecCallArgs(
-                    command=args.command,
-                    timeout=args.timeout,
-                    environment=args.environment,
-                )
-            )
+        bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
+
+        def bessctl_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            nonlocal bessctl_called
+            nonlocal timeout
+            nonlocal environment
+            bessctl_called = True
+            timeout = args.timeout
+            environment = args.environment
             return testing.ExecResult(exit_code=0)
 
-        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
+        self.harness.handle_exec("bessd", ["ip"], result=0)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        self.assertIn(
-            HandleExecCallArgs(
-                command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
-                timeout=300,
-                environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
-            ),
-            call_list,
+        self.assertTrue(bessctl_called)
+        self.assertEqual(timeout, 300)
+        self.assertEqual(
+            environment, {"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"}
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
         self, patch_is_ready
     ):
-        call_list = []
+        (self.root / "etc/bess/conf/bessctl_configure_executed").write_text("")
 
-        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
-            call_list.append(
-                HandleExecCallArgs(
-                    command=args.command,
-                    timeout=args.timeout,
-                    environment=args.environment,
-                )
-            )
+        bessctl_called = False
+
+        bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
+
+        def bessctl_handler(_: testing.ExecArgs) -> testing.ExecResult:
+            nonlocal bessctl_called
+            bessctl_called = True
             return testing.ExecResult(exit_code=0)
 
-        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
+        self.harness.handle_exec("bessd", ["ip"], result=0)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        self.assertNotIn(
-            HandleExecCallArgs(
-                command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
-                timeout=30,
-                environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
-            ),
-            call_list,
-        )
+        self.assertFalse(bessctl_called)
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_connects_and_bessctl_executed_file_dont_exist_then_bessctl_configure_executed(
         self, patch_is_ready
     ):
-        call_list = []
+        bessctl_called = False
+        timeout = 0
+        environment = {}
 
-        def bessd_cmds_handler(args: testing.ExecArgs) -> testing.ExecResult:
-            call_list.append(
-                HandleExecCallArgs(
-                    command=args.command,
-                    timeout=args.timeout,
-                    environment=args.environment,
-                )
-            )
+        bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
+
+        def bessctl_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            nonlocal bessctl_called
+            nonlocal timeout
+            nonlocal environment
+            bessctl_called = True
+            timeout = args.timeout
+            environment = args.environment
             return testing.ExecResult(exit_code=0)
 
-        self.harness.handle_exec("bessd", [], handler=bessd_cmds_handler)
+        self.harness.handle_exec("bessd", ["ip"], result=0)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
 
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
-        self.assertIn(
-            HandleExecCallArgs(
-                command=["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"],
-                timeout=300,
-                environment={"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"},
-            ),
-            call_list,
+        self.assertTrue(bessctl_called)
+        self.assertEqual(timeout, 300)
+        self.assertEqual(
+            environment, {"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"}
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
