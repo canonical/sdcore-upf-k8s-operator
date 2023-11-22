@@ -15,15 +15,15 @@ from lightkube.resources.apps_v1 import StatefulSet
 logger = logging.getLogger(__name__)
 
 
-class DPDKStatefulSetUpdaterError(Exception):
-    """DPDKStatefulSetUpdaterError."""
+class DPDKError(Exception):
+    """DPDKError."""
 
     def __init__(self, message: str):
         self.message = message
         super().__init__(self.message)
 
 
-class DPDKStatefulSetUpdater:
+class DPDK:
     """Class used to update Kubernetes Statefulset to support DPDK."""
 
     def __init__(
@@ -108,9 +108,7 @@ class DPDKStatefulSetUpdater:
         try:
             return self.k8s_client.get(res=StatefulSet, name=statefulset_name, namespace=namespace)  # type: ignore[return-value]  # noqa: E501
         except ApiError as e:
-            raise DPDKStatefulSetUpdaterError(
-                f"Could not get statefulset `{statefulset_name}`: {e.status.message}"
-            )
+            raise DPDKError(f"Could not get statefulset `{statefulset_name}`: {e.status.message}")
 
     @staticmethod
     def _get_container(
@@ -128,7 +126,7 @@ class DPDKStatefulSetUpdater:
         try:
             return next(iter(filter(lambda ctr: ctr.name == container_name, containers)))
         except StopIteration:
-            raise DPDKStatefulSetUpdaterError(f"Container `{container_name}` not found")
+            raise DPDKError(f"Container `{container_name}` not found")
 
     @staticmethod
     def _apply_resource_requirements(container: Container, resource_requirements: dict) -> None:
@@ -177,6 +175,6 @@ class DPDKStatefulSetUpdater:
             self.k8s_client.replace(obj=statefulset)
             logger.info("Statefulset %s replaced", statefulset.metadata.name)
         except ApiError as e:
-            raise DPDKStatefulSetUpdaterError(
+            raise DPDKError(
                 f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"
             )

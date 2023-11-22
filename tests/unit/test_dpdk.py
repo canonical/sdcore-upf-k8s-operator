@@ -16,7 +16,7 @@ from lightkube.models.core_v1 import (
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 
-from dpdk_statefulset_updater import DPDKStatefulSetUpdater, DPDKStatefulSetUpdaterError
+from dpdk import DPDK, DPDKError
 
 TEST_CONTAINER_NAME = "bullseye"
 TEST_RESOURCE_REQUESTS = {"test_request": 1234}
@@ -30,7 +30,7 @@ TEST_RESOURCE_REQUIREMENTS = {
 class TestDPDKStatefulSetUpdater(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def setUp(self) -> None:
-        self.dpdk_statefulset_updater = DPDKStatefulSetUpdater(
+        self.dpdk_statefulset_updater = DPDK(
             statefulset_name="doesntmatter",
             namespace="whatever",
             dpdk_access_interface_resource_name="who",
@@ -43,7 +43,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
     ):
         patched_lightkube_client_get.side_effect = ApiError(response=MagicMock())
 
-        with self.assertRaises(DPDKStatefulSetUpdaterError):
+        with self.assertRaises(DPDKError):
             self.dpdk_statefulset_updater.is_configured("justatest")
 
     @patch("lightkube.core.client.Client.get")
@@ -59,7 +59,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         )
         patched_lightkube_client_get.return_value = test_statefulset
 
-        with self.assertRaises(DPDKStatefulSetUpdaterError):
+        with self.assertRaises(DPDKError):
             self.dpdk_statefulset_updater.is_configured("justatest")
 
     @patch("lightkube.core.client.Client.get")
@@ -301,5 +301,5 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         patched_lightkube_client_get.return_value = test_statefulset
         patched_lightkube_client_replace.side_effect = ApiError(response=MagicMock())
 
-        with self.assertRaises(DPDKStatefulSetUpdaterError):
+        with self.assertRaises(DPDKError):
             self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)

@@ -41,7 +41,7 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
-from dpdk_statefulset_updater import DPDKStatefulSetUpdater
+from dpdk import DPDK
 
 logger = logging.getLogger(__name__)
 
@@ -598,18 +598,14 @@ class UPFOperatorCharm(CharmBase):
 
     def _configure_bessd_for_dpdk(self) -> None:
         """Configures bessd container for DPDK."""
-        dpdk_statefulset_updater = DPDKStatefulSetUpdater(
+        dpdk = DPDK(
             statefulset_name=self.model.app.name,
             namespace=self._namespace,
             dpdk_access_interface_resource_name=DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
             dpdk_core_interface_resource_name=DPDK_CORE_INTERFACE_RESOURCE_NAME,
         )
-        if not dpdk_statefulset_updater.is_configured(
-            container_name=self._bessd_container_name,
-        ):
-            dpdk_statefulset_updater.configure(
-                container_name=self._bessd_container_name,
-            )
+        if not dpdk.is_configured(container_name=self._bessd_container_name):
+            dpdk.configure(container_name=self._bessd_container_name)
 
     def _is_bessctl_executed(self) -> bool:
         """Check if BESSD_CONFIG_CHECK_FILE_NAME exists.
