@@ -93,6 +93,7 @@ class DPDKStatefulSetUpdater:
         )
 
         self._replace_statefulset(statefulset=statefulset)
+        logger.info("Container %s configured for DPDK", container_name)
 
     def _get_statefulset(self, statefulset_name: str, namespace: str) -> Optional[StatefulSet]:
         """Returns StatefulSet object with given name from given namespace.
@@ -141,6 +142,11 @@ class DPDKStatefulSetUpdater:
             container.resources.requests.update({request: int(value)})
         for limit, value in resource_requirements["limits"].items():
             container.resources.limits.update({limit: int(value)})
+        logger.info(
+            "Applied ResourceRequirements to the %s container: %s",
+            container,
+            resource_requirements,
+        )
 
     @staticmethod
     def _resource_requirements_applied(container: Container, resource_requirements: dict) -> bool:
@@ -169,6 +175,7 @@ class DPDKStatefulSetUpdater:
         """
         try:
             self.k8s_client.replace(obj=statefulset)
+            logger.info("Statefulset %s replaced", statefulset.metadata.name)
         except ApiError as e:
             raise DPDKStatefulSetUpdaterError(
                 f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"

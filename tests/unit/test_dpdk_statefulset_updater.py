@@ -214,6 +214,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
         test_statefulset = StatefulSet(
+            metadata=ObjectMeta(name="whatever"),
             spec=StatefulSetSpec(
                 selector=LabelSelector(),
                 serviceName="whatever",
@@ -254,6 +255,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
         test_statefulset = StatefulSet(
+            metadata=ObjectMeta(name="whatever"),
             spec=StatefulSetSpec(
                 selector=LabelSelector(),
                 serviceName="whatever",
