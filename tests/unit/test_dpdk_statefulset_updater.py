@@ -44,7 +44,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         patched_lightkube_client_get.side_effect = ApiError(response=MagicMock())
 
         with self.assertRaises(DPDKStatefulSetUpdaterError):
-            self.dpdk_statefulset_updater.container_configured_for_dpdk("justatest")
+            self.dpdk_statefulset_updater.is_configured("justatest")
 
     @patch("lightkube.core.client.Client.get")
     def test_given_container_not_is_statefulset_when_container_configured_for_dpdk_called_then_dpdk_statefulset_updater_error_is_raised(  # noqa: E501
@@ -60,7 +60,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         patched_lightkube_client_get.return_value = test_statefulset
 
         with self.assertRaises(DPDKStatefulSetUpdaterError):
-            self.dpdk_statefulset_updater.container_configured_for_dpdk("justatest")
+            self.dpdk_statefulset_updater.is_configured("justatest")
 
     @patch("lightkube.core.client.Client.get")
     def test_given_container_is_not_privileged_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
@@ -84,9 +84,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         )
         patched_lightkube_client_get.return_value = test_statefulset
 
-        self.assertFalse(
-            self.dpdk_statefulset_updater.container_configured_for_dpdk(TEST_CONTAINER_NAME)
-        )
+        self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
     def test_given_resource_requirements_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
@@ -111,9 +109,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         )
         patched_lightkube_client_get.return_value = test_statefulset
 
-        self.assertFalse(
-            self.dpdk_statefulset_updater.container_configured_for_dpdk(TEST_CONTAINER_NAME)
-        )
+        self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
     def test_given_resource_requests_applied_but_limits_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
@@ -142,9 +138,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         )
         patched_lightkube_client_get.return_value = test_statefulset
 
-        self.assertFalse(
-            self.dpdk_statefulset_updater.container_configured_for_dpdk(TEST_CONTAINER_NAME)
-        )
+        self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
     def test_given_resource_limits_applied_but_requests_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
@@ -173,9 +167,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         )
         patched_lightkube_client_get.return_value = test_statefulset
 
-        self.assertFalse(
-            self.dpdk_statefulset_updater.container_configured_for_dpdk(TEST_CONTAINER_NAME)
-        )
+        self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
     def test_given_container_is_privileged_and_has_resource_requirements_applied_when_container_configured_for_dpdk_called_then_true_is_returned(  # noqa: E501
@@ -204,9 +196,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         )
         patched_lightkube_client_get.return_value = test_statefulset
 
-        self.assertTrue(
-            self.dpdk_statefulset_updater.container_configured_for_dpdk(TEST_CONTAINER_NAME)
-        )
+        self.assertTrue(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
     def test_given_container_exists_and_requires_configuration_when_configure_container_for_dpdk_then_container_is_configured(  # noqa: E501
@@ -229,7 +219,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
                         ]
                     )
                 ),
-            )
+            ),
         )
         patched_lightkube_client_get.return_value = test_statefulset
         expected_updated_container_spec = Container(
@@ -241,7 +231,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
             securityContext=SecurityContext(privileged=True),
         )
 
-        self.dpdk_statefulset_updater.configure_container_for_dpdk(TEST_CONTAINER_NAME)
+        self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)
 
         self.assertEqual(
             test_statefulset.spec.template.spec.containers[0],
@@ -273,11 +263,11 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
                         ]
                     )
                 ),
-            )
+            ),
         )
         patched_lightkube_client_get.return_value = test_statefulset
 
-        self.dpdk_statefulset_updater.configure_container_for_dpdk(TEST_CONTAINER_NAME)
+        self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)
 
         patched_lightkube_client_replace.assert_called_once_with(obj=test_statefulset)
 
@@ -312,4 +302,4 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         patched_lightkube_client_replace.side_effect = ApiError(response=MagicMock())
 
         with self.assertRaises(DPDKStatefulSetUpdaterError):
-            self.dpdk_statefulset_updater.configure_container_for_dpdk(TEST_CONTAINER_NAME)
+            self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)

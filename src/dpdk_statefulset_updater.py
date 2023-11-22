@@ -47,7 +47,7 @@ class DPDKStatefulSetUpdater:
             },
         }
 
-    def container_configured_for_dpdk(self, container_name: str) -> bool:
+    def is_configured(self, container_name: str) -> bool:
         """Checks whether the container config required for DPDK has been applied or not.
 
         Args:
@@ -71,7 +71,7 @@ class DPDKStatefulSetUpdater:
             return False
         return True
 
-    def configure_container_for_dpdk(self, container_name: str) -> None:
+    def configure(self, container_name: str) -> None:
         """Applies config required by DPDK to a given container.
 
         Args:

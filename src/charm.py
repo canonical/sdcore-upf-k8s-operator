@@ -604,10 +604,10 @@ class UPFOperatorCharm(CharmBase):
             dpdk_access_interface_resource_name=DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
             dpdk_core_interface_resource_name=DPDK_CORE_INTERFACE_RESOURCE_NAME,
         )
-        if not dpdk_statefulset_updater.container_configured_for_dpdk(
+        if not dpdk_statefulset_updater.is_configured(
             container_name=self._bessd_container_name,
         ):
-            dpdk_statefulset_updater.configure_container_for_dpdk(
+            dpdk_statefulset_updater.configure(
                 container_name=self._bessd_container_name,
             )
 
