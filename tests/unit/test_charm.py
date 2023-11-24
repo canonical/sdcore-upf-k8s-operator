@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import MagicMock, Mock, call, patch
 
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
+    NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
@@ -711,321 +712,525 @@ class TestCharm(unittest.TestCase):
             self.assertTrue(ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"])
             self.assertEqual(config["type"], "macvlan")
 
-    def test_given_upf_configured_to_run_in_dpdk_mode_when_network_attachment_definitions_from_config_is_called_then_2_nads_are_returned(  # noqa: E501
-        self,
+    @patch("lightkube.core.client.Client.create")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_2_nads_are_returned(  # noqa: E501
+        self, patch_get_service, kubernetes_create_object
     ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        nads = self.harness.charm._network_attachment_definitions_from_config()
-        self.assertEqual(len(nads), 2)
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
 
-    def test_given_upf_configured_to_run_in_dpdk_mode_when_network_attachment_definitions_from_config_is_called_then_nad_type_is_vfioveth(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        nads = self.harness.charm._network_attachment_definitions_from_config()
-        for nad in nads:
-            config = json.loads(nad.spec["config"])
-            self.assertEqual(config["type"], "vfioveth")
+        create_nad_calls = kubernetes_create_object.call_args_list
+        self.assertEqual(len(create_nad_calls), 2)
 
-    def test_given_upf_configured_to_run_in_dpdk_mode_when_network_attachment_definitions_from_config_is_called_then_nad_has_valid_dpdk_resources_specified_in_annotations(  # noqa: E501
-        self,
+    @patch("lightkube.core.client.Client.create")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_nad_type_is_vfioveth(  # noqa: E501
+        self, patch_get_service, kubernetes_create_object
     ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        nads = self.harness.charm._network_attachment_definitions_from_config()
-        for nad in nads:
-            annotations = nad.metadata.annotations
-            self.assertTrue("k8s.v1.cni.cncf.io/resourceName" in annotations.keys())
-            self.assertTrue(
-                DPDK_ACCESS_INTERFACE_RESOURCE_NAME
-                or DPDK_CORE_INTERFACE_RESOURCE_NAME  # noqa: W503
-                in annotations["k8s.v1.cni.cncf.io/resourceName"]
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+
+        create_nad_calls = kubernetes_create_object.call_args_list
+        for create_nad_call in create_nad_calls:
+            create_nad_call_args = next(
+                iter(filter(lambda call_item: isinstance(call_item, dict), create_nad_call))
             )
+            nad_config = json.loads(create_nad_call_args.get("obj").spec.get("config"))
+            self.assertEqual(nad_config["type"], "vfioveth")
 
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_2_network_annotations_are_returned(  # noqa: E501
-        self,
+    @patch("lightkube.core.client.Client.create")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_access_nad_has_valid_dpdk_access_resource_specified_in_annotations(  # noqa: E501
+        self, patch_get_service, kubernetes_create_object
     ):
-        self.harness.disable_hooks()
-        network_annotations = self.harness.charm._generate_network_annotations()
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+
+        create_nad_calls = kubernetes_create_object.mock_calls
+        for create_nad_call in create_nad_calls:
+            try:
+                create_access_nad_call_args = next(
+                    iter(
+                        filter(
+                            lambda call_item: isinstance(call_item, dict)
+                            and call_item.get("obj").metadata.name  # noqa: W503
+                            == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                            create_nad_call,
+                        )
+                    )
+                )
+                nad_annotations = create_access_nad_call_args.get("obj").metadata.annotations
+                self.assertTrue(
+                    DPDK_ACCESS_INTERFACE_RESOURCE_NAME
+                    in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
+                )
+            except StopIteration:
+                pass
+
+    @patch("lightkube.core.client.Client.create")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(  # noqa: E501
+        self, patch_get_service, kubernetes_create_object
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+
+        create_nad_calls = kubernetes_create_object.mock_calls
+        for create_nad_call in create_nad_calls:
+            try:
+                create_access_nad_call_args = next(
+                    iter(
+                        filter(
+                            lambda call_item: isinstance(call_item, dict)
+                            and call_item.get("obj").metadata.name  # noqa: W503
+                            == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                            create_nad_call,
+                        )
+                    )
+                )
+                nad_annotations = create_access_nad_call_args.get("obj").metadata.annotations
+                self.assertTrue(
+                    DPDK_CORE_INTERFACE_RESOURCE_NAME
+                    in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
+                )
+            except StopIteration:
+                pass
+
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config()
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
+                )
+            )
+        )
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
+        )
         self.assertEqual(len(network_annotations), 2)
 
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_2_network_annotations_are_returned(  # noqa: E501
-        self,
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
     ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        network_annotations = self.harness.charm._generate_network_annotations()
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config()
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
+                )
+            )
+        )
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
+        )
+        access_network_annotation = next(
+            iter(
+                filter(
+                    lambda network_annotation: network_annotation.get("name")
+                    == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                    network_annotations,
+                )
+            )
+        )
+        self.assertTrue(access_network_annotation)
+        self.assertEqual(access_network_annotation.get("interface"), ACCESS_INTERFACE_NAME)
+
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config()
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
+                )
+            )
+        )
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
+        )
+        access_network_annotation = next(
+            iter(
+                filter(
+                    lambda network_annotation: network_annotation.get("name")
+                    == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                    network_annotations,
+                )
+            )
+        )
+        self.assertFalse(access_network_annotation.get("mac"))
+        self.assertFalse(access_network_annotation.get("ips"))
+
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config()
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
+                )
+            )
+        )
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
+        )
+        access_network_annotation = next(
+            iter(
+                filter(
+                    lambda network_annotation: network_annotation.get("name")
+                    == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                    network_annotations,
+                )
+            )
+        )
+        self.assertTrue(access_network_annotation)
+        self.assertEqual(access_network_annotation.get("interface"), CORE_INTERFACE_NAME)
+
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config()
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
+                )
+            )
+        )
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
+        )
+        access_network_annotation = next(
+            iter(
+                filter(
+                    lambda network_annotation: network_annotation.get("name")
+                    == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                    network_annotations,
+                )
+            )
+        )
+        self.assertFalse(access_network_annotation.get("mac"))
+        self.assertFalse(access_network_annotation.get("ips"))
+
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
+                )
+            )
+        )
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
+        )
         self.assertEqual(len(network_annotations), 2)
 
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_created(  # noqa: E501
-        self,
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
     ):
-        self.harness.disable_hooks()
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(
-            any(
-                network_annotation.name == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
-                for network_annotation in network_annotations
-            )
-        )
-
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_created(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(
-            any(
-                network_annotation.name == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
-                for network_annotation in network_annotations
-            )
-        )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_created(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(
-            any(
-                network_annotation.name == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
-                for network_annotation in network_annotations
-            )
-        )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_created(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(
-            any(
-                network_annotation.name == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
-                for network_annotation in network_annotations
-            )
-        )
-
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_corresponds_to_access_interface(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
-                )
-            ).interface,
-            ACCESS_INTERFACE_NAME,
-        )
-
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_corresponds_to_core_interface(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
-                )
-            ).interface,
-            CORE_INTERFACE_NAME,
-        )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_corresponds_to_access_interface(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
-                )
-            ).interface,
-            ACCESS_INTERFACE_NAME,
-        )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_corresponds_to_core_interface(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
-                )
-            ).interface,
-            CORE_INTERFACE_NAME,
-        )
-
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_annotations_dont_have_mac_field_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(
-            not any(network_annotation.mac for network_annotation in network_annotations)
-        )
-
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_annotations_dont_have_ips_field_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(
-            not any(network_annotation.ips for network_annotation in network_annotations)
-        )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_annotations_have_mac_field_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
-                "access-interface-mac-address": VALID_ACCESS_MAC,
-                "core-interface-mac-address": VALID_CORE_MAC,
-            }
-        )
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(all(network_annotation.mac for network_annotation in network_annotations))
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_has_access_mac_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(
-            key_values={
-                "upf-mode": "dpdk",
-                "access-interface-mac-address": VALID_ACCESS_MAC,
-                "core-interface-mac-address": VALID_CORE_MAC,
-            }
-        )
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
-                )
-            ).mac,
-            VALID_ACCESS_MAC,
-        )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_has_core_mac_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(
-            key_values={
-                "upf-mode": "dpdk",
-                "access-interface-mac-address": VALID_ACCESS_MAC,
-                "core-interface-mac-address": VALID_CORE_MAC,
-            }
-        )
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
-                )
-            ).mac,
-            VALID_CORE_MAC,
-        )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_annotations_have_ips_field_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertTrue(all(network_annotation.ips for network_annotation in network_annotations))
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_nad_annotation_has_access_ip_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(
-            key_values={
-                "upf-mode": "dpdk",
+                "enable-hugepages": True,
                 "access-ip": VALID_ACCESS_IP,
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+            }
+        )
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
+                )
+            )
+        )
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
+        )
+        access_network_annotation = next(
+            iter(
+                filter(
+                    lambda network_annotation: network_annotation.get("name")
+                    == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                    network_annotations,
+                )
+            )
+        )
+        self.assertTrue(access_network_annotation)
+        self.assertEqual(access_network_annotation.get("interface"), ACCESS_INTERFACE_NAME)
+        self.assertEqual(access_network_annotation.get("mac"), VALID_ACCESS_MAC)
+        self.assertEqual(access_network_annotation.get("ips"), [VALID_ACCESS_IP])
+
+    @patch("lightkube.core.client.Client.patch")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
+        self, patch_get_service, kubernetes_statefulset_patch
+    ):
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
+        self.harness.update_config(
+            key_values={
+                "upf-mode": "dpdk",
+                "enable-hugepages": True,
                 "core-ip": VALID_CORE_IP,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
         )
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
+        patch_statefulset = kubernetes_statefulset_patch.call_args_list[0]
+        patch_statefulset_call_args = next(
+            iter(
+                filter(
+                    lambda call_item: isinstance(call_item, dict)
+                    and "StatefulSet" in str(call_item.get("obj"))  # noqa: W503
+                    and call_item.get("name") == self.harness.charm.app.name,  # noqa: W503
+                    patch_statefulset,
                 )
-            ).ips,
-            [VALID_ACCESS_IP],
+            )
         )
-
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_nad_annotation_has_core_ip_set(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(
-            key_values={
-                "upf-mode": "dpdk",
-                "access-ip": VALID_ACCESS_IP,
-                "core-ip": VALID_CORE_IP,
-                "access-interface-mac-address": VALID_ACCESS_MAC,
-                "core-interface-mac-address": VALID_CORE_MAC,
-            }
+        network_annotations = json.loads(
+            patch_statefulset_call_args.get("obj").spec.template.metadata.annotations.get(
+                NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY
+            )
         )
-        network_annotations = self.harness.charm._generate_network_annotations()
-        self.assertEqual(
-            next(
-                iter(
-                    filter(
-                        lambda network_annotation: network_annotation.name
-                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                        network_annotations,
-                    )
+        access_network_annotation = next(
+            iter(
+                filter(
+                    lambda network_annotation: network_annotation.get("name")
+                    == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                    network_annotations,
                 )
-            ).ips,
-            [VALID_CORE_IP],
+            )
         )
+        self.assertTrue(access_network_annotation)
+        self.assertEqual(access_network_annotation.get("interface"), CORE_INTERFACE_NAME)
+        self.assertEqual(access_network_annotation.get("mac"), VALID_CORE_MAC)
+        self.assertEqual(access_network_annotation.get("ips"), [VALID_CORE_IP])
 
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
@@ -1087,12 +1292,22 @@ class TestCharm(unittest.TestCase):
             namespace=self.namespace,
         )
 
-    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(  # noqa: E501
-        self,
-        patch_hugepages_is_patched,
+    @patch("lightkube.core.client.Client.create")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_default_config_when_create_network_attachment_definitions_then_interface_mtu_not_set_in_the_network_attachment_definitions(  # noqa: E501
+        self, patch_get_service, kubernetes_create_object
     ):
-        patch_hugepages_is_patched.return_value = True
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
         self.harness.update_config(
             key_values={
                 "access-ip": "192.168.252.3/24",
@@ -1102,17 +1317,31 @@ class TestCharm(unittest.TestCase):
                 "core-gateway-ip": CORE_GW_IP,
             }
         )
-        nads = self.harness.charm._network_attachment_definitions_from_config()
-        for nad in nads:
-            config = json.loads(nad.spec["config"])
-            self.assertNotIn("mtu", config)
 
-    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_default_config_with_interfaces_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_mtu_sizes_specified_in_nad(  # noqa: E501
-        self,
-        patch_hugepages_is_patched,
+        create_nad_calls = kubernetes_create_object.call_args_list
+        for create_nad_call in create_nad_calls:
+            create_nad_call_args = next(
+                iter(filter(lambda call_item: isinstance(call_item, dict), create_nad_call))
+            )
+            nad_config = json.loads(create_nad_call_args.get("obj").spec.get("config"))
+            self.assertNotIn("mtu", nad_config)
+
+    @patch("lightkube.core.client.Client.create")
+    @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
+    @patch("charm.DPDK.is_configured", Mock(return_value=True))
+    @patch("ops.model.Container.exec", new=MagicMock)
+    def test_given_default_config_with_interfaces_mtu_sizes_when_create_network_attachment_definitions_then_interface_mtu_set_in_the_network_attachment_definitions(  # noqa: E501
+        self, patch_get_service, kubernetes_create_object
     ):
-        patch_hugepages_is_patched.return_value = True
+        service_info_mock = Mock()
+        service_info_mock.is_running.return_value = True
+        patch_get_service.return_value = service_info_mock
         self.harness.update_config(
             key_values={
                 "access-ip": "192.168.252.3/24",
@@ -1124,10 +1353,14 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mtu-size": VALID_MTU_SIZE_1,
             }
         )
-        nads = self.harness.charm._network_attachment_definitions_from_config()
-        for nad in nads:
-            config = json.loads(nad.spec["config"])
-            self.assertEqual(config["mtu"], 65535)
+
+        create_nad_calls = kubernetes_create_object.call_args_list
+        for create_nad_call in create_nad_calls:
+            create_nad_call_args = next(
+                iter(filter(lambda call_item: isinstance(call_item, dict), create_nad_call))
+            )
+            nad_config = json.loads(create_nad_call_args.get("obj").spec.get("config"))
+            self.assertEqual(nad_config["mtu"], VALID_MTU_SIZE_1)
 
     def test_given_default_config_with_interfaces_too_small_and_too_big_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,

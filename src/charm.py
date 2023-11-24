@@ -129,7 +129,7 @@ class UPFOperatorCharm(CharmBase):
             charm=self,
             container_name=self._bessd_container_name,
             cap_net_admin=True,
-            network_annotations=self._generate_network_annotations(),
+            network_annotations_func=self._generate_network_annotations,
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
             refresh_event=self.on.nad_config_changed,
         )

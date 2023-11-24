@@ -41,7 +41,7 @@ class YourCharm(CharmBase):
             container_name=self._container_name,
             cap_net_admin=True,
             privileged=True,
-            network_annotations=[
+            network_annotations_func=[
                 NetworkAnnotation(
                     name=NETWORK_ATTACHMENT_DEFINITION_NAME,
                     interface=INTERFACE_NAME,
@@ -147,6 +147,8 @@ class NetworkAttachmentDefinition(_NetworkAttachmentDefinition):  # type: ignore
 @dataclass
 class NetworkAnnotation:
     """NetworkAnnotation."""
+
+    NETWORK_ANNOTATION_RESOURCE_KEY = "k8s.v1.cni.cncf.io/networks"
 
     name: str
     interface: str
@@ -359,7 +361,7 @@ class KubernetesClient:
                 template=PodTemplateSpec(
                     metadata=ObjectMeta(
                         annotations={
-                            "k8s.v1.cni.cncf.io/networks": json.dumps(
+                            NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY: json.dumps(
                                 [
                                     network_annotation.dict()
                                     for network_annotation in network_annotations
@@ -458,10 +460,10 @@ class KubernetesClient:
     def _annotations_contains_multus_networks(
         annotations: dict, network_annotations: list[NetworkAnnotation]
     ) -> bool:
-        if "k8s.v1.cni.cncf.io/networks" not in annotations:
+        if NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY not in annotations:
             return False
         try:
-            if json.loads(annotations["k8s.v1.cni.cncf.io/networks"]) != [
+            if json.loads(annotations[NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY]) != [
                 network_annotation.dict() for network_annotation in network_annotations
             ]:
                 return False
@@ -503,7 +505,7 @@ class KubernetesMultusCharmLib(Object):
         self,
         charm: CharmBase,
         network_attachment_definitions_func: Callable[[], list[NetworkAttachmentDefinition]],
-        network_annotations: list[NetworkAnnotation],
+        network_annotations_func: Callable[[], list[NetworkAnnotation]],
         container_name: str,
         refresh_event: BoundEvent,
         cap_net_admin: bool = False,
@@ -515,7 +517,8 @@ class KubernetesMultusCharmLib(Object):
             charm: Charm object
             network_attachment_definitions_func: A callable to a function returning a list of
               `NetworkAttachmentDefinition` to be created.
-            network_annotations: List of NetworkAnnotation.
+            network_annotations_func: A callable to a function returning a list
+              of `NetworkAnnotation` to be added to the container.
             container_name: Container name
             cap_net_admin: Container requires NET_ADMIN capability
             privileged: Container requires privileged security context
@@ -525,7 +528,7 @@ class KubernetesMultusCharmLib(Object):
         super().__init__(charm, "kubernetes-multus")
         self.kubernetes = KubernetesClient(namespace=self.model.name)
         self.network_attachment_definitions_func = network_attachment_definitions_func
-        self.network_annotations = network_annotations
+        self.network_annotations_func = network_annotations_func
         self.container_name = container_name
         self.cap_net_admin = cap_net_admin
         self.privileged = privileged
@@ -543,7 +546,7 @@ class KubernetesMultusCharmLib(Object):
         if not self._statefulset_is_patched():
             self.kubernetes.patch_statefulset(
                 name=self.model.app.name,
-                network_annotations=self.network_annotations,
+                network_annotations=self.network_annotations_func(),
                 container_name=self.container_name,
                 cap_net_admin=self.cap_net_admin,
                 privileged=self.privileged,
@@ -617,7 +620,7 @@ class KubernetesMultusCharmLib(Object):
         """Returns whether statefuset is patched with network annotations and capabilities."""
         return self.kubernetes.statefulset_is_patched(
             name=self.model.app.name,
-            network_annotations=self.network_annotations,
+            network_annotations=self.network_annotations_func(),
             container_name=self.container_name,
             cap_net_admin=self.cap_net_admin,
             privileged=self.privileged,
@@ -627,7 +630,7 @@ class KubernetesMultusCharmLib(Object):
         """Returns whether pod is ready with network annotations and capabilities."""
         return self.kubernetes.pod_is_ready(
             pod_name=self._pod,
-            network_annotations=self.network_annotations,
+            network_annotations=self.network_annotations_func(),
             container_name=self.container_name,
             cap_net_admin=self.cap_net_admin,
             privileged=self.privileged,
