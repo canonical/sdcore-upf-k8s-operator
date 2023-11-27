@@ -798,26 +798,31 @@ class TestCharm(unittest.TestCase):
             }
         )
 
-        create_nad_calls = kubernetes_create_object.mock_calls
-        for create_nad_call in create_nad_calls:
-            try:
-                create_access_nad_call_args = next(
-                    iter(
-                        filter(
-                            lambda call_item: isinstance(call_item, dict)
-                            and call_item.get("obj").metadata.name  # noqa: W503
-                            == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                            create_nad_call,
-                        )
+        def _get_create_access_nad_call(mock_call):
+            return next(
+                iter(
+                    filter(
+                        lambda call_item: isinstance(call_item, dict)
+                        and call_item.get("obj").metadata.name  # noqa: W503
+                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        mock_call,
                     )
-                )
-                nad_annotations = create_access_nad_call_args.get("obj").metadata.annotations
-                self.assertTrue(
-                    DPDK_ACCESS_INTERFACE_RESOURCE_NAME
-                    in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
-                )
-            except StopIteration:
-                pass
+                ),
+                None,
+            )
+
+        create_nad_calls = kubernetes_create_object.mock_calls
+        create_access_nad_calls = [
+            _get_create_access_nad_call(create_nad_call)
+            for create_nad_call in create_nad_calls
+            if _get_create_access_nad_call(create_nad_call)
+        ]
+        self.assertEqual(len(create_access_nad_calls), 1)
+        nad_annotations = create_access_nad_calls[0].get("obj").metadata.annotations
+        self.assertTrue(
+            DPDK_ACCESS_INTERFACE_RESOURCE_NAME
+            in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
+        )
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
@@ -844,26 +849,30 @@ class TestCharm(unittest.TestCase):
             }
         )
 
-        create_nad_calls = kubernetes_create_object.mock_calls
-        for create_nad_call in create_nad_calls:
-            try:
-                create_access_nad_call_args = next(
-                    iter(
-                        filter(
-                            lambda call_item: isinstance(call_item, dict)
-                            and call_item.get("obj").metadata.name  # noqa: W503
-                            == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
-                            create_nad_call,
-                        )
+        def _get_create_core_nad_call(mock_call):
+            return next(
+                iter(
+                    filter(
+                        lambda call_item: isinstance(call_item, dict)
+                        and call_item.get("obj").metadata.name  # noqa: W503
+                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        mock_call,
                     )
-                )
-                nad_annotations = create_access_nad_call_args.get("obj").metadata.annotations
-                self.assertTrue(
-                    DPDK_CORE_INTERFACE_RESOURCE_NAME
-                    in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
-                )
-            except StopIteration:
-                pass
+                ),
+                None,
+            )
+
+        create_nad_calls = kubernetes_create_object.mock_calls
+        create_core_nad_calls = [
+            _get_create_core_nad_call(create_nad_call)
+            for create_nad_call in create_nad_calls
+            if _get_create_core_nad_call(create_nad_call)
+        ]
+        self.assertEqual(len(create_core_nad_calls), 1)
+        nad_annotations = create_core_nad_calls[0].get("obj").metadata.annotations
+        self.assertTrue(
+            DPDK_CORE_INTERFACE_RESOURCE_NAME in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
+        )
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
