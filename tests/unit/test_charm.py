@@ -811,7 +811,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_2_nads_are_returned(  # noqa: E501
         self, patch_get_service, kubernetes_create_object
     ):
@@ -839,7 +838,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_nad_type_is_vfioveth(  # noqa: E501
         self, patch_get_service, kubernetes_create_object
     ):
@@ -872,7 +870,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_access_nad_has_valid_dpdk_access_resource_specified_in_annotations(  # noqa: E501
         self, patch_get_service, kubernetes_create_object
     ):
@@ -923,7 +920,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(  # noqa: E501
         self, patch_get_service, kubernetes_create_object
     ):
@@ -973,7 +969,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1008,7 +1003,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1053,7 +1047,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1098,7 +1091,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1143,7 +1135,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1188,7 +1179,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1230,7 +1220,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1285,7 +1274,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
@@ -1400,7 +1388,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_default_config_when_create_network_attachment_definitions_then_interface_mtu_not_set_in_the_network_attachment_definitions(  # noqa: E501
         self, patch_get_service, kubernetes_create_object
     ):
@@ -1434,7 +1421,6 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    @patch("ops.model.Container.exec", new=MagicMock)
     def test_given_default_config_with_interfaces_mtu_sizes_when_create_network_attachment_definitions_then_interface_mtu_set_in_the_network_attachment_definitions(  # noqa: E501
         self, patch_get_service, kubernetes_create_object
     ):
