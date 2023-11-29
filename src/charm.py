@@ -965,11 +965,11 @@ class UPFOperatorCharm(CharmBase):
     def _get_external_upf_hostname_config(self) -> Optional[str]:
         return self.model.config.get("external-upf-hostname")
 
-    def _upf_load_balancer_service_hostname(self) -> str:
+    def _upf_load_balancer_service_hostname(self) -> Optional[str]:
         """Returns the hostname of UPF's LoadBalancer service.
 
         Returns:
-            str: Hostname of UPF's LoadBalancer service
+            str/None: Hostname of UPF's LoadBalancer service if available else None
         """
         client = Client()
         service = client.get(
@@ -977,13 +977,13 @@ class UPFOperatorCharm(CharmBase):
         )
         try:
             return service.status.loadBalancer.ingress[0].hostname  # type: ignore[attr-defined]
-        except AttributeError:
+        except (AttributeError, TypeError):
             logger.error(
                 "Service '%s-external' does not have a hostname:\n%s",
                 self.model.app.name,
                 service,
             )
-            return ""
+            return None
 
     @property
     def _upf_hostname(self) -> str:
