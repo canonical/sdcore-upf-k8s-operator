@@ -770,6 +770,18 @@ class TestCharm(unittest.TestCase):
             namespace=self.namespace,
         )
 
+    @patch("charm.check_output")
+    @patch("charm.Client", new=Mock)
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_incompatiblecpuerror_is_raised(  # noqa: E501
+        self, patch_hugepages_is_patched, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = False
+        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
+
+        with self.assertRaises(IncompatibleCPUError):
+            self.harness.update_config(key_values={"enable-hugepages": True})
+
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(  # noqa: E501
         self,

@@ -55,6 +55,7 @@ BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
+REQUIRED_CPU_EXTENSIONS_HUGEPAGES = ["pdpe1gb"]
 
 # The default field manager set when using kubectl to create resources
 DEFAULT_FIELD_MANAGER = "controller"
@@ -367,6 +368,13 @@ class UPFOperatorCharm(CharmBase):
         """Handler for config changed events."""
         if not self.unit.is_leader():
             return
+        if self._hugepages_is_enabled():
+            if not self._cpu_is_compatible_for_hugepages():
+                raise IncompatibleCPUError(
+                    "\nCPU is not compatible!\n"
+                    "Please use a CPU that has the following capabilities: "
+                    f"{', '.join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES)}"
+                )
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
@@ -787,6 +795,12 @@ class UPFOperatorCharm(CharmBase):
                 cpu_flags = cpu_info_item.split()
                 del cpu_flags[0]
         return cpu_flags
+
+    def _cpu_is_compatible_for_hugepages(self) -> bool:
+        return all(
+            required_extension in self._get_cpu_extensions()
+            for required_extension in REQUIRED_CPU_EXTENSIONS_HUGEPAGES
+        )
 
     def _get_access_nad_config(self) -> Dict[Any, Any]:
         """Get access interface NAD config.
