@@ -29,7 +29,7 @@ from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.resources.core_v1 import Service
+from lightkube.resources.core_v1 import Node, Service
 from ops import RemoveEvent
 from ops.charm import CharmBase, CharmEvents
 from ops.framework import EventBase, EventSource
@@ -375,6 +375,9 @@ class UPFOperatorCharm(CharmBase):
                     "Please use a CPU that has the following capabilities: "
                     f"{', '.join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES)}"
                 )
+            if not self._hugepages_are_available():
+                self.unit.status = BlockedStatus("Not enough HugePages available")
+            return
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
@@ -801,6 +804,14 @@ class UPFOperatorCharm(CharmBase):
             required_extension in self._get_cpu_extensions()
             for required_extension in REQUIRED_CPU_EXTENSIONS_HUGEPAGES
         )
+
+    @staticmethod
+    def _hugepages_are_available() -> bool:
+        client = Client()
+        nodes = client.list(Node)
+        if not nodes:
+            return False
+        return all([node.status.capacity.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])
 
     def _get_access_nad_config(self) -> Dict[Any, Any]:
         """Get access interface NAD config.
