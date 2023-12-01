@@ -61,10 +61,6 @@ def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) ->
 
 class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
-    @patch(
-        "charm.KubernetesServicePatch",
-        lambda charm, ports: None,
-    )
     def setUp(self, patch_k8s_client):
         self.namespace = "whatever"
         self.harness = testing.Harness(UPFOperatorCharm)
