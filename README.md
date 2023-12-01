@@ -47,6 +47,11 @@ juju deploy sdcore-upf --trust --channel=edge --config upf-mode="dpdk" --config 
 As shown in the example above, when running UPF in `dpdk` mode, it is necessary to enable
 HugePages and pass the MAC addresses of the `Access` and `Core` interfaces.
 
+```{note}
+Example command shown above assumes using default network configuration. If needed, network configs
+should be changed to match the actual configuration.
+```
+
 For detailed instructions on running UPF in `dpdk` mode please visit 
 [How-to: Running UPF in DPDK mode](https://canonical-charmed-5g.readthedocs-hosted.com/en/latest/how-to/running_upf_in_dpdk_mode/).
 
