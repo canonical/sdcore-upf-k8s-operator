@@ -20,9 +20,6 @@ from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
-from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]
-    KubernetesServicePatch,
-)
 from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
@@ -114,12 +111,7 @@ class UPFOperatorCharm(CharmBase):
                 }
             ],
         )
-        self._service_patcher = KubernetesServicePatch(
-            charm=self,
-            ports=[
-                ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
-            ],
-        )
+        self.unit.set_ports(PROMETHEUS_PORT)
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
