@@ -311,7 +311,7 @@ class TestCharm(unittest.TestCase):
     def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
         self, patch_is_ready
     ):
-        (self.root / "etc/bess/conf/bessctl_configure_executed").write_text("")
+        (self.root / "bessctl_configure_executed").write_text("")
 
         bessctl_called = False
 

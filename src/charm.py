@@ -470,14 +470,16 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool:   True/False
         """
-        return self._bessd_container.exists(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}"
-        )
+        return self._bessd_container.exists(path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}")
 
     def _create_bessctl_executed_validation_file(self, content) -> None:
-        """This creates BESSCTL_CONFIGURE_EXECUTED_FILE_NAME under BESSD_CONTAINER_CONFIG_PATH."""
+        """Create BESSCTL_CONFIGURE_EXECUTED_FILE_NAME.
+
+        This must be created outside of the persistent storage volume so that
+        on container restart, bessd configuration will run again.
+        """
         self._bessd_container.push(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
+            path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
             source=content,
         )
         logger.info("Pushed %s configuration check file", BESSCTL_CONFIGURE_EXECUTED_FILE_NAME)
