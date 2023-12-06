@@ -9,7 +9,7 @@
   "cpiface": {
     "dnn": "internet",
     "enable_ue_ip_alloc": false,
-    "hostname": "sdcore-upf-external.whatever.svc.cluster.local",
+    "hostname": "sdcore-upf-k8s-external.whatever.svc.cluster.local",
     "http_port": "8080"
   },
   "enable_notify_bess": true,

@@ -1,7 +1,7 @@
-# SD-Core UPF Operator (k8s)
-[![CharmHub Badge](https://charmhub.io/sdcore-upf/badge.svg)](https://charmhub.io/sdcore-upf)
+# SD-Core UPF K8s Operator
+[![CharmHub Badge](https://charmhub.io/sdcore-upf-k8s/badge.svg)](https://charmhub.io/sdcore-upf-k8s)
 
-Charmed Operator for SD-Core's User Plane Function (UPF). For more information, read [here](https://github.com/omec-project/upf).
+Charmed K8s Operator for SD-Core's User Plane Function (UPF). For more information, read [here](https://github.com/omec-project/upf).
 
 ## Pre-requisites
 
@@ -27,7 +27,7 @@ juju add-model user-plane
 Deploy the UPF:
 
 ```bash
-juju deploy sdcore-upf --trust --channel=edge
+juju deploy sdcore-upf-k8s --trust --channel=edge
 ```
 
 ### Exposing the UPF externally

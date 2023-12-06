@@ -14,7 +14,7 @@ from lightkube.resources.core_v1 import Service
 from ops import testing
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
-from charm import IncompatibleCPUError, UPFOperatorCharm
+from charm import IncompatibleCPUError, UPFK8sOperatorCharm
 
 MULTUS_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.multus"
 HUGEPAGES_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch"
@@ -63,7 +63,7 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
     def setUp(self, patch_k8s_client):
         self.namespace = "whatever"
-        self.harness = testing.Harness(UPFOperatorCharm)
+        self.harness = testing.Harness(UPFK8sOperatorCharm)
         self.harness.set_model_name(name=self.namespace)
         self.harness.set_leader(is_leader=True)
 

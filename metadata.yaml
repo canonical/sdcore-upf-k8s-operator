@@ -1,10 +1,10 @@
-name: sdcore-upf
-display-name: SD-Core 5G UPF
+name: sdcore-upf-k8s
+display-name: SD-Core 5G UPF K8s
 summary: Charmed Operator for SD-Core's User Plane Function (UPF).
 description: Charmed Operator for SD-Core's User Plane Function (UPF).
-website: https://charmhub.io/sdcore-upf
-source: https://github.com/canonical/sdcore-upf-operator
-issues: https://github.com/canonical/sdcore-upf-operator/issues
+website: https://charmhub.io/sdcore-upf-k8s
+source: https://github.com/canonical/sdcore-upf-k8s-operator
+issues: https://github.com/canonical/sdcore-upf-k8s-operator/issues
 
 containers:
   bessd:

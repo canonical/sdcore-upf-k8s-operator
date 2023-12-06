@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the SD-Core UPF service."""
+"""Charmed K8s operator for the SD-Core UPF service."""
 
 import ipaddress
 import json
@@ -81,8 +81,8 @@ class UpfOperatorCharmEvents(CharmEvents):
     hugepages_volumes_config_changed = EventSource(K8sHugePagesVolumePatchChangedEvent)
 
 
-class UPFOperatorCharm(CharmBase):
-    """Main class to describe juju event handling for the 5G UPF operator."""
+class UPFK8sOperatorCharm(CharmBase):
+    """Main class to describe juju event handling for the 5G UPF K8s operator."""
 
     on = UpfOperatorCharmEvents()
 
@@ -976,4 +976,4 @@ def ip_is_valid(ip_address: str) -> bool:
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main(UPFOperatorCharm)
+    main(UPFK8sOperatorCharm)
