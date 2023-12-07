@@ -4,7 +4,7 @@
   },
   "core": {
     "ifname": "core",
-    "ip_masquerade": "192.168.250.3/24"
+    "ip_masquerade": "192.168.250.3"
   },
   "cpiface": {
     "dnn": "internet",
