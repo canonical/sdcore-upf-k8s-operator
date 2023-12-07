@@ -1020,58 +1020,6 @@ class UPFOperatorCharm(CharmBase):
                 del cpu_flags[0]
         return cpu_flags
 
-    def _get_access_nad_config(self) -> Dict[Any, Any]:
-        """Get access interface NAD config.
-
-        Returns:
-            config (dict): Access interface NAD config
-
-        """
-        config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "routes": [
-                    {
-                        "dst": self._get_gnb_subnet_config(),
-                        "gw": self._get_access_network_gateway_ip_config(),
-                    },
-                ],
-                "addresses": [
-                    {
-                        "address": self._get_access_network_ip_config(),
-                    }
-                ],
-            },
-            "capabilities": {"mac": True},
-        }
-        if access_mtu := self._get_access_interface_mtu_config():
-            config.update({"mtu": access_mtu})
-        return config
-
-    def _get_core_nad_config(self) -> Dict[Any, Any]:
-        """Get core interface NAD config.
-
-        Returns:
-            config (dict): Core interface NAD config
-
-        """
-        config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "addresses": [
-                    {
-                        "address": self._get_core_network_ip_config(),
-                    }
-                ],
-            },
-            "capabilities": {"mac": True},
-        }
-        if core_mtu := self._get_core_interface_mtu_config():
-            config.update({"mtu": core_mtu})
-        return config
-
     def _get_core_interface_mtu_config(self) -> Optional[str]:
         """Get Core interface MTU size.
 
