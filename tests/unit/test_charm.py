@@ -67,6 +67,7 @@ class TestCharm(unittest.TestCase):
         self.harness.set_model_name(name=self.namespace)
         self.harness.set_leader(is_leader=True)
 
+        self.maxDiff = None
         self.root = self.harness.get_filesystem_root("bessd")
         (self.root / "etc/bess/conf").mkdir(parents=True)
         self.addCleanup(self.harness.cleanup)
@@ -88,7 +89,7 @@ class TestCharm(unittest.TestCase):
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.container_pebble_ready(container_name="bessd")
 
-        expected_config_file_content = read_file("tests/unit/expected_upf.json")
+        expected_config_file_content = read_file("tests/unit/expected_upf.json").strip()
 
         self.assertEqual(
             (self.root / "etc/bess/conf/upf.json").read_text(), expected_config_file_content
@@ -105,7 +106,7 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="config", count=1)
         self.harness.attach_storage(storage_id="config/0")
 
-        expected_config_file_content = read_file("tests/unit/expected_upf.json")
+        expected_config_file_content = read_file("tests/unit/expected_upf.json").strip()
 
         self.assertEqual(
             (self.root / "etc/bess/conf/upf.json").read_text(), expected_config_file_content
@@ -118,7 +119,7 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.handle_exec("bessd", [], result=0)
         patch_is_ready.return_value = True
-        expected_upf_content = read_file("tests/unit/expected_upf.json")
+        expected_upf_content = read_file("tests/unit/expected_upf.json").strip()
         (self.root / "etc/bess/conf/upf.json").write_text(expected_upf_content)
 
         self.harness.container_pebble_ready(container_name="bessd")

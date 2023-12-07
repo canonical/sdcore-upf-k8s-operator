@@ -411,11 +411,13 @@ class UPFOperatorCharm(CharmBase):
         Writes configuration file, creates routes, creates iptable rule and pebble layer.
         """
         restart = False
+        core_ip_address = self._get_core_network_ip_config()
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=UPF_MODE,
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
+            core_ip_address=core_ip_address.split("/")[0] if core_ip_address else "",
             dnn=self._get_dnn_config(),  # type: ignore[arg-type]
             pod_share_path=POD_SHARE_PATH,
         )
@@ -909,6 +911,7 @@ def render_bessd_config_file(
     upf_mode: str,
     access_interface_name: str,
     core_interface_name: str,
+    core_ip_address: Optional[str],
     dnn: str,
     pod_share_path: str,
 ) -> str:
@@ -919,6 +922,7 @@ def render_bessd_config_file(
         upf_mode: UPF mode
         access_interface_name: Access network interface name
         core_interface_name: Core network interface name
+        core_ip_address: Core network IP address
         dnn: Data Network Name (DNN)
         pod_share_path: pod_share path
     """
@@ -929,6 +933,7 @@ def render_bessd_config_file(
         mode=upf_mode,
         access_interface_name=access_interface_name,
         core_interface_name=core_interface_name,
+        core_ip_address=core_ip_address,
         dnn=dnn,
         pod_share_path=pod_share_path,
     )
