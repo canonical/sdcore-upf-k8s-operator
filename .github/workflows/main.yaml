@@ -51,7 +51,7 @@ jobs:
         with:
           filters: |
             fiveg_n3:
-              - 'lib/charms/sdcore_upf/v0/fiveg_n3.py'
+              - 'lib/charms/sdcore_upf_k8s/v0/fiveg_n3.py'
 
   publish-fiveg-n3-lib:
     name: Publish Lib
@@ -61,7 +61,7 @@ jobs:
     if: ${{ github.ref_name == 'main' }}
     uses: canonical/sdcore-github-workflows/.github/workflows/publish-lib.yaml@main
     with:
-      lib-name: "charms.sdcore_upf.v0.fiveg_n3"
+      lib-name: "charms.sdcore_upf_k8s.v0.fiveg_n3"
     secrets: inherit
 
   fiveg-n4-lib-needs-publishing:
@@ -75,7 +75,7 @@ jobs:
         with:
           filters: |
             fiveg_n4:
-              - 'lib/charms/sdcore_upf/v0/fiveg_n4.py'
+              - 'lib/charms/sdcore_upf_k8s/v0/fiveg_n4.py'
 
   publish-fiveg-n4-lib:
     name: Publish Lib
@@ -85,5 +85,5 @@ jobs:
     if: ${{ github.ref_name == 'main' }}
     uses: canonical/sdcore-github-workflows/.github/workflows/publish-lib.yaml@main
     with:
-      lib-name: "charms.sdcore_upf.v0.fiveg_n4"
+      lib-name: "charms.sdcore_upf_k8s.v0.fiveg_n4"
     secrets: inherit

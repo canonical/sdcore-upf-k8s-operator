@@ -1,85 +1,80 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Library for the `fiveg_n4` relation.
+"""Library for the `fiveg_n3` relation.
 
-This library contains the Requires and Provides classes for handling the `fiveg_n4`
-interface.
-
-The purpose of this library is to integrate a charm claiming to be able to provide
-information required to establish communication over the N4 interface with a charm
-claiming to be able to consume this information.
+This library offers a way of providing and consuming an IP address of the SDCORE's UPF.
+In a typical 5G network, UPF's IP address is consumed by the gNodeBs, in order to establish
+communication over the N3 interface.
 
 To get started using the library, you need to fetch the library using `charmcraft`.
 
 ```shell
 cd some-charm
-charmcraft fetch-lib charms.sdcore_upf.v0.fiveg_n4
+charmcraft fetch-lib charms.sdcore_upf_k8s.v0.fiveg_n3
 ```
 
 Add the following libraries to the charm's `requirements.txt` file:
 - pydantic
 - pytest-interface-tester
 
-Charms providing the `fiveg_n4` relation should use `N4Provides`.
+Charms providing the `fiveg_n3` relation should use `N3Provides`.
 Typical usage of this class would look something like:
 
     ```python
     ...
-    from charms.sdcore_upf.v0.fiveg_n4 import N4Provides
+    from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
     ...
 
     class SomeProviderCharm(CharmBase):
 
         def __init__(self, *args):
             ...
-            self.fiveg_n4 = N4Provides(charm=self, relation_name="fiveg_n4")
+            self.fiveg_n3 = N3Provides(charm=self, relation_name="fiveg_n3")
             ...
-            self.framework.observe(self.fiveg_n4.on.fiveg_n4_request, self._on_fiveg_n4_request)
+            self.framework.observe(self.fiveg_n3.on.fiveg_n3_request, self._on_fiveg_n3_request)
 
-        def _on_fiveg_n4_request(self, event):
+        def _on_fiveg_n3_request(self, event):
             ...
-            self.fiveg_n4.publish_upf_n4_information(
+            self.fiveg_n3.publish_upf_information(
                 relation_id=event.relation_id,
-                upf_hostname=hostname,
-                upf_port=n4_port,
+                upf_ip_address=ip_address,
             )
     ```
 
     And a corresponding section in charm's `metadata.yaml`:
     ```
     provides:
-        fiveg_n4:  # Relation name
-            interface: fiveg_n4  # Relation interface
+        fiveg_n3:  # Relation name
+            interface: fiveg_n3  # Relation interface
     ```
 
-Charms that require the `fiveg_n4` relation should use `N4Requires`.
+Charms that require the `fiveg_n3` relation should use `N3Requires`.
 Typical usage of this class would look something like:
 
     ```python
     ...
-    from charms.sdcore_upf.v0.fiveg_n4 import N4Requires
+    from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Requires
     ...
 
     class SomeRequirerCharm(CharmBase):
 
         def __init__(self, *args):
             ...
-            self.fiveg_n4 = N4Requires(charm=self, relation_name="fiveg_n4")
+            self.fiveg_n3 = N3Requires(charm=self, relation_name="fiveg_n3")
             ...
-            self.framework.observe(self.upf.on.fiveg_n4_available, self._on_fiveg_n4_available)
+            self.framework.observe(self.upf.on.fiveg_n3_available, self._on_fiveg_n3_available)
 
-        def _on_fiveg_n4_available(self, event):
-            upf_hostname = event.upf_hostname,
-            upf_port = event.upf_port,
-            # Do something with the UPF's hostname and port
+        def _on_fiveg_n3_available(self, event):
+            upf_ip_address = event.upf_ip_address
+            # Do something with the UPF's IP address
     ```
 
     And a corresponding section in charm's `metadata.yaml`:
     ```
     requires:
-        fiveg_n4:  # Relation name
-            interface: fiveg_n4  # Relation interface
+        fiveg_n3:  # Relation name
+            interface: fiveg_n3  # Relation interface
     ```
 """
 
@@ -88,24 +83,24 @@ import logging
 from interface_tester.schema_base import DataBagSchema  # type: ignore[import]
 from ops.charm import CharmBase, CharmEvents, RelationChangedEvent, RelationJoinedEvent
 from ops.framework import EventBase, EventSource, Object
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, IPvAnyAddress, ValidationError
 
 # The unique Charmhub library identifier, never change it
-LIBID = "bc6261cf77104d4fb3edfd6d4ea63149"
+LIBID = "93fa81e7726c4d14ba2b4834866bf30e"
 
 # Increment this major API version when introducing breaking changes
 LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 1
 
 PYDEPS = ["pydantic", "pytest-interface-tester"]
 
 
 logger = logging.getLogger(__name__)
 
-"""Schemas definition for the provider and requirer sides of the `fiveg_n4` interface.
+"""Schemas definition for the provider and requirer sides of the `fiveg_n3` interface.
 It exposes two interfaces.schema_base.DataBagSchema subclasses called:
 - ProviderSchema
 - RequirerSchema
@@ -113,8 +108,7 @@ Examples:
     ProviderSchema:
         unit: <empty>
         app: {
-            "upf_hostname": "upf.uplane-cloud.canonical.com",
-            "upf_port": 8805
+            "upf_ip_address": "1.2.3.4"
         }
     RequirerSchema:
         unit: <empty>
@@ -122,23 +116,16 @@ Examples:
 """
 
 
-class FivegN4ProviderAppData(BaseModel):
-    """Provider app data for fiveg_n4."""
+class ProviderAppData(BaseModel):
+    """Provider app data for fiveg_n3."""
 
-    upf_hostname: str = Field(
-        description="Name of the host exposing the UPF's N4 interface.",
-        examples=["upf.uplane-cloud.canonical.com"],
-    )
-    upf_port: int = Field(
-        description="Port on which UPF's N4 interface is exposed.",
-        examples=[8805],
-    )
+    upf_ip_address: IPvAnyAddress = Field(description="UPF IP address", examples=["1.2.3.4"])
 
 
 class ProviderSchema(DataBagSchema):
-    """Provider schema for fiveg_n4."""
+    """Provider schema for fiveg_n3."""
 
-    app: FivegN4ProviderAppData
+    app: ProviderAppData
 
 
 def data_matches_provider_schema(data: dict) -> bool:
@@ -158,8 +145,8 @@ def data_matches_provider_schema(data: dict) -> bool:
         return False
 
 
-class FiveGN4RequestEvent(EventBase):
-    """Dataclass for the `fiveg_n4` request event."""
+class FiveGN3RequestEvent(EventBase):
+    """Dataclass for the `fiveg_n3` request event."""
 
     def __init__(self, handle, relation_id: int):
         """Sets relation id."""
@@ -177,16 +164,16 @@ class FiveGN4RequestEvent(EventBase):
         self.relation_id = snapshot["relation_id"]
 
 
-class N4ProviderCharmEvents(CharmEvents):
-    """Custom events for the N4Provider."""
+class N3ProviderCharmEvents(CharmEvents):
+    """Custom events for the N3Provider."""
 
-    fiveg_n4_request = EventSource(FiveGN4RequestEvent)
+    fiveg_n3_request = EventSource(FiveGN3RequestEvent)
 
 
-class N4Provides(Object):
-    """Class to be instantiated by provider of the `fiveg_n4`."""
+class N3Provides(Object):
+    """Class to be instantiated by provider of the `fiveg_n3`."""
 
-    on = N4ProviderCharmEvents()
+    on = N3ProviderCharmEvents()
 
     def __init__(self, charm: CharmBase, relation_name: str):
         """Observes relation joined event.
@@ -200,27 +187,21 @@ class N4Provides(Object):
         super().__init__(charm, relation_name)
         self.framework.observe(charm.on[relation_name].relation_joined, self._on_relation_joined)
 
-    def publish_upf_n4_information(
-        self, relation_id: int, upf_hostname: str, upf_n4_port: int
-    ) -> None:
-        """Sets UPF's hostname and port in the relation data.
+    def publish_upf_information(self, relation_id: int, upf_ip_address: str) -> None:
+        """Sets UPF's IP address in the relation data.
 
         Args:
             relation_id (str): Relation ID
-            upf_hostname (str): UPF's hostname
-            upf_n4_port (int): Port on which UPF accepts N4 communication
+            upf_ip_address (str): UPF's IP address
         """
-        if not data_matches_provider_schema(
-            data={"upf_hostname": upf_hostname, "upf_port": upf_n4_port}
-        ):
-            raise ValueError(f"Invalid UPF N4 data: {upf_hostname}, {upf_n4_port}")
+        if not data_matches_provider_schema(data={"upf_ip_address": upf_ip_address}):
+            raise ValueError(f"Invalid UPF IP address: {upf_ip_address}")
         relation = self.model.get_relation(
             relation_name=self.relation_name, relation_id=relation_id
         )
         if not relation:
             raise RuntimeError(f"Relation {self.relation_name} not created yet.")
-        relation.data[self.charm.app]["upf_hostname"] = upf_hostname
-        relation.data[self.charm.app]["upf_port"] = str(upf_n4_port)
+        relation.data[self.charm.app]["upf_ip_address"] = upf_ip_address
 
     def _on_relation_joined(self, event: RelationJoinedEvent) -> None:
         """Triggered whenever a requirer charm joins the relation.
@@ -228,41 +209,36 @@ class N4Provides(Object):
         Args:
             event (RelationJoinedEvent): Juju event
         """
-        self.on.fiveg_n4_request.emit(relation_id=event.relation.id)
+        self.on.fiveg_n3_request.emit(relation_id=event.relation.id)
 
 
-class N4AvailableEvent(EventBase):
-    """Dataclass for the `fiveg_n4` available event."""
+class N3AvailableEvent(EventBase):
+    """Dataclass for the `fiveg_n3` available event."""
 
-    def __init__(self, handle, upf_hostname: str, upf_port: int):
-        """Sets UPF's hostname and port."""
+    def __init__(self, handle, upf_ip_address: str):
+        """Sets certificate."""
         super().__init__(handle)
-        self.upf_hostname = upf_hostname
-        self.upf_port = upf_port
+        self.upf_ip_address = upf_ip_address
 
     def snapshot(self) -> dict:
         """Returns event data."""
-        return {
-            "upf_hostname": self.upf_hostname,
-            "upf_port": self.upf_port,
-        }
+        return {"upf_ip_address": self.upf_ip_address}
 
     def restore(self, snapshot):
         """Restores event data."""
-        self.upf_hostname = snapshot["upf_hostname"]
-        self.upf_port = snapshot["upf_port"]
+        self.upf_ip_address = snapshot["upf_ip_address"]
 
 
-class N4RequirerCharmEvents(CharmEvents):
-    """Custom events for the N4Requirer."""
+class N3RequirerCharmEvents(CharmEvents):
+    """Custom events for the N3Requirer."""
 
-    fiveg_n4_available = EventSource(N4AvailableEvent)
+    fiveg_n3_available = EventSource(N3AvailableEvent)
 
 
-class N4Requires(Object):
-    """Class to be instantiated by requirer of the `fiveg_n4`."""
+class N3Requires(Object):
+    """Class to be instantiated by requirer of the `fiveg_n3`."""
 
-    on = N4RequirerCharmEvents()
+    on = N3RequirerCharmEvents()
 
     def __init__(self, charm: CharmBase, relation_name: str):
         """Observes relation joined and relation changed events.
@@ -284,7 +260,6 @@ class N4Requires(Object):
             event (RelationChangedEvent): Juju event
         """
         relation_data = event.relation.data
-        upf_hostname = relation_data[event.app].get("upf_hostname")  # type: ignore[index]
-        upf_port = relation_data[event.app].get("upf_port")  # type: ignore[index]
-        if upf_hostname and upf_port:
-            self.on.fiveg_n4_available.emit(upf_hostname=upf_hostname, upf_port=upf_port)
+        upf_ip_address = relation_data[event.app].get("upf_ip_address")  # type: ignore[index]
+        if upf_ip_address:
+            self.on.fiveg_n3_available.emit(upf_ip_address=upf_ip_address)

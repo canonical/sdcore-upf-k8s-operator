@@ -1,4 +1,4 @@
-# SD-Core UPF Operator for K8s
+# SD-Core UPF Operator (k8s)
 [![CharmHub Badge](https://charmhub.io/sdcore-upf-k8s/badge.svg)](https://charmhub.io/sdcore-upf-k8s)
 
 Charmed Operator for SD-Core's User Plane Function (UPF) for K8s. For more information, read [here](https://github.com/omec-project/upf).
