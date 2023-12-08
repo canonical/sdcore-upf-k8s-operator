@@ -344,15 +344,7 @@ class UPFOperatorCharm(CharmBase):
         """
         access_nad_config = self._get_access_nad_base_config()
         access_nad_config["ipam"].update(
-            {
-                "addresses": [{"address": self._get_access_network_ip_config()}],
-                "routes": [
-                    {
-                        "dst": self._get_gnb_subnet_config(),
-                        "gw": self._get_access_network_gateway_ip_config(),
-                    }
-                ],
-            }
+            {"addresses": [{"address": self._get_access_network_ip_config()}]}
         )
         if access_interface := self._get_access_interface_config():
             access_nad_config.update({"type": "macvlan", "master": access_interface})
@@ -559,6 +551,7 @@ class UPFOperatorCharm(CharmBase):
             self._write_bessd_config_file(content=content)
             restart = True
         self._create_default_route()
+        self._create_ran_route()
         if not self._ip_tables_rule_exists():
             self._create_ip_tables_rule()
         plan = self._bessd_container.get_plan()
@@ -700,6 +693,13 @@ class UPFOperatorCharm(CharmBase):
             command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
         )
         logger.info("Default core network route created")
+
+    def _create_ran_route(self) -> None:
+        """Creates ip route towards gnb-subnet."""
+        self._exec_command_in_bessd_workload(
+            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_access_network_gateway_ip_config()}"  # noqa: E501
+        )
+        logger.info("Route to gnb-subnet created")
 
     def _ip_tables_rule_exists(self) -> bool:
         """Returns whether iptables rule already exists using the `--check` parameter.

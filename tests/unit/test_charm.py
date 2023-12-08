@@ -262,6 +262,7 @@ class TestCharm(unittest.TestCase):
         ip_route_replace_called = False
         timeout = 0
         environment = {}
+        replace_gnb_subnet_route_cmd = ["ip", "route", "replace", GNB_SUBNET, "via", ACCESS_GW_IP]
 
         def ip_handler(args: testing.ExecArgs) -> testing.ExecResult:
             nonlocal ip_route_replace_called
@@ -272,8 +273,12 @@ class TestCharm(unittest.TestCase):
             environment = args.environment
             return testing.ExecResult(exit_code=0)
 
-        ip_cmd = ["ip", "route", "replace", "default", "via", CORE_GW_IP, "metric", "110"]
-        self.harness.handle_exec("bessd", ip_cmd, handler=ip_handler)
+        replace_default_route_cmd = [
+            "ip", "route", "replace", "default", "via", CORE_GW_IP, "metric", "110"
+        ]
+
+        self.harness.handle_exec("bessd", replace_default_route_cmd, handler=ip_handler)
+        self.harness.handle_exec("bessd", replace_gnb_subnet_route_cmd, result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
         self.harness.handle_exec("bessd", ["/opt/bess/bessctl/bessctl"], result=0)
         patch_is_ready.return_value = True
@@ -281,6 +286,40 @@ class TestCharm(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="bessd")
 
         self.assertTrue(ip_route_replace_called)
+        self.assertEqual(timeout, 30)
+        self.assertEqual(environment, {})
+
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_gnb_subnet_route_is_created(
+        self, patch_is_ready
+    ):
+        gnb_subnet_route_replace_called = False
+        timeout = 0
+        environment = {}
+        replace_default_route_cmd = [
+            "ip", "route", "replace", "default", "via", CORE_GW_IP, "metric", "110"
+        ]
+
+        def ip_handler(args: testing.ExecArgs) -> testing.ExecResult:
+            nonlocal gnb_subnet_route_replace_called
+            nonlocal timeout
+            nonlocal environment
+            gnb_subnet_route_replace_called = True
+            timeout = args.timeout
+            environment = args.environment
+            return testing.ExecResult(exit_code=0)
+
+        replace_gnb_subnet_route_cmd = ["ip", "route", "replace", GNB_SUBNET, "via", ACCESS_GW_IP]
+
+        self.harness.handle_exec("bessd", replace_gnb_subnet_route_cmd, handler=ip_handler)
+        self.harness.handle_exec("bessd", replace_default_route_cmd, result=0)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", ["/opt/bess/bessctl/bessctl"], result=0)
+        patch_is_ready.return_value = True
+
+        self.harness.container_pebble_ready(container_name="bessd")
+
+        self.assertTrue(gnb_subnet_route_replace_called)
         self.assertEqual(timeout, 30)
         self.assertEqual(environment, {})
 

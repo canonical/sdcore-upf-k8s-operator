@@ -4,6 +4,7 @@ flake8-docstrings
 flake8-builtins
 isort
 juju
+macaroonbakery==1.3.2
 mypy
 pep8-naming
 pyproject-flake8
