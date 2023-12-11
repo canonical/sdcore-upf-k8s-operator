@@ -8,7 +8,7 @@ from unittest.mock import Mock, call, patch
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     NetworkAttachmentDefinition,
 )
-from lightkube.models.core_v1 import ServicePort, ServiceSpec
+from lightkube.models.core_v1 import Node, NodeStatus, ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import testing
@@ -781,6 +781,38 @@ class TestCharm(unittest.TestCase):
 
         with self.assertRaises(IncompatibleCPUError):
             self.harness.update_config(key_values={"enable-hugepages": True})
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.list")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_maintenance_status(  # noqa: E501
+        self, patch_hugepages_is_patched, patch_list, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = False
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patch_list.return_value = [Node(status=NodeStatus(capacity={"hugepages-1Gi": "3Gi"}))]
+
+        self.harness.update_config(key_values={"enable-hugepages": True})
+
+        self.assertEqual(self.harness.model.unit.status, MaintenanceStatus())
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.list")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_cpu_supporting_required_hugepages_instructions_and_not_available_hugepages_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
+        self, patch_hugepages_is_patched, patch_list, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = False
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patch_list.return_value = [Node(status=NodeStatus(capacity={"hugepages-1Gi": "1Gi"}))]
+
+        self.harness.update_config(key_values={"enable-hugepages": True})
+
+        self.assertEqual(
+            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+        )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(  # noqa: E501
