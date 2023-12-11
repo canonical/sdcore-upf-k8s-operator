@@ -3,8 +3,8 @@
 
 import logging
 
-from charms.sdcore_upf.v0.fiveg_n3 import N3Provides
-from charms.sdcore_upf.v0.fiveg_n4 import N4Provides
+from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
+from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from ops.charm import CharmBase
 from ops.main import main
 

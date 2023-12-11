@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the SD-Core UPF service."""
+"""Charmed operator for the SD-Core UPF service for K8s."""
 
 import ipaddress
 import json
@@ -23,8 +23,8 @@ from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import
 from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
-from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
-from charms.sdcore_upf.v0.fiveg_n4 import N4Provides  # type: ignore[import]
+from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides  # type: ignore[import]
+from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
@@ -82,7 +82,7 @@ class UpfOperatorCharmEvents(CharmEvents):
 
 
 class UPFOperatorCharm(CharmBase):
-    """Main class to describe juju event handling for the 5G UPF operator."""
+    """Main class to describe juju event handling for the 5G UPF operator for K8s."""
 
     on = UpfOperatorCharmEvents()
 
