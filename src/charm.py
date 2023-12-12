@@ -807,11 +807,16 @@ class UPFOperatorCharm(CharmBase):
 
     @staticmethod
     def _hugepages_are_available() -> bool:
+        """Checks whether HugePages are available in the K8S nodes.
+
+        Returns:
+            bool: Whether HugePages are available in the K8S nodes
+        """
         client = Client()
         nodes = client.list(Node)
         if not nodes:
             return False
-        return all([node.status.capacity.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])
+        return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])
 
     def _get_access_nad_config(self) -> Dict[Any, Any]:
         """Get access interface NAD config.

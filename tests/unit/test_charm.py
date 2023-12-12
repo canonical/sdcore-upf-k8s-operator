@@ -791,7 +791,7 @@ class TestCharm(unittest.TestCase):
     ):
         patch_hugepages_is_patched.return_value = False
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patch_list.return_value = [Node(status=NodeStatus(capacity={"hugepages-1Gi": "3Gi"}))]
+        patch_list.return_value = [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))]
 
         self.harness.update_config(key_values={"enable-hugepages": True})
 
@@ -806,7 +806,7 @@ class TestCharm(unittest.TestCase):
     ):
         patch_hugepages_is_patched.return_value = False
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patch_list.return_value = [Node(status=NodeStatus(capacity={"hugepages-1Gi": "1Gi"}))]
+        patch_list.return_value = [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))]
 
         self.harness.update_config(key_values={"enable-hugepages": True})
 
