@@ -4,7 +4,6 @@ options:
     default: af_packet
     description: |
       Either `af_packet` (default) or `dpdk`.
-      Please see README.md to learn about all required parameters.
   dnn:
     type: string
     default: internet
@@ -65,4 +64,6 @@ options:
   enable-hugepages:
     type: boolean
     default: false
-    description: When enabled, HugePages of 1Gi will be used for a total of 2Gi HugePages.
+    description: |
+      When enabled, HugePages of 1Gi will be used for a total of 2Gi HugePages.
+      HugePages must be enabled if `upf-mode` is `dpdk`.
