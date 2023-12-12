@@ -2,7 +2,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Charmed operator for the SD-Core UPF service."""
+"""Charmed operator for the SD-Core UPF service for K8s."""
 
 import ipaddress
 import json
@@ -21,14 +21,11 @@ from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
-from charms.observability_libs.v1.kubernetes_service_patch import (  # type: ignore[import]
-    KubernetesServicePatch,
-)
 from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
-from charms.sdcore_upf.v0.fiveg_n3 import N3Provides  # type: ignore[import]
-from charms.sdcore_upf.v0.fiveg_n4 import N4Provides  # type: ignore[import]
+from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides  # type: ignore[import]
+from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides  # type: ignore[import]
 from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
@@ -90,7 +87,7 @@ class UpfOperatorCharmEvents(CharmEvents):
 
 
 class UPFOperatorCharm(CharmBase):
-    """Main class to describe juju event handling for the 5G UPF operator."""
+    """Main class to describe juju event handling for the 5G UPF operator for K8s."""
 
     on = UpfOperatorCharmEvents()
 
@@ -119,12 +116,7 @@ class UPFOperatorCharm(CharmBase):
                 }
             ],
         )
-        self._service_patcher = KubernetesServicePatch(
-            charm=self,
-            ports=[
-                ServicePort(name="prometheus-exporter", port=PROMETHEUS_PORT),
-            ],
-        )
+        self.unit.set_ports(PROMETHEUS_PORT)
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
@@ -537,11 +529,13 @@ class UPFOperatorCharm(CharmBase):
         Writes configuration file, creates routes, creates iptable rule and pebble layer.
         """
         restart = False
+        core_ip_address = self._get_core_network_ip_config()
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=self._get_upf_mode(),  # type: ignore[arg-type]
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
+            core_ip_address=core_ip_address.split("/")[0] if core_ip_address else "",
             dnn=self._get_dnn_config(),  # type: ignore[arg-type]
             pod_share_path=POD_SHARE_PATH,
         )
@@ -608,14 +602,16 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool:   True/False
         """
-        return self._bessd_container.exists(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}"
-        )
+        return self._bessd_container.exists(path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}")
 
     def _create_bessctl_executed_validation_file(self, content) -> None:
-        """This creates BESSCTL_CONFIGURE_EXECUTED_FILE_NAME under BESSD_CONTAINER_CONFIG_PATH."""
+        """Create BESSCTL_CONFIGURE_EXECUTED_FILE_NAME.
+
+        This must be created outside of the persistent storage volume so that
+        on container restart, bessd configuration will run again.
+        """
         self._bessd_container.push(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
+            path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
             source=content,
         )
         logger.info("Pushed %s configuration check file", BESSCTL_CONFIGURE_EXECUTED_FILE_NAME)
@@ -1091,6 +1087,7 @@ def render_bessd_config_file(
     upf_mode: str,
     access_interface_name: str,
     core_interface_name: str,
+    core_ip_address: Optional[str],
     dnn: str,
     pod_share_path: str,
 ) -> str:
@@ -1101,6 +1098,7 @@ def render_bessd_config_file(
         upf_mode: UPF mode
         access_interface_name: Access network interface name
         core_interface_name: Core network interface name
+        core_ip_address: Core network IP address
         dnn: Data Network Name (DNN)
         pod_share_path: pod_share path
     """
@@ -1111,6 +1109,7 @@ def render_bessd_config_file(
         mode=upf_mode,
         access_interface_name=access_interface_name,
         core_interface_name=core_interface_name,
+        core_ip_address=core_ip_address,
         dnn=dnn,
         pod_share_path=pod_share_path,
     )

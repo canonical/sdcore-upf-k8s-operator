@@ -74,16 +74,13 @@ def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) ->
 
 class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient")
-    @patch(
-        "charm.KubernetesServicePatch",
-        lambda charm, ports: None,
-    )
     def setUp(self, patch_k8s_client):
         self.namespace = "whatever"
         self.harness = testing.Harness(UPFOperatorCharm)
         self.harness.set_model_name(name=self.namespace)
         self.harness.set_leader(is_leader=True)
 
+        self.maxDiff = None
         self.root = self.harness.get_filesystem_root("bessd")
         (self.root / "etc/bess/conf").mkdir(parents=True)
         self.addCleanup(self.harness.cleanup)
@@ -182,7 +179,7 @@ class TestCharm(unittest.TestCase):
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.container_pebble_ready(container_name="bessd")
 
-        expected_config_file_content = read_file("tests/unit/expected_upf.json")
+        expected_config_file_content = read_file("tests/unit/expected_upf.json").strip()
 
         self.assertEqual(
             (self.root / "etc/bess/conf/upf.json").read_text(), expected_config_file_content
@@ -198,7 +195,7 @@ class TestCharm(unittest.TestCase):
         self.harness.add_storage(storage_name="config", count=1)
         self.harness.attach_storage(storage_id="config/0")
 
-        expected_config_file_content = read_file("tests/unit/expected_upf.json")
+        expected_config_file_content = read_file("tests/unit/expected_upf.json").strip()
 
         self.assertEqual(
             (self.root / "etc/bess/conf/upf.json").read_text(), expected_config_file_content
@@ -211,7 +208,7 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.handle_exec("bessd", [], result=0)
         patch_is_ready.return_value = True
-        expected_upf_content = read_file("tests/unit/expected_upf.json")
+        expected_upf_content = read_file("tests/unit/expected_upf.json").strip()
         (self.root / "etc/bess/conf/upf.json").write_text(expected_upf_content)
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -443,7 +440,7 @@ class TestCharm(unittest.TestCase):
     def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
         self, patch_is_ready
     ):
-        (self.root / "etc/bess/conf/bessctl_configure_executed").write_text("")
+        (self.root / "bessctl_configure_executed").write_text("")
 
         bessctl_called = False
 
@@ -582,7 +579,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
     def test_given_fiveg_n3_relation_created_when_fiveg_n3_request_then_upf_ip_address_is_published(  # noqa: E501
         self,
         patched_publish_upf_information,
@@ -599,7 +596,7 @@ class TestCharm(unittest.TestCase):
             relation_id=n3_relation_id, upf_ip_address=test_upf_access_ip_cidr.split("/")[0]
         )
 
-    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
     def test_given_unit_is_not_leader_when_fiveg_n3_request_then_upf_ip_address_is_not_published(
         self, patched_publish_upf_information
     ):
@@ -613,7 +610,7 @@ class TestCharm(unittest.TestCase):
         patched_publish_upf_information.assert_not_called()
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_then_new_upf_ip_address_is_published(  # noqa: E501
@@ -639,7 +636,7 @@ class TestCharm(unittest.TestCase):
 
         patched_publish_upf_information.assert_has_calls(expected_calls)
 
-    @patch("charms.sdcore_upf.v0.fiveg_n3.N3Provides.publish_upf_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_to_invalid_cidr_then_new_upf_ip_address_is_not_published(  # noqa: E501
         self, patch_multus_is_ready, patched_publish_upf_information
@@ -658,7 +655,7 @@ class TestCharm(unittest.TestCase):
             relation_id=n3_relation_id, upf_ip_address="192.168.252.3"
         )
 
-    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     def test_given_unit_is_not_leader_when_fiveg_n4_request_then_upf_hostname_is_not_published(
         self, patched_publish_upf_n4_information
     ):
@@ -674,7 +671,7 @@ class TestCharm(unittest.TestCase):
         patched_publish_upf_n4_information.assert_not_called()
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
     def test_given_external_upf_hostname_config_set_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self,
@@ -698,7 +695,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
-    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
     def test_given_external_upf_hostname_config_not_set_but_external_upf_service_hostname_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
@@ -724,7 +721,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
-    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
     def test_given_external_upf_hostname_config_not_set_and_external_upf_service_hostname_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
@@ -744,7 +741,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
-    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
     def test_given_external_upf_hostname_config_not_set_and_metallb_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
@@ -762,7 +759,7 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
-    @patch("charms.sdcore_upf.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
+    @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
