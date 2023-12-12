@@ -39,3 +39,4 @@ If a load balancer such as `metallb` is present, the charm will configure an ext
 - **bessd**: ghcr.io/canonical/sdcore-upf-bess:1.3
 - **routectl**: ghcr.io/canonical/sdcore-upf-bess:1.3
 - **pfcp-agent**: ghcr.io/canonical/sdcore-upf-pfcpiface:1.3
+
