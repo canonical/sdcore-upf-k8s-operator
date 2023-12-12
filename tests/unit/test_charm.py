@@ -271,7 +271,14 @@ class TestCharm(unittest.TestCase):
             return testing.ExecResult(exit_code=0)
 
         replace_default_route_cmd = [
-            "ip", "route", "replace", "default", "via", CORE_GW_IP, "metric", "110"
+            "ip",
+            "route",
+            "replace",
+            "default",
+            "via",
+            CORE_GW_IP,
+            "metric",
+            "110",
         ]
 
         self.harness.handle_exec("bessd", replace_default_route_cmd, handler=ip_handler)
@@ -294,7 +301,14 @@ class TestCharm(unittest.TestCase):
         timeout = 0
         environment = {}
         replace_default_route_cmd = [
-            "ip", "route", "replace", "default", "via", CORE_GW_IP, "metric", "110"
+            "ip",
+            "route",
+            "replace",
+            "default",
+            "via",
+            CORE_GW_IP,
+            "metric",
+            "110",
         ]
 
         def ip_handler(args: testing.ExecArgs) -> testing.ExecResult:
