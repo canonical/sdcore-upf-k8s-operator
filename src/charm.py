@@ -136,6 +136,7 @@ class UPFOperatorCharm(CharmBase):
             hugepages_volumes_func=self._volumes_request_func_from_config,
             refresh_event=self.on.hugepages_volumes_config_changed,
         )
+        self.framework.observe(self.on.update_status, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.config_storage_attached, self._on_bessd_pebble_ready)

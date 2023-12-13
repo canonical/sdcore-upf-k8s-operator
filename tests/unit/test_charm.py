@@ -791,11 +791,17 @@ class TestCharm(unittest.TestCase):
     ):
         patch_hugepages_is_patched.return_value = True
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patch_list.side_effect = [[Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))], []]
+        patch_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+        ]
 
         self.harness.update_config(key_values={"enable-hugepages": True})
 
-        self.assertEqual(self.harness.model.unit.status, WaitingStatus("Waiting for bessd container to be ready"))
+        self.assertEqual(
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for bessd container to be ready"),
+        )
 
     @patch("charm.check_output")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
@@ -812,6 +818,34 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(
             self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+        )
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.list")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_hugepages_not_available_then_hugepages_available_when_update_status_then_charm_goes_to_waiting_status(  # noqa: E501
+        self, patch_hugepages_is_patched, patch_list, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = True
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patch_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "2Gi"}))],
+            [],
+        ]
+
+        self.harness.update_config(key_values={"enable-hugepages": True})
+
+        self.assertEqual(
+            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+        )
+
+        self.harness.charm.on.update_status.emit()
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for bessd container to be ready"),
         )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
