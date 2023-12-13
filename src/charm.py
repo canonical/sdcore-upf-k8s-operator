@@ -377,7 +377,7 @@ class UPFOperatorCharm(CharmBase):
                 )
             if not self._hugepages_are_available():
                 self.unit.status = BlockedStatus("Not enough HugePages available")
-            return
+                return
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"

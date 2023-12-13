@@ -786,16 +786,16 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_maintenance_status(  # noqa: E501
+    def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_waiting_status(  # noqa: E501
         self, patch_hugepages_is_patched, patch_list, patched_check_output
     ):
-        patch_hugepages_is_patched.return_value = False
+        patch_hugepages_is_patched.return_value = True
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patch_list.return_value = [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))]
+        patch_list.side_effect = [[Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))], []]
 
         self.harness.update_config(key_values={"enable-hugepages": True})
 
-        self.assertEqual(self.harness.model.unit.status, MaintenanceStatus())
+        self.assertEqual(self.harness.model.unit.status, WaitingStatus("Waiting for bessd container to be ready"))
 
     @patch("charm.check_output")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
