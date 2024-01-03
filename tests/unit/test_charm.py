@@ -794,6 +794,7 @@ class TestCharm(unittest.TestCase):
         patch_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
+            [],
         ]
 
         self.harness.update_config(key_values={"enable-hugepages": True})
@@ -833,6 +834,7 @@ class TestCharm(unittest.TestCase):
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "2Gi"}))],
             [],
+            [],
         ]
 
         self.harness.update_config(key_values={"enable-hugepages": True})
@@ -841,6 +843,27 @@ class TestCharm(unittest.TestCase):
             self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
         )
 
+        self.harness.charm.on.update_status.emit()
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for bessd container to be ready"),
+        )
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.multus_is_available")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_multus_disabled_then_enabled_when_update_status_then_status_is_active(
+        self, patch_hugepages_is_patched, patch_multus_available, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = True
+        patch_multus_available.side_effect = [False, True]
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        self.harness.charm.on.update_status.emit()
+        self.assertEqual(
+            self.harness.model.unit.status, BlockedStatus("Multus is not installed or enabled")
+        )
         self.harness.charm.on.update_status.emit()
 
         self.assertEqual(
