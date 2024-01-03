@@ -75,7 +75,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 logger = logging.getLogger(__name__)
 
@@ -215,11 +215,11 @@ class KubernetesClient:
         Returns:
             bool: Whether the StatefulSet contains the given volumes.
         """
-        if not statefulset_spec.template.spec.volumes:
+        if not statefulset_spec.template.spec.volumes:  # type: ignore[union-attr]
             return False
         return all(
             [
-                requested_volume in statefulset_spec.template.spec.volumes
+                requested_volume in statefulset_spec.template.spec.volumes  # type: ignore[union-attr]  # noqa E501
                 for requested_volume in requested_volumes
             ]
         )
@@ -243,7 +243,7 @@ class KubernetesClient:
         container = self._get_container(container_name=container_name, containers=containers)
         return all(
             [
-                requested_volumemount in container.volumeMounts
+                requested_volumemount in container.volumeMounts  # type: ignore[operator]
                 for requested_volumemount in requested_volumemounts
             ]
         )
@@ -267,15 +267,15 @@ class KubernetesClient:
         container = self._get_container(container_name=container_name, containers=containers)
         if requested_resources.limits:
             for limit, value in requested_resources.limits.items():
-                if not container.resources.limits:
+                if not container.resources.limits:  # type: ignore[union-attr]
                     return False
-                if container.resources.limits.get(limit) != value:
+                if container.resources.limits.get(limit) != value:  # type: ignore[union-attr]
                     return False
         if requested_resources.requests:
             for request, value in requested_resources.requests.items():
-                if not container.resources.requests:
+                if not container.resources.requests:  # type: ignore[union-attr]
                     return False
-                if container.resources.requests.get(request) != value:
+                if container.resources.requests.get(request) != value:  # type: ignore[union-attr]
                     return False
         return True
 
@@ -368,7 +368,7 @@ class KubernetesClient:
             )
         containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
         container = self._get_container(container_name=container_name, containers=containers)
-        return container.volumeMounts
+        return container.volumeMounts  # type: ignore[return-value]
 
     def list_container_resources(
         self, statefulset_name: str, container_name: str
@@ -398,7 +398,7 @@ class KubernetesClient:
             Container
         ] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
         container = self._get_container(container_name=container_name, containers=containers)
-        return container.resources
+        return container.resources  # type: ignore[return-value]
 
 
 class KubernetesHugePagesPatchCharmLib(Object):
@@ -672,8 +672,8 @@ class KubernetesHugePagesPatchCharmLib(Object):
             if current_resources.requests
             else {}
         )
-        new_limits = dict(new_limits.items() | additional_resources.limits.items())
-        new_requests = dict(new_requests.items() | additional_resources.requests.items())
+        new_limits = dict(new_limits.items() | additional_resources.limits.items())  # type: ignore[union-attr]  # noqa E501
+        new_requests = dict(new_requests.items() | additional_resources.requests.items())  # type: ignore[union-attr]  # noqa E501
         new_resources = ResourceRequirements(
             limits=new_limits, requests=new_requests, claims=current_resources.claims
         )
