@@ -817,7 +817,7 @@ class UPFOperatorCharm(CharmBase):
         nodes = client.list(Node)
         if not nodes:
             return False
-        return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])
+        return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
 
     def _get_access_nad_config(self) -> Dict[Any, Any]:
         """Get access interface NAD config.
