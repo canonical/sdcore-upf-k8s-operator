@@ -379,6 +379,9 @@ class UPFOperatorCharm(CharmBase):
             if not self._hugepages_are_available():
                 self.unit.status = BlockedStatus("Not enough HugePages available")
                 return
+        if not self._kubernetes_multus.multus_is_available():
+            self.unit.status = BlockedStatus("Multus is not installed or enabled")
+            return
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
                 f"The following configurations are not valid: {invalid_configs}"
