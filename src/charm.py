@@ -9,8 +9,9 @@ import json
 import logging
 import time
 from subprocess import check_output
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
+import macaddress  # type: ignore[import]
 from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (  # type: ignore[import]
     HugePagesVolume,
     KubernetesHugePagesPatchCharmLib,
@@ -37,6 +38,8 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
+from dpdk import DPDK
+
 logger = logging.getLogger(__name__)
 
 BESSD_CONTAINER_CONFIG_PATH = "/etc/bess/conf"
@@ -48,14 +51,16 @@ ACCESS_INTERFACE_NAME = "access"
 CORE_INTERFACE_NAME = "core"
 ACCESS_INTERFACE_BRIDGE_NAME = "access-br"
 CORE_INTERFACE_BRIDGE_NAME = "core-br"
+DPDK_ACCESS_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_vfio_access"
+DPDK_CORE_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_vfio_core"
 CONFIG_FILE_NAME = "upf.json"
 BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
-UPF_MODE = "af_packet"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 REQUIRED_CPU_EXTENSIONS_HUGEPAGES = ["pdpe1gb"]
+SUPPORTED_UPF_MODES = ["af_packet", "dpdk"]
 
 # The default field manager set when using kubectl to create resources
 DEFAULT_FIELD_MANAGER = "controller"
@@ -117,16 +122,7 @@ class UPFOperatorCharm(CharmBase):
             charm=self,
             container_name=self._bessd_container_name,
             cap_net_admin=True,
-            network_annotations=[
-                NetworkAnnotation(
-                    name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                    interface=ACCESS_INTERFACE_NAME,
-                ),
-                NetworkAnnotation(
-                    name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-                    interface=CORE_INTERFACE_NAME,
-                ),
-            ],
+            network_annotations_func=self._generate_network_annotations,
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
             refresh_event=self.on.nad_config_changed,
         )
@@ -298,38 +294,153 @@ class UPFOperatorCharm(CharmBase):
             return [HugePagesVolume(mount_path="/dev/hugepages", size="1Gi", limit="2Gi")]
         return []
 
-    def _network_attachment_definitions_from_config(
-        self,
-    ) -> list[NetworkAttachmentDefinition]:
+    def _generate_network_annotations(self) -> List[NetworkAnnotation]:
+        """Generates a list of NetworkAnnotations to be used by UPF's StatefulSet.
+
+        Returns:
+            List[NetworkAnnotation]: List of NetworkAnnotations
+        """
+        access_network_annotation = NetworkAnnotation(
+            name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+            interface=ACCESS_INTERFACE_NAME,
+        )
+        core_network_annotation = NetworkAnnotation(
+            name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+            interface=CORE_INTERFACE_NAME,
+        )
+        if self._get_upf_mode() == "dpdk":
+            access_network_annotation.mac = self._get_access_interface_mac_address()
+            access_network_annotation.ips = [self._get_access_network_ip_config()]
+            core_network_annotation.mac = self._get_core_interface_mac_address()
+            core_network_annotation.ips = [self._get_core_network_ip_config()]
+        return [access_network_annotation, core_network_annotation]
+
+    def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
         """Returns list of Multus NetworkAttachmentDefinitions to be created based on config.
 
         Returns:
             network_attachment_definitions: list[NetworkAttachmentDefinition]
         """
-        access_nad_config = self._get_access_nad_config()
+        if self._get_upf_mode() == "dpdk":
+            access_nad = self._create_dpdk_access_nad_from_config()
+            core_nad = self._create_dpdk_core_nad_from_config()
+        else:
+            access_nad = self._create_access_nad_from_config()
+            core_nad = self._create_core_nad_from_config()
 
+        return [access_nad, core_nad]
+
+    def _create_access_nad_from_config(self) -> NetworkAttachmentDefinition:
+        """Returns a NetworkAttachmentDefinition for the Access interface.
+
+        Returns:
+            NetworkAttachmentDefinition: NetworkAttachmentDefinition object
+        """
+        access_nad_config = self._get_access_nad_base_config()
+        access_nad_config["ipam"].update(
+            {"addresses": [{"address": self._get_access_network_ip_config()}]}
+        )
         if access_interface := self._get_access_interface_config():
             access_nad_config.update({"type": "macvlan", "master": access_interface})
         else:
             access_nad_config.update({"type": "bridge", "bridge": ACCESS_INTERFACE_BRIDGE_NAME})
 
-        core_nad_config = self._get_core_nad_config()
+        return NetworkAttachmentDefinition(
+            metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
+            spec={"config": json.dumps(access_nad_config)},
+        )
 
+    def _create_core_nad_from_config(self) -> NetworkAttachmentDefinition:
+        """Returns a NetworkAttachmentDefinition for the Core interface.
+
+        Returns:
+            NetworkAttachmentDefinition: NetworkAttachmentDefinition object
+        """
+        core_nad_config = self._get_core_nad_base_config()
+        core_nad_config["ipam"].update(
+            {"addresses": [{"address": self._get_core_network_ip_config()}]}
+        )
         if core_interface := self._get_core_interface_config():
             core_nad_config.update({"type": "macvlan", "master": core_interface})
         else:
             core_nad_config.update({"type": "bridge", "bridge": CORE_INTERFACE_BRIDGE_NAME})
 
-        return [
-            NetworkAttachmentDefinition(
-                metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                spec={"config": json.dumps(access_nad_config)},
+        return NetworkAttachmentDefinition(
+            metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
+            spec={"config": json.dumps(core_nad_config)},
+        )
+
+    def _create_dpdk_access_nad_from_config(self) -> NetworkAttachmentDefinition:
+        """Returns a DPDK-compatible NetworkAttachmentDefinition for the Access interface.
+
+        Returns:
+            NetworkAttachmentDefinition: NetworkAttachmentDefinition object
+        """
+        access_nad_config = self._get_access_nad_base_config()
+        access_nad_config.update({"type": "vfioveth"})
+
+        return NetworkAttachmentDefinition(
+            metadata=ObjectMeta(
+                name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                annotations={
+                    "k8s.v1.cni.cncf.io/resourceName": DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
+                },
             ),
-            NetworkAttachmentDefinition(
-                metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
-                spec={"config": json.dumps(core_nad_config)},
+            spec={"config": json.dumps(access_nad_config)},
+        )
+
+    def _create_dpdk_core_nad_from_config(self) -> NetworkAttachmentDefinition:
+        """Returns a DPDK-compatible NetworkAttachmentDefinition for the Core interface.
+
+        Returns:
+            NetworkAttachmentDefinition: NetworkAttachmentDefinition object
+        """
+        core_nad_config = self._get_core_nad_base_config()
+        core_nad_config.update({"type": "vfioveth"})
+
+        return NetworkAttachmentDefinition(
+            metadata=ObjectMeta(
+                name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                annotations={
+                    "k8s.v1.cni.cncf.io/resourceName": DPDK_CORE_INTERFACE_RESOURCE_NAME,
+                },
             ),
-        ]
+            spec={"config": json.dumps(core_nad_config)},
+        )
+
+    def _get_access_nad_base_config(self) -> Dict[Any, Any]:
+        """Base Access NetworkAttachmentDefinition config to be extended according to charm config.
+
+        Returns:
+            config (dict): Base Access NAD config
+        """
+        base_access_nad_config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True},
+        }
+        if access_mtu := self._get_access_interface_mtu_config():
+            base_access_nad_config.update({"mtu": access_mtu})
+        return base_access_nad_config
+
+    def _get_core_nad_base_config(self) -> Dict[Any, Any]:
+        """Base Core NetworkAttachmentDefinition config to be extended according to charm config.
+
+        Returns:
+            config (dict): Base Core NAD config
+        """
+        base_core_nad_config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True},
+        }
+        if core_mtu := self._get_core_interface_mtu_config():
+            base_core_nad_config.update({"mtu": core_mtu})
+        return base_core_nad_config
 
     def _write_bessd_config_file(self, content: str) -> None:
         """Write the configuration file for the 5G UPF service.
@@ -389,6 +500,8 @@ class UPFOperatorCharm(CharmBase):
             return
         self.on.nad_config_changed.emit()
         self.on.hugepages_volumes_config_changed.emit()
+        if self._get_upf_mode() == "dpdk":
+            self._configure_bessd_for_dpdk()
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
             return
@@ -399,6 +512,11 @@ class UPFOperatorCharm(CharmBase):
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
         """Handle Pebble ready event."""
         if not self.unit.is_leader():
+            return
+        if invalid_configs := self._get_invalid_configs():
+            self.unit.status = BlockedStatus(
+                f"The following configurations are not valid: {invalid_configs}"
+            )
             return
         if not self._kubernetes_multus.is_ready():
             self.unit.status = WaitingStatus("Waiting for Multus to be ready")
@@ -429,7 +547,7 @@ class UPFOperatorCharm(CharmBase):
         core_ip_address = self._get_core_network_ip_config()
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
-            upf_mode=UPF_MODE,
+            upf_mode=self._get_upf_mode(),  # type: ignore[arg-type]
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
             core_ip_address=core_ip_address.split("/")[0] if core_ip_address else "",
@@ -442,6 +560,7 @@ class UPFOperatorCharm(CharmBase):
             self._write_bessd_config_file(content=content)
             restart = True
         self._create_default_route()
+        self._create_ran_route()
         if not self._ip_tables_rule_exists():
             self._create_ip_tables_rule()
         plan = self._bessd_container.get_plan()
@@ -479,6 +598,17 @@ class UPFOperatorCharm(CharmBase):
                 time.sleep(2)
         raise TimeoutError("Timed out trying to run configuration for bess")
 
+    def _configure_bessd_for_dpdk(self) -> None:
+        """Configures bessd container for DPDK."""
+        dpdk = DPDK(
+            statefulset_name=self.model.app.name,
+            namespace=self._namespace,
+            dpdk_access_interface_resource_name=DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
+            dpdk_core_interface_resource_name=DPDK_CORE_INTERFACE_RESOURCE_NAME,
+        )
+        if not dpdk.is_configured(container_name=self._bessd_container_name):
+            dpdk.configure(container_name=self._bessd_container_name)
+
     def _is_bessctl_executed(self) -> bool:
         """Check if BESSD_CONFIG_CHECK_FILE_NAME exists.
 
@@ -508,22 +638,64 @@ class UPFOperatorCharm(CharmBase):
             list: List of strings matching config keys.
         """
         invalid_configs = []
+        if not self._upf_mode_config_is_valid():
+            invalid_configs.append("upf-mode")
         if not self._get_dnn_config():
             invalid_configs.append("dnn")
-        if not self._access_ip_config_is_valid():
-            invalid_configs.append("access-ip")
-        if not self._core_ip_config_is_valid():
-            invalid_configs.append("core-ip")
-        if not self._access_gateway_ip_config_is_valid():
-            invalid_configs.append("access-gateway-ip")
-        if not self._core_gateway_ip_config_is_valid():
-            invalid_configs.append("core-gateway-ip")
+        if invalid_access_network_configs := self._get_invalid_access_network_configs():
+            invalid_configs.extend(invalid_access_network_configs)
+        if invalid_core_network_configs := self._get_invalid_core_network_configs():
+            invalid_configs.extend(invalid_core_network_configs)
         if not self._gnb_subnet_config_is_valid():
             invalid_configs.append("gnb-subnet")
+        if invalid_dpdk_configs := self._get_invalid_dpdk_configs():
+            invalid_configs.extend(invalid_dpdk_configs)
+        return invalid_configs
+
+    def _get_invalid_access_network_configs(self) -> list[str]:
+        """Returns list of invalid configurations related to the Access network.
+
+        Returns:
+            list: List of strings matching config keys.
+        """
+        invalid_configs = []
+        if not self._access_ip_config_is_valid():
+            invalid_configs.append("access-ip")
+        if not self._access_gateway_ip_config_is_valid():
+            invalid_configs.append("access-gateway-ip")
         if not self._access_interface_mtu_size_is_valid():
             invalid_configs.append("access-interface-mtu-size")
+        return invalid_configs
+
+    def _get_invalid_core_network_configs(self) -> list[str]:
+        """Returns list of invalid configurations related to the Core network.
+
+        Returns:
+            list: List of strings matching config keys.
+        """
+        invalid_configs = []
+        if not self._core_ip_config_is_valid():
+            invalid_configs.append("core-ip")
+        if not self._core_gateway_ip_config_is_valid():
+            invalid_configs.append("core-gateway-ip")
         if not self._core_interface_mtu_size_is_valid():
             invalid_configs.append("core-interface-mtu-size")
+        return invalid_configs
+
+    def _get_invalid_dpdk_configs(self) -> list[str]:
+        """Returns list of invalid configurations related to DPDK support.
+
+        Returns:
+            list: List of strings matching config keys.
+        """
+        invalid_configs = []
+        if self._get_upf_mode() == "dpdk":
+            if not self._hugepages_is_enabled():
+                invalid_configs.append("enable-hugepages")
+            if not self._access_interface_mac_address_is_valid():
+                invalid_configs.append("access-interface-mac-address")
+            if not self._core_interface_mac_address_is_valid():
+                invalid_configs.append("core-interface-mac-address")
         return invalid_configs
 
     def _create_default_route(self) -> None:
@@ -532,6 +704,13 @@ class UPFOperatorCharm(CharmBase):
             command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
         )
         logger.info("Default core network route created")
+
+    def _create_ran_route(self) -> None:
+        """Creates ip route towards gnb-subnet."""
+        self._exec_command_in_bessd_workload(
+            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_access_network_gateway_ip_config()}"  # noqa: E501
+        )
+        logger.info("Route to gnb-subnet created")
 
     def _ip_tables_rule_exists(self) -> bool:
         """Returns whether iptables rule already exists using the `--check` parameter.
@@ -666,6 +845,17 @@ class UPFOperatorCharm(CharmBase):
             "PYTHONUNBUFFERED": "1",
         }
 
+    def _get_upf_mode(self) -> Optional[str]:
+        return self.model.config.get("upf-mode")
+
+    def _upf_mode_config_is_valid(self) -> bool:
+        """Checks whether the `upf-mode` config is valid.
+
+        Returns:
+            bool: Whether the `upf-mode` config is valid
+        """
+        return self._get_upf_mode() in SUPPORTED_UPF_MODES
+
     def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
 
@@ -686,6 +876,25 @@ class UPFOperatorCharm(CharmBase):
     def _get_core_interface_config(self) -> Optional[str]:
         return self.model.config.get("core-interface")
 
+    def _get_core_interface_mac_address(self) -> Optional[str]:
+        """Reads the `core-interface-mac-address` charm config.
+
+        Returns:
+            Optional[str]: The `core-interface-mac-address` charm config
+        """
+        return self.model.config.get("core-interface-mac-address")
+
+    def _core_interface_mac_address_is_valid(self) -> bool:
+        """Checks whether the `core-interface-mac-address` config is valid.
+
+        Returns:
+            bool: Whether the `core-interface-mac-address` config is valid
+        """
+        core_iface_mac_address = self._get_core_interface_mac_address()
+        if not core_iface_mac_address:
+            return False
+        return mac_address_is_valid(core_iface_mac_address)
+
     def _access_ip_config_is_valid(self) -> bool:
         """Checks whether the access-ip config is valid.
 
@@ -702,6 +911,25 @@ class UPFOperatorCharm(CharmBase):
 
     def _get_access_interface_config(self) -> Optional[str]:
         return self.model.config.get("access-interface")
+
+    def _get_access_interface_mac_address(self) -> Optional[str]:
+        """Reads the `access-interface-mac-address` charm config.
+
+        Returns:
+            Optional[str]: The `access-interface-mac-address` charm config
+        """
+        return self.model.config.get("access-interface-mac-address")
+
+    def _access_interface_mac_address_is_valid(self) -> bool:
+        """Checks whether the `access-interface-mac-address` config is valid.
+
+        Returns:
+            bool: Whether the `access-interface-mac-address` config is valid
+        """
+        access_iface_mac_address = self._get_access_interface_mac_address()
+        if not access_iface_mac_address:
+            return False
+        return mac_address_is_valid(access_iface_mac_address)
 
     def _core_gateway_ip_config_is_valid(self) -> bool:
         """Checks whether the core-gateway-ip config is valid.
@@ -1004,6 +1232,35 @@ def ip_is_valid(ip_address: str) -> bool:
     """
     try:
         ipaddress.ip_network(ip_address, strict=False)
+        return True
+    except ValueError:
+        return False
+
+
+def ip_belongs_to_subnet(ip_address: str, subnet: str) -> bool:
+    """Checks whether given IP address belongs to a given subnet.
+
+    Args:
+        ip_address (str): IP address
+        subnet (str): Subnet address
+
+    Returns:
+        bool: True if given IP address belongs to a given subnet
+    """
+    return ipaddress.ip_address(ip_address) in ipaddress.ip_network(subnet, strict=False)
+
+
+def mac_address_is_valid(mac_address: str) -> bool:
+    """Check whether given MAC address is valid.
+
+    Args:
+        mac_address (str): MAC address
+
+    Returns:
+        bool: True if given MAC address is valid
+    """
+    try:
+        macaddress.MAC(mac_address)
         return True
     except ValueError:
         return False

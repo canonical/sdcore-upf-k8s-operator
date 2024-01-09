@@ -32,7 +32,28 @@ juju deploy sdcore-upf-k8s --trust --channel=edge
 
 ### Exposing the UPF externally
 
-If a load balancer such as `metallb` is present, the charm will configure an externally accessible service port with the load balancer upon install of the charm.
+If a load balancer such as `metallb` is present, the charm will configure an externally accessible 
+service port with the load balancer upon install of the charm.
+
+### Running UPF in DPDK mode
+
+By default, UPF runs in `af_packet` mode. To run UPF in `dpdk` mode, `upf-mode` config option 
+should be used, i.e.:
+
+```shell
+juju deploy sdcore-upf --trust --channel=edge --config upf-mode="dpdk" --config enable-hugepages=True --config access-interface-mac-address="00:b0:d0:63:c2:26" --config core-interface-mac-address="00:b0:d0:63:c2:36"
+```
+
+As shown in the example above, when running UPF in `dpdk` mode, it is necessary to enable
+HugePages and pass the MAC addresses of the `Access` and `Core` interfaces.
+
+```{note}
+Example command shown above assumes using default network configuration. If needed, network configs
+should be changed to match the actual configuration.
+```
+
+For detailed instructions on running UPF in `dpdk` mode please visit 
+[How-to: Running UPF in DPDK mode](https://canonical-charmed-5g.readthedocs-hosted.com/en/latest/how-to/running_upf_in_dpdk_mode/).
 
 ## Image
 
