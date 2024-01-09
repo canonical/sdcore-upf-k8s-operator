@@ -9,7 +9,7 @@ from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
-from lightkube.models.core_v1 import ServicePort, ServiceSpec
+from lightkube.models.core_v1 import Node, NodeStatus, ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import testing
@@ -122,9 +122,18 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.Client.list")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self,
+        self, patched_list, patched_check_output
     ):
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(key_values={"upf-mode": "dpdk", "enable-hugepages": True})
 
         self.assertEqual(
@@ -134,9 +143,18 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.Client.list")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_access_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self,
+        self, patched_list, patched_check_output
     ):
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -153,9 +171,18 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.Client.list")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_core_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self,
+        self, patched_list, patched_check_output
     ):
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -854,6 +881,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.Client.list")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -862,11 +890,16 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_2_nads_are_returned(  # noqa: E501
-        self, patch_get_service, kubernetes_create_object
+        self, patched_list, patch_get_service, kubernetes_create_object
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -881,6 +914,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.Client.list")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -889,11 +923,16 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_nad_type_is_vfioveth(  # noqa: E501
-        self, patch_get_service, kubernetes_create_object
+        self, patched_list, patch_get_service, kubernetes_create_object
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -913,6 +952,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.Client.list")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -921,11 +961,16 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_access_nad_has_valid_dpdk_access_resource_specified_in_annotations(  # noqa: E501
-        self, patch_get_service, kubernetes_create_object
+        self, patched_list, patch_get_service, kubernetes_create_object
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -963,6 +1008,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.Client.list")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -971,11 +1017,16 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(  # noqa: E501
-        self, patch_get_service, kubernetes_create_object
+        self, patched_list, patch_get_service, kubernetes_create_object
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -1222,6 +1273,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.Client.list")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -1230,11 +1282,16 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
-        self, patch_get_service, kubernetes_statefulset_patch
+        self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -1263,6 +1320,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.Client.list")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -1271,11 +1329,16 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
-        self, patch_get_service, kubernetes_statefulset_patch
+        self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -1317,6 +1380,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
+    @patch("lightkube.core.client.Client.list")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -1325,11 +1389,16 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
-        self, patch_get_service, kubernetes_statefulset_patch
+        self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(
             key_values={
                 "upf-mode": "dpdk",
@@ -1461,6 +1530,127 @@ class TestCharm(unittest.TestCase):
             )
             nad_config = json.loads(create_nad_call_args.get("obj").spec.get("config"))
             self.assertNotIn("mtu", nad_config)
+
+    @patch("charm.check_output")
+    @patch("charm.Client", new=Mock)
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_incompatiblecpuerror_is_raised(  # noqa: E501
+        self, patch_hugepages_is_patched, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = False
+        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
+
+        with self.assertRaises(IncompatibleCPUError):
+            self.harness.update_config(key_values={"enable-hugepages": True})
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.list")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_waiting_status(  # noqa: E501
+        self, patch_hugepages_is_patched, patch_list, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = True
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patch_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
+
+        self.harness.update_config(key_values={"enable-hugepages": True})
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for bessd container to be ready"),
+        )
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.list")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_cpu_supporting_required_hugepages_instructions_and_not_available_hugepages_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
+        self, patch_hugepages_is_patched, patch_list, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = False
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patch_list.return_value = [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))]
+
+        self.harness.update_config(key_values={"enable-hugepages": True})
+
+        self.assertEqual(
+            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+        )
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch("lightkube.core.client.Client.list")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_hugepages_not_available_then_hugepages_available_when_update_status_then_charm_goes_to_waiting_status(  # noqa: E501
+        self, patch_hugepages_is_patched, patch_list, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = True
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patch_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "2Gi"}))],
+            [],
+            [],
+        ]
+
+        self.harness.update_config(key_values={"enable-hugepages": True})
+
+        self.assertEqual(
+            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+        )
+
+        self.harness.charm.on.update_status.emit()
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for bessd container to be ready"),
+        )
+
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.multus_is_available")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_multus_disabled_then_enabled_when_update_status_then_status_is_active(
+        self, patch_hugepages_is_patched, patch_multus_available, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = True
+        patch_multus_available.side_effect = [False, True]
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        self.harness.charm.on.update_status.emit()
+        self.assertEqual(
+            self.harness.model.unit.status, BlockedStatus("Multus is not installed or enabled")
+        )
+        self.harness.charm.on.update_status.emit()
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for bessd container to be ready"),
+        )
+
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(  # noqa: E501
+        self,
+        patch_hugepages_is_patched,
+    ):
+        patch_hugepages_is_patched.return_value = True
+        self.harness.update_config(
+            key_values={
+                "access-ip": "192.168.252.3/24",
+                "access-gateway-ip": ACCESS_GW_IP,
+                "gnb-subnet": GNB_SUBNET,
+                "core-ip": VALID_CORE_IP,
+                "core-gateway-ip": CORE_GW_IP,
+            }
+        )
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            config = json.loads(nad.spec["config"])
+            self.assertNotIn("mtu", config)
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")

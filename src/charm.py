@@ -30,7 +30,7 @@ from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.resources.core_v1 import Service
+from lightkube.resources.core_v1 import Node, Service
 from ops import RemoveEvent
 from ops.charm import CharmBase, CharmEvents
 from ops.framework import EventBase, EventSource
@@ -59,6 +59,7 @@ BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
+REQUIRED_CPU_EXTENSIONS_HUGEPAGES = ["pdpe1gb"]
 SUPPORTED_UPF_MODES = ["af_packet", "dpdk"]
 
 # The default field manager set when using kubectl to create resources
@@ -131,6 +132,7 @@ class UPFOperatorCharm(CharmBase):
             hugepages_volumes_func=self._volumes_request_func_from_config,
             refresh_event=self.on.hugepages_volumes_config_changed,
         )
+        self.framework.observe(self.on.update_status, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.config_storage_attached, self._on_bessd_pebble_ready)
@@ -477,6 +479,19 @@ class UPFOperatorCharm(CharmBase):
     def _on_config_changed(self, event: EventBase):
         """Handler for config changed events."""
         if not self.unit.is_leader():
+            return
+        if self._hugepages_is_enabled():
+            if not self._cpu_is_compatible_for_hugepages():
+                raise IncompatibleCPUError(
+                    "\nCPU is not compatible!\n"
+                    "Please use a CPU that has the following capabilities: "
+                    f"{', '.join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES)}"
+                )
+            if not self._hugepages_are_available():
+                self.unit.status = BlockedStatus("Not enough HugePages available")
+                return
+        if not self._kubernetes_multus.multus_is_available():
+            self.unit.status = BlockedStatus("Multus is not installed or enabled")
             return
         if invalid_configs := self._get_invalid_configs():
             self.unit.status = BlockedStatus(
@@ -1015,6 +1030,77 @@ class UPFOperatorCharm(CharmBase):
                 cpu_flags = cpu_info_item.split()
                 del cpu_flags[0]
         return cpu_flags
+
+    def _cpu_is_compatible_for_hugepages(self) -> bool:
+        return all(
+            required_extension in self._get_cpu_extensions()
+            for required_extension in REQUIRED_CPU_EXTENSIONS_HUGEPAGES
+        )
+
+    @staticmethod
+    def _hugepages_are_available() -> bool:
+        """Checks whether HugePages are available in the K8S nodes.
+
+        Returns:
+            bool: Whether HugePages are available in the K8S nodes
+        """
+        client = Client()
+        nodes = client.list(Node)
+        if not nodes:
+            return False
+        return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
+
+    def _get_access_nad_config(self) -> Dict[Any, Any]:
+        """Get access interface NAD config.
+
+        Returns:
+            config (dict): Access interface NAD config
+
+        """
+        config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+                "routes": [
+                    {
+                        "dst": self._get_gnb_subnet_config(),
+                        "gw": self._get_access_network_gateway_ip_config(),
+                    },
+                ],
+                "addresses": [
+                    {
+                        "address": self._get_access_network_ip_config(),
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        if access_mtu := self._get_access_interface_mtu_config():
+            config.update({"mtu": access_mtu})
+        return config
+
+    def _get_core_nad_config(self) -> Dict[Any, Any]:
+        """Get core interface NAD config.
+
+        Returns:
+            config (dict): Core interface NAD config
+
+        """
+        config = {
+            "cniVersion": "0.3.1",
+            "ipam": {
+                "type": "static",
+                "addresses": [
+                    {
+                        "address": self._get_core_network_ip_config(),
+                    }
+                ],
+            },
+            "capabilities": {"mac": True},
+        }
+        if core_mtu := self._get_core_interface_mtu_config():
+            config.update({"mtu": core_mtu})
+        return config
 
     def _get_core_interface_mtu_config(self) -> Optional[str]:
         """Get Core interface MTU size.

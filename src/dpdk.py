@@ -61,11 +61,11 @@ class DPDK:
             raise RuntimeError("StatefulSet not found!")
         container = self._get_container(
             container_name=container_name,
-            containers=statefulset.spec.template.spec.containers,
+            containers=statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
         )
         if not container:
             raise RuntimeError("Container not found!")
-        if not container.securityContext.privileged:
+        if not container.securityContext.privileged:  # type: ignore[union-attr]
             return False
         if not self._resource_requirements_applied(container, self.dpdk_resource_requirements):
             return False
@@ -82,11 +82,11 @@ class DPDK:
             raise RuntimeError("StatefulSet not found!")
         container = self._get_container(
             container_name=container_name,
-            containers=statefulset.spec.template.spec.containers,
+            containers=statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
         )
         if not container:
             raise RuntimeError("Container not found!")
-        container.securityContext.privileged = True
+        container.securityContext.privileged = True  # type: ignore[union-attr]
         self._apply_resource_requirements(
             container=container,
             resource_requirements=self.dpdk_resource_requirements,
@@ -137,9 +137,9 @@ class DPDK:
             resource_requirements (dict): Dictionary of `requests` and `limits`
         """
         for request, value in resource_requirements["requests"].items():
-            container.resources.requests.update({request: int(value)})
+            container.resources.requests.update({request: int(value)})  # type: ignore[union-attr]
         for limit, value in resource_requirements["limits"].items():
-            container.resources.limits.update({limit: int(value)})
+            container.resources.limits.update({limit: int(value)})  # type: ignore[union-attr]
         logger.info(
             "Applied ResourceRequirements to the %s container: %s",
             container,
@@ -158,10 +158,10 @@ class DPDK:
             bool: True if container ResourceRequirements have been applied, otherwise False
         """
         for request, value in resource_requirements["requests"].items():
-            if not container.resources.requests.get(request) == value:
+            if not container.resources.requests.get(request) == value:  # type: ignore[union-attr]
                 return False
         for limit, value in resource_requirements["limits"].items():
-            if not container.resources.limits.get(limit) == value:
+            if not container.resources.limits.get(limit) == value:  # type: ignore[union-attr]
                 return False
         return True
 
@@ -173,8 +173,8 @@ class DPDK:
         """
         try:
             self.k8s_client.replace(obj=statefulset)
-            logger.info("Statefulset %s replaced", statefulset.metadata.name)
+            logger.info("Statefulset %s replaced", statefulset.metadata.name)  # type: ignore[union-attr]  # noqa: E501
         except ApiError as e:
             raise DPDKError(
-                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"
+                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"  # type: ignore[union-attr]  # noqa: E501
             )
