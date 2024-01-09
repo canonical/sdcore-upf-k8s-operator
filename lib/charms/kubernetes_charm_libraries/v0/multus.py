@@ -41,7 +41,7 @@ class YourCharm(CharmBase):
             container_name=self._container_name,
             cap_net_admin=True,
             privileged=True,
-            network_annotations_func=[
+            network_annotations=[
                 NetworkAnnotation(
                     name=NETWORK_ATTACHMENT_DEFINITION_NAME,
                     interface=INTERFACE_NAME,
@@ -123,7 +123,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 9
+LIBPATCH = 12
 
 
 logger = logging.getLogger(__name__)
@@ -147,8 +147,6 @@ class NetworkAttachmentDefinition(_NetworkAttachmentDefinition):  # type: ignore
 @dataclass
 class NetworkAnnotation:
     """NetworkAnnotation."""
-
-    NETWORK_ANNOTATION_RESOURCE_KEY = "k8s.v1.cni.cncf.io/networks"
 
     name: str
     interface: str
@@ -353,7 +351,7 @@ class KubernetesClient:
                 )
             )
         if privileged:
-            container.securityContext.privileged = True
+            container.securityContext.privileged = True  # type: ignore[union-attr]
         statefulset_delta = StatefulSet(
             spec=StatefulSetSpec(
                 selector=statefulset.spec.selector,  # type: ignore[attr-defined]
@@ -361,7 +359,7 @@ class KubernetesClient:
                 template=PodTemplateSpec(
                     metadata=ObjectMeta(
                         annotations={
-                            NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY: json.dumps(
+                            "k8s.v1.cni.cncf.io/networks": json.dumps(
                                 [
                                     network_annotation.dict()
                                     for network_annotation in network_annotations
@@ -385,6 +383,54 @@ class KubernetesClient:
         except ApiError:
             raise KubernetesMultusError(f"Could not patch statefulset {name}")
         logger.info("Multus annotation added to %s statefulset", name)
+
+    def unpatch_statefulset(
+        self,
+        name: str,
+        container_name: str,
+    ) -> None:
+        """Removes annotations, security privilege and NET_ADMIN capability from stateful set.
+
+        Args:
+            name: Statefulset name
+            container_name: Container name
+        """
+        try:
+            statefulset = self.client.get(res=StatefulSet, name=name, namespace=self.namespace)
+        except ApiError:
+            raise KubernetesMultusError(f"Could not get statefulset {name}")
+
+        container = Container(name=container_name)
+        container.securityContext = SecurityContext(
+            capabilities=Capabilities(
+                drop=[
+                    "NET_ADMIN",
+                ]
+            )
+        )
+        container.securityContext.privileged = False
+        statefulset_delta = StatefulSet(
+            spec=StatefulSetSpec(
+                selector=statefulset.spec.selector,  # type: ignore[attr-defined]
+                serviceName=statefulset.spec.serviceName,  # type: ignore[attr-defined]
+                template=PodTemplateSpec(
+                    metadata=ObjectMeta(annotations={"k8s.v1.cni.cncf.io/networks": "[]"}),
+                    spec=PodSpec(containers=[container]),
+                ),
+            )
+        )
+        try:
+            self.client.patch(
+                res=StatefulSet,
+                name=name,
+                obj=statefulset_delta,
+                patch_type=PatchType.APPLY,
+                namespace=self.namespace,
+                field_manager=self.__class__.__name__,
+            )
+        except ApiError:
+            raise KubernetesMultusError(f"Could not remove patches from statefulset {name}")
+        logger.info("Multus annotation removed from %s statefulset", name)
 
     def statefulset_is_patched(
         self,
@@ -443,12 +489,12 @@ class KubernetesClient:
             bool
         """
         if not self._annotations_contains_multus_networks(
-            annotations=pod.metadata.annotations,
+            annotations=pod.metadata.annotations,  # type: ignore[arg-type,union-attr]
             network_annotations=network_annotations,
         ):
             return False
         if not self._container_security_context_is_set(
-            containers=pod.spec.containers,
+            containers=pod.spec.containers,  # type: ignore[union-attr]
             container_name=container_name,
             cap_net_admin=cap_net_admin,
             privileged=privileged,
@@ -460,10 +506,10 @@ class KubernetesClient:
     def _annotations_contains_multus_networks(
         annotations: dict, network_annotations: list[NetworkAnnotation]
     ) -> bool:
-        if NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY not in annotations:
+        if "k8s.v1.cni.cncf.io/networks" not in annotations:
             return False
         try:
-            if json.loads(annotations[NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY]) != [
+            if json.loads(annotations["k8s.v1.cni.cncf.io/networks"]) != [
                 network_annotation.dict() for network_annotation in network_annotations
             ]:
                 return False
@@ -491,10 +537,27 @@ class KubernetesClient:
         """
         for container in containers:
             if container.name == container_name:
-                if cap_net_admin and "NET_ADMIN" not in container.securityContext.capabilities.add:
+                if cap_net_admin and "NET_ADMIN" not in container.securityContext.capabilities.add:  # type: ignore[operator,union-attr]  # noqa E501
                     return False
-                if privileged and not container.securityContext.privileged:
+                if privileged and not container.securityContext.privileged:  # type: ignore[union-attr]  # noqa E501
                     return False
+        return True
+
+    def multus_is_available(self) -> bool:
+        """Check whether Multus is enabled leveraging existence of NAD custom resource.
+
+        Returns:
+            bool: Whether Multus is enabled
+        """
+        try:
+            list(self.client.list(res=NetworkAttachmentDefinition, namespace=self.namespace))
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return False
+            else:
+                raise KubernetesMultusError(
+                    "Unexpected outcome when checking for Multus availability"
+                )
         return True
 
 
@@ -505,7 +568,7 @@ class KubernetesMultusCharmLib(Object):
         self,
         charm: CharmBase,
         network_attachment_definitions_func: Callable[[], list[NetworkAttachmentDefinition]],
-        network_annotations_func: Callable[[], list[NetworkAnnotation]],
+        network_annotations: list[NetworkAnnotation],
         container_name: str,
         refresh_event: BoundEvent,
         cap_net_admin: bool = False,
@@ -517,8 +580,7 @@ class KubernetesMultusCharmLib(Object):
             charm: Charm object
             network_attachment_definitions_func: A callable to a function returning a list of
               `NetworkAttachmentDefinition` to be created.
-            network_annotations_func: A callable to a function returning a list
-              of `NetworkAnnotation` to be added to the container.
+            network_annotations: List of NetworkAnnotation.
             container_name: Container name
             cap_net_admin: Container requires NET_ADMIN capability
             privileged: Container requires privileged security context
@@ -528,7 +590,7 @@ class KubernetesMultusCharmLib(Object):
         super().__init__(charm, "kubernetes-multus")
         self.kubernetes = KubernetesClient(namespace=self.model.name)
         self.network_attachment_definitions_func = network_attachment_definitions_func
-        self.network_annotations_func = network_annotations_func
+        self.network_annotations = network_annotations
         self.container_name = container_name
         self.cap_net_admin = cap_net_admin
         self.privileged = privileged
@@ -546,7 +608,7 @@ class KubernetesMultusCharmLib(Object):
         if not self._statefulset_is_patched():
             self.kubernetes.patch_statefulset(
                 name=self.model.app.name,
-                network_annotations=self.network_annotations_func(),
+                network_annotations=self.network_annotations,
                 container_name=self.container_name,
                 cap_net_admin=self.cap_net_admin,
                 privileged=self.privileged,
@@ -620,7 +682,7 @@ class KubernetesMultusCharmLib(Object):
         """Returns whether statefuset is patched with network annotations and capabilities."""
         return self.kubernetes.statefulset_is_patched(
             name=self.model.app.name,
-            network_annotations=self.network_annotations_func(),
+            network_annotations=self.network_annotations,
             container_name=self.container_name,
             cap_net_admin=self.cap_net_admin,
             privileged=self.privileged,
@@ -630,7 +692,7 @@ class KubernetesMultusCharmLib(Object):
         """Returns whether pod is ready with network annotations and capabilities."""
         return self.kubernetes.pod_is_ready(
             pod_name=self._pod,
-            network_annotations=self.network_annotations_func(),
+            network_annotations=self.network_annotations,
             container_name=self.container_name,
             cap_net_admin=self.cap_net_admin,
             privileged=self.privileged,
@@ -661,11 +723,15 @@ class KubernetesMultusCharmLib(Object):
         return "-".join(self.model.unit.name.rsplit("/", 1))
 
     def _on_remove(self, event: RemoveEvent) -> None:
-        """Deletes network attachment definitions.
+        """Deletes network attachment definitions and removes patch.
 
         Args:
             event: RemoveEvent
         """
+        self.kubernetes.unpatch_statefulset(
+            name=self.model.app.name,
+            container_name=self.container_name,
+        )
         for network_attachment_definition in self.network_attachment_definitions_func():
             if self.kubernetes.network_attachment_definition_is_created(
                 network_attachment_definition=network_attachment_definition
@@ -677,3 +743,11 @@ class KubernetesMultusCharmLib(Object):
     def delete_pod(self) -> None:
         """Delete the pod."""
         self.kubernetes.delete_pod(self._pod)
+
+    def multus_is_available(self) -> bool:
+        """Check whether Multus is enabled leveraging existence of NAD custom resource.
+
+        Returns:
+            bool: Whether Multus is enabled
+        """
+        return self.kubernetes.multus_is_available()
