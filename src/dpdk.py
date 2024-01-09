@@ -176,5 +176,5 @@ class DPDK:
             logger.info("Statefulset %s replaced", statefulset.metadata.name)  # type: ignore[union-attr]  # noqa: E501
         except ApiError as e:
             raise DPDKError(
-                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"  # type: ignore[union-attr]  # noqa: E501
+                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"  # type: ignore[union-attr]  # noqa: E501, W505
             )
