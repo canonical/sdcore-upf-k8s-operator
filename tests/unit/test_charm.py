@@ -1828,3 +1828,19 @@ class TestCharm(unittest.TestCase):
         patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
         patch_delete_pod.assert_not_called()
+
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    def test_given_hardware_checksum_is_enabled_when_bessd_pebble_ready_then_config_file_has_hwcksum_enabled(  # noqa: E501
+        self, _
+    ):
+        self.harness.handle_exec("bessd", [], result=0)
+        self.harness.update_config(key_values={"enable-hw-checksum": True})
+        self.harness.container_pebble_ready(container_name="bessd")
+
+        config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
+        self.assertIn("hwcksum", config)
+        self.assertTrue(config["hwcksum"])

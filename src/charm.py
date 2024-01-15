@@ -553,6 +553,7 @@ class UPFOperatorCharm(CharmBase):
             core_ip_address=core_ip_address.split("/")[0] if core_ip_address else "",
             dnn=self._get_dnn_config(),  # type: ignore[arg-type]
             pod_share_path=POD_SHARE_PATH,
+            enable_hw_checksum=self._get_enable_hw_checksum(),
         )
         if not self._bessd_config_file_is_written() or not self._bessd_config_file_content_matches(
             content=content
@@ -858,6 +859,14 @@ class UPFOperatorCharm(CharmBase):
 
     def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
+
+    def _get_enable_hw_checksum(self) -> bool:
+        """Reads the `enable-hw-checksum` charm config.
+
+        Returns:
+            bool: Whether hardware checksum should be enabled
+        """
+        return bool(self.model.config.get("enable-hw-checksum", False))
 
     def _core_ip_config_is_valid(self) -> bool:
         """Checks whether the core-ip config is valid.
@@ -1176,6 +1185,7 @@ def render_bessd_config_file(
     core_ip_address: Optional[str],
     dnn: str,
     pod_share_path: str,
+    enable_hw_checksum: bool,
 ) -> str:
     """Renders the configuration file for the 5G UPF service.
 
@@ -1187,6 +1197,7 @@ def render_bessd_config_file(
         core_ip_address: Core network IP address
         dnn: Data Network Name (DNN)
         pod_share_path: pod_share path
+        enable_hw_checksum: Whether to enable hardware checksum or not
     """
     jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
     template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
@@ -1198,6 +1209,7 @@ def render_bessd_config_file(
         core_ip_address=core_ip_address,
         dnn=dnn,
         pod_share_path=pod_share_path,
+        hwcksum=str(enable_hw_checksum).lower(),
     )
     return content
 
