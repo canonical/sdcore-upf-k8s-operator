@@ -1838,9 +1838,9 @@ class TestCharm(unittest.TestCase):
         self, _
     ):
         self.harness.handle_exec("bessd", [], result=0)
-        self.harness.update_config(key_values={"enable-hw-checksum": True})
+        self.harness.update_config(key_values={"enable-hw-checksum": False})
         self.harness.container_pebble_ready(container_name="bessd")
 
         config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
         self.assertIn("hwcksum", config)
-        self.assertTrue(config["hwcksum"])
+        self.assertFalse(config["hwcksum"])
