@@ -69,7 +69,7 @@ options:
       HugePages must be enabled if `upf-mode` is `dpdk`.
   enable-hw-checksum:
     type: boolean
-    default: false
+    default: true
     description: |
       When enabled, hardware checksum will be used on the network interfaces.
       Only has an effect when `upf-mode` is `dpdk` and must be supported by
