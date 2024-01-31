@@ -4,14 +4,12 @@
 
 """Charmed operator for the SD-Core UPF service for K8s."""
 
-import ipaddress
 import json
 import logging
 import time
 from subprocess import check_output
 from typing import Any, Dict, List, Optional
 
-import macaddress  # type: ignore[import]
 from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (  # type: ignore[import]
     HugePagesVolume,
     KubernetesHugePagesPatchCharmLib,
@@ -38,6 +36,7 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
+from charm_state import CharmConfigInvalidError, CharmState
 from dpdk import DPDK
 
 logger = logging.getLogger(__name__)
@@ -476,10 +475,10 @@ class UPFOperatorCharm(CharmBase):
         if not self._kubernetes_multus.multus_is_available():
             self.unit.status = BlockedStatus("Multus is not installed or enabled")
             return
-        if invalid_configs := self._get_invalid_configs():
-            self.unit.status = BlockedStatus(
-                f"The following configurations are not valid: {invalid_configs}"
-            )
+        try:
+            CharmState.from_charm(charm=self)
+        except CharmConfigInvalidError as e:
+            self.unit.status = BlockedStatus(e.msg)
             return
         self.on.nad_config_changed.emit()
         self.on.hugepages_volumes_config_changed.emit()
@@ -496,11 +495,10 @@ class UPFOperatorCharm(CharmBase):
         """Handle Pebble ready event."""
         if not self.unit.is_leader():
             return
-
-        if invalid_configs := self._get_invalid_configs():
-            self.unit.status = BlockedStatus(
-                f"The following configurations are not valid: {invalid_configs}"
-            )
+        try:
+            CharmState.from_charm(charm=self)
+        except CharmConfigInvalidError as e:
+            self.unit.status = BlockedStatus(e.msg)
             return
         if not self._is_cpu_compatible():
             return
@@ -620,73 +618,6 @@ class UPFOperatorCharm(CharmBase):
         )
         logger.info("Pushed %s configuration check file", BESSCTL_CONFIGURE_EXECUTED_FILE_NAME)
 
-    def _get_invalid_configs(self) -> list[str]:
-        """Returns list of invalid configurations.
-
-        Returns:
-            list: List of strings matching config keys.
-        """
-        invalid_configs = []
-        if not self._upf_mode_config_is_valid():
-            invalid_configs.append("upf-mode")
-        if not self._get_dnn_config():
-            invalid_configs.append("dnn")
-        if invalid_access_network_configs := self._get_invalid_access_network_configs():
-            invalid_configs.extend(invalid_access_network_configs)
-        if invalid_core_network_configs := self._get_invalid_core_network_configs():
-            invalid_configs.extend(invalid_core_network_configs)
-        if not self._gnb_subnet_config_is_valid():
-            invalid_configs.append("gnb-subnet")
-        if invalid_dpdk_configs := self._get_invalid_dpdk_configs():
-            invalid_configs.extend(invalid_dpdk_configs)
-        return invalid_configs
-
-    def _get_invalid_access_network_configs(self) -> list[str]:
-        """Returns list of invalid configurations related to the Access network.
-
-        Returns:
-            list: List of strings matching config keys.
-        """
-        invalid_configs = []
-        if not self._access_ip_config_is_valid():
-            invalid_configs.append("access-ip")
-        if not self._access_gateway_ip_config_is_valid():
-            invalid_configs.append("access-gateway-ip")
-        if not self._access_interface_mtu_size_is_valid():
-            invalid_configs.append("access-interface-mtu-size")
-        return invalid_configs
-
-    def _get_invalid_core_network_configs(self) -> list[str]:
-        """Returns list of invalid configurations related to the Core network.
-
-        Returns:
-            list: List of strings matching config keys.
-        """
-        invalid_configs = []
-        if not self._core_ip_config_is_valid():
-            invalid_configs.append("core-ip")
-        if not self._core_gateway_ip_config_is_valid():
-            invalid_configs.append("core-gateway-ip")
-        if not self._core_interface_mtu_size_is_valid():
-            invalid_configs.append("core-interface-mtu-size")
-        return invalid_configs
-
-    def _get_invalid_dpdk_configs(self) -> list[str]:
-        """Returns list of invalid configurations related to DPDK support.
-
-        Returns:
-            list: List of strings matching config keys.
-        """
-        invalid_configs = []
-        if self._get_upf_mode() == "dpdk":
-            if not self._hugepages_is_enabled():
-                invalid_configs.append("enable-hugepages")
-            if not self._access_interface_mac_address_is_valid():
-                invalid_configs.append("access-interface-mac-address")
-            if not self._core_interface_mac_address_is_valid():
-                invalid_configs.append("core-interface-mac-address")
-        return invalid_configs
-
     def _create_default_route(self) -> None:
         """Creates ip route towards core network."""
         self._exec_command_in_bessd_workload(
@@ -756,10 +687,10 @@ class UPFOperatorCharm(CharmBase):
 
     def _set_unit_status(self) -> None:
         """Set the unit status based on config and container services running."""
-        if invalid_configs := self._get_invalid_configs():
-            self.unit.status = BlockedStatus(
-                f"The following configurations are not valid: {invalid_configs}"
-            )
+        try:
+            CharmState.from_charm(charm=self)
+        except CharmConfigInvalidError as e:
+            self.unit.status = BlockedStatus(e.msg)
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
@@ -837,14 +768,6 @@ class UPFOperatorCharm(CharmBase):
     def _get_upf_mode(self) -> Optional[str]:
         return self.model.config.get("upf-mode")
 
-    def _upf_mode_config_is_valid(self) -> bool:
-        """Checks whether the `upf-mode` config is valid.
-
-        Returns:
-            bool: Whether the `upf-mode` config is valid
-        """
-        return self._get_upf_mode() in SUPPORTED_UPF_MODES
-
     def _get_dnn_config(self) -> Optional[str]:
         return self.model.config.get("dnn")
 
@@ -855,17 +778,6 @@ class UPFOperatorCharm(CharmBase):
             bool: Whether hardware checksum should be enabled
         """
         return bool(self.model.config.get("enable-hw-checksum", False))
-
-    def _core_ip_config_is_valid(self) -> bool:
-        """Checks whether the core-ip config is valid.
-
-        Returns:
-            bool: Whether the core-ip config is valid
-        """
-        core_ip = self._get_core_network_ip_config()
-        if not core_ip:
-            return False
-        return ip_is_valid(core_ip)
 
     def _get_core_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-ip")
@@ -881,28 +793,6 @@ class UPFOperatorCharm(CharmBase):
         """
         return self.model.config.get("core-interface-mac-address")
 
-    def _core_interface_mac_address_is_valid(self) -> bool:
-        """Checks whether the `core-interface-mac-address` config is valid.
-
-        Returns:
-            bool: Whether the `core-interface-mac-address` config is valid
-        """
-        core_iface_mac_address = self._get_core_interface_mac_address()
-        if not core_iface_mac_address:
-            return False
-        return mac_address_is_valid(core_iface_mac_address)
-
-    def _access_ip_config_is_valid(self) -> bool:
-        """Checks whether the access-ip config is valid.
-
-        Returns:
-            bool: Whether the access-ip config is valid
-        """
-        access_ip = self._get_access_network_ip_config()
-        if not access_ip:
-            return False
-        return ip_is_valid(access_ip)
-
     def _get_access_network_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-ip")
 
@@ -917,55 +807,11 @@ class UPFOperatorCharm(CharmBase):
         """
         return self.model.config.get("access-interface-mac-address")
 
-    def _access_interface_mac_address_is_valid(self) -> bool:
-        """Checks whether the `access-interface-mac-address` config is valid.
-
-        Returns:
-            bool: Whether the `access-interface-mac-address` config is valid
-        """
-        access_iface_mac_address = self._get_access_interface_mac_address()
-        if not access_iface_mac_address:
-            return False
-        return mac_address_is_valid(access_iface_mac_address)
-
-    def _core_gateway_ip_config_is_valid(self) -> bool:
-        """Checks whether the core-gateway-ip config is valid.
-
-        Returns:
-            bool: Whether the core-gateway-ip config is valid
-        """
-        core_gateway_ip = self._get_core_network_gateway_ip_config()
-        if not core_gateway_ip:
-            return False
-        return ip_is_valid(core_gateway_ip)
-
     def _get_core_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("core-gateway-ip")
 
-    def _access_gateway_ip_config_is_valid(self) -> bool:
-        """Checks whether the access-gateway-ip config is valid.
-
-        Returns:
-            bool: Whether the access-gateway-ip config is valid
-        """
-        access_gateway_ip = self._get_access_network_gateway_ip_config()
-        if not access_gateway_ip:
-            return False
-        return ip_is_valid(access_gateway_ip)
-
     def _get_access_network_gateway_ip_config(self) -> Optional[str]:
         return self.model.config.get("access-gateway-ip")
-
-    def _gnb_subnet_config_is_valid(self) -> bool:
-        """Checks whether the gnb-subnet config is valid.
-
-        Returns:
-            bool: Whether the gnb-subnet config is valid
-        """
-        gnb_subnet = self._get_gnb_subnet_config()
-        if not gnb_subnet:
-            return False
-        return ip_is_valid(gnb_subnet)
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
@@ -1135,39 +981,13 @@ class UPFOperatorCharm(CharmBase):
         """
         return self.model.config.get("access-interface-mtu-size")
 
-    def _access_interface_mtu_size_is_valid(self) -> bool:
-        """Checks whether the access interface MTU size is valid.
-
-        Returns:
-            bool: Whether access interface MTU size is valid
-        """
-        if (access_mtu := self._get_access_interface_mtu_config()) is None:
-            return True
-        try:
-            return 1200 <= int(access_mtu) <= 65535
-        except ValueError:
-            return False
-
-    def _core_interface_mtu_size_is_valid(self) -> bool:
-        """Checks whether the core interface MTU size is valid.
-
-        Returns:
-            bool: Whether core interface MTU size is valid
-        """
-        if (core_mtu := self._get_core_interface_mtu_config()) is None:
-            return True
-        try:
-            return 1200 <= int(core_mtu) <= 65535
-        except ValueError:
-            return False
-
     def _hugepages_is_enabled(self) -> bool:
         """Returns whether HugePages are enabled.
 
         Returns:
             bool: Whether HugePages are enabled
         """
-        return bool(self.model.config.get("enable-hugepages", False))
+        return self._get_upf_mode() == "dpdk"
 
     def _generate_bessd_startup_command(self) -> str:
         """Returns bessd startup command.
@@ -1235,51 +1055,6 @@ def service_is_running_on_container(container: Container, service_name: str) -> 
     except ModelError:
         return False
     return service.is_running()
-
-
-def ip_is_valid(ip_address: str) -> bool:
-    """Check whether given IP config is valid.
-
-    Args:
-        ip_address (str): IP address
-
-    Returns:
-        bool: True if given IP address is valid
-    """
-    try:
-        ipaddress.ip_network(ip_address, strict=False)
-        return True
-    except ValueError:
-        return False
-
-
-def ip_belongs_to_subnet(ip_address: str, subnet: str) -> bool:
-    """Checks whether given IP address belongs to a given subnet.
-
-    Args:
-        ip_address (str): IP address
-        subnet (str): Subnet address
-
-    Returns:
-        bool: True if given IP address belongs to a given subnet
-    """
-    return ipaddress.ip_address(ip_address) in ipaddress.ip_network(subnet, strict=False)
-
-
-def mac_address_is_valid(mac_address: str) -> bool:
-    """Check whether given MAC address is valid.
-
-    Args:
-        mac_address (str): MAC address
-
-    Returns:
-        bool: True if given MAC address is valid
-    """
-    try:
-        macaddress.MAC(mac_address)
-        return True
-    except ValueError:
-        return False
 
 
 if __name__ == "__main__":  # pragma: no cover

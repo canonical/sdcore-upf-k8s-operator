@@ -109,15 +109,24 @@ class TestCharm(unittest.TestCase):
             BlockedStatus("The following configurations are not valid: ['upf-mode']"),
         )
 
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.Client.list")
+    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def test_given_upf_mode_set_to_dpdk_but_other_required_configs_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self,
+        self, patched_list, patched_check_output
     ):
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
+        self.harness.update_config(key_values={"cni-type": "dpdk", "upf-mode": "dpdk"})
 
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
-                "The following configurations are not valid: ['enable-hugepages', 'access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
+                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
             ),
         )
 
@@ -133,7 +142,7 @@ class TestCharm(unittest.TestCase):
             [],
             [],
         ]
-        self.harness.update_config(key_values={"upf-mode": "dpdk", "enable-hugepages": True})
+        self.harness.update_config(key_values={"cni-type": "dpdk", "upf-mode": "dpdk"})
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -156,8 +165,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": INVALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -184,8 +193,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": INVALID_CORE_MAC,
             }
@@ -907,8 +916,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -940,8 +949,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -978,8 +987,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -1034,8 +1043,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -1299,8 +1308,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -1346,8 +1355,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-ip": VALID_ACCESS_IP,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -1406,8 +1415,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "dpdk",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "core-ip": VALID_CORE_IP,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -1559,9 +1568,15 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    @patch("dpdk.DPDK.is_configured")
     def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_waiting_status(  # noqa: E501
-        self, patch_hugepages_is_patched, patch_list, patched_check_output
+        self,
+        patch_dpdk_is_configured,
+        patch_hugepages_is_patched,
+        patch_list,
+        patched_check_output,
     ):
+        patch_dpdk_is_configured.return_value = True
         patch_hugepages_is_patched.return_value = True
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
@@ -1570,7 +1585,14 @@ class TestCharm(unittest.TestCase):
             [],
         ]
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "dpdk",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -1588,7 +1610,14 @@ class TestCharm(unittest.TestCase):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.return_value = [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))]
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "dpdk",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
 
         self.assertEqual(
             self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
@@ -1598,9 +1627,15 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    @patch("dpdk.DPDK.is_configured")
     def test_given_hugepages_not_available_then_hugepages_available_when_update_status_then_charm_goes_to_waiting_status(  # noqa: E501
-        self, patch_hugepages_is_patched, patch_list, patched_check_output
+        self,
+        patch_dpdk_is_configured,
+        patch_hugepages_is_patched,
+        patch_list,
+        patched_check_output,
     ):
+        patch_dpdk_is_configured.return_value = True
         patch_hugepages_is_patched.return_value = True
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
@@ -1610,7 +1645,14 @@ class TestCharm(unittest.TestCase):
             [],
         ]
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "dpdk",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
 
         self.assertEqual(
             self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")

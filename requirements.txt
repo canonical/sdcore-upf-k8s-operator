@@ -5,7 +5,8 @@ jinja2
 lightkube
 lightkube-models
 macaddress
-pydantic
+pydantic>=2
+pydantic_extra_types
 pytest-interface-tester
 PyYAML>=6.0.1
 cosl # required by prometheus_k8s.v0.prometheus_scrape
