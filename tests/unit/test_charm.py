@@ -885,6 +885,7 @@ class TestCharm(unittest.TestCase):
                 "core-interface": CORE_INTERFACE_NAME,
                 "core-ip": VALID_CORE_IP,
                 "core-gateway-ip": CORE_GW_IP,
+                "cni-type": "macvlan",
             }
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()

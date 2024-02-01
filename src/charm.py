@@ -232,7 +232,7 @@ class UPFOperatorCharm(CharmBase):
 
     def _update_fiveg_n3_relation_data(self) -> None:
         """Publishes UPF IP address in the `fiveg_n3` relation data bag."""
-        upf_access_ip_address = self._get_access_network_ip_config().split("/")[0]  # type: ignore[union-attr]  # noqa: E501
+        upf_access_ip_address = self._get_network_ip_config("access").split("/")[0]  # type: ignore[union-attr]  # noqa: E501
         fiveg_n3_relations = self.model.relations.get("fiveg_n3")
         if not fiveg_n3_relations:
             logger.info("No `fiveg_n3` relations found.")
@@ -298,10 +298,10 @@ class UPFOperatorCharm(CharmBase):
             interface=CORE_INTERFACE_NAME,
         )
         if self._get_upf_mode() == "dpdk":
-            access_network_annotation.mac = self._get_access_interface_mac_address()
-            access_network_annotation.ips = [self._get_access_network_ip_config()]
-            core_network_annotation.mac = self._get_core_interface_mac_address()
-            core_network_annotation.ips = [self._get_core_network_ip_config()]
+            access_network_annotation.mac = self._get_interface_mac_address("access")
+            access_network_annotation.ips = [self._get_network_ip_config("access")]
+            core_network_annotation.mac = self._get_interface_mac_address("core")
+            core_network_annotation.ips = [self._get_network_ip_config("core")]
         return [access_network_annotation, core_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
@@ -325,14 +325,27 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        access_nad_config = self._get_access_nad_base_config()
-        access_nad_config["ipam"].update(
-            {"addresses": [{"address": self._get_access_network_ip_config()}]}
-        )
-        if access_interface := self._get_access_interface_config():
-            access_nad_config.update({"type": "macvlan", "master": access_interface})
+        access_nad_config = self._get_nad_base_config("access")
+        cni_type = self._get_cni_type_config()
+        # MTU is optional for bridge, macvlan, dpdk
+        # MTU is ignored by host-device
+        if cni_type == "host-device":
+            pass
         else:
-            access_nad_config.update({"type": "bridge", "bridge": ACCESS_INTERFACE_BRIDGE_NAME})
+            if interface_mtu := self._get_interface_mtu_config("access"):
+                access_nad_config.update({"mtu": interface_mtu})
+        access_nad_config["ipam"].update(
+            {"addresses": [{"address": self._get_network_ip_config("access")}]}
+        )
+        # interface name is ignored by bridge and dpdk
+        if access_interface := self._get_interface_config("access"):
+            if cni_type == "macvlan":
+                access_nad_config.update({"master": access_interface})
+            elif cni_type == "host-device":
+                access_nad_config.update({"device": access_interface})
+        else:
+            access_nad_config.update({"bridge": ACCESS_INTERFACE_BRIDGE_NAME})
+        access_nad_config.update({"type": cni_type})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
@@ -345,14 +358,27 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        core_nad_config = self._get_core_nad_base_config()
-        core_nad_config["ipam"].update(
-            {"addresses": [{"address": self._get_core_network_ip_config()}]}
-        )
-        if core_interface := self._get_core_interface_config():
-            core_nad_config.update({"type": "macvlan", "master": core_interface})
+        core_nad_config = self._get_nad_base_config("core")
+        cni_type = self._get_cni_type_config()
+        # MTU is optional for bridge, macvlan, dpdk
+        # MTU is ignored by host-device
+        if cni_type == "host-device":
+            pass
         else:
-            core_nad_config.update({"type": "bridge", "bridge": CORE_INTERFACE_BRIDGE_NAME})
+            if interface_mtu := self._get_interface_mtu_config("core"):
+                core_nad_config.update({"mtu": interface_mtu})
+        core_nad_config["ipam"].update(
+            {"addresses": [{"address": self._get_network_ip_config("core")}]}
+        )
+        # interface name is ignored by bridge and dpdk
+        if core_interface := self._get_interface_config("core"):
+            if cni_type == "macvlan":
+                core_nad_config.update({"master": core_interface})
+            elif cni_type == "host-device":
+                core_nad_config.update({"device": core_interface})
+        else:
+            core_nad_config.update({"bridge": ACCESS_INTERFACE_BRIDGE_NAME})
+        core_nad_config.update({"type": cni_type})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
@@ -365,7 +391,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        access_nad_config = self._get_access_nad_base_config()
+        access_nad_config = self._get_nad_base_config("access")
         access_nad_config.update({"type": "vfioveth"})
 
         return NetworkAttachmentDefinition(
@@ -384,7 +410,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        core_nad_config = self._get_core_nad_base_config()
+        core_nad_config = self._get_nad_base_config("core")
         core_nad_config.update({"type": "vfioveth"})
 
         return NetworkAttachmentDefinition(
@@ -397,39 +423,20 @@ class UPFOperatorCharm(CharmBase):
             spec={"config": json.dumps(core_nad_config)},
         )
 
-    def _get_access_nad_base_config(self) -> Dict[Any, Any]:
-        """Base Access NetworkAttachmentDefinition config to be extended according to charm config.
+    def _get_nad_base_config(self, interface_name: str) -> Dict[Any, Any]:
+        """Base NetworkAttachmentDefinition config to be extended according to charm config.
 
         Returns:
-            config (dict): Base Access NAD config
+            config (dict): Base NAD config
         """
-        base_access_nad_config = {
+        base_nad_config = {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
             },
             "capabilities": {"mac": True},
         }
-        if access_mtu := self._get_access_interface_mtu_config():
-            base_access_nad_config.update({"mtu": access_mtu})
-        return base_access_nad_config
-
-    def _get_core_nad_base_config(self) -> Dict[Any, Any]:
-        """Base Core NetworkAttachmentDefinition config to be extended according to charm config.
-
-        Returns:
-            config (dict): Base Core NAD config
-        """
-        base_core_nad_config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-            },
-            "capabilities": {"mac": True},
-        }
-        if core_mtu := self._get_core_interface_mtu_config():
-            base_core_nad_config.update({"mtu": core_mtu})
-        return base_core_nad_config
+        return base_nad_config
 
     def _write_bessd_config_file(self, content: str) -> None:
         """Write the configuration file for the 5G UPF service.
@@ -530,7 +537,7 @@ class UPFOperatorCharm(CharmBase):
         Writes configuration file, creates routes, creates iptable rule and pebble layer.
         """
         restart = False
-        core_ip_address = self._get_core_network_ip_config()
+        core_ip_address = self._get_network_ip_config("core")
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=self._get_upf_mode(),  # type: ignore[arg-type]
@@ -621,14 +628,14 @@ class UPFOperatorCharm(CharmBase):
     def _create_default_route(self) -> None:
         """Creates ip route towards core network."""
         self._exec_command_in_bessd_workload(
-            command=f"ip route replace default via {self._get_core_network_gateway_ip_config()} metric 110"  # noqa: E501
+            command=f"ip route replace default via {self._get_network_gateway_ip_config('core')} metric 110"  # noqa: E501
         )
         logger.info("Default core network route created")
 
     def _create_ran_route(self) -> None:
         """Creates ip route towards gnb-subnet."""
         self._exec_command_in_bessd_workload(
-            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_access_network_gateway_ip_config()}"  # noqa: E501
+            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_network_gateway_ip_config('access')}"  # noqa: E501
         )
         logger.info("Route to gnb-subnet created")
 
@@ -779,39 +786,22 @@ class UPFOperatorCharm(CharmBase):
         """
         return bool(self.model.config.get("enable-hw-checksum", False))
 
-    def _get_core_network_ip_config(self) -> Optional[str]:
-        return self.model.config.get("core-ip")
+    def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
+        return self.model.config.get(f"{interface_name}-ip")
 
-    def _get_core_interface_config(self) -> Optional[str]:
-        return self.model.config.get("core-interface")
+    def _get_interface_config(self, interface_name: str) -> Optional[str]:
+        return self.model.config.get(f"{interface_name}-interface")
 
-    def _get_core_interface_mac_address(self) -> Optional[str]:
-        """Reads the `core-interface-mac-address` charm config.
-
-        Returns:
-            Optional[str]: The `core-interface-mac-address` charm config
-        """
-        return self.model.config.get("core-interface-mac-address")
-
-    def _get_access_network_ip_config(self) -> Optional[str]:
-        return self.model.config.get("access-ip")
-
-    def _get_access_interface_config(self) -> Optional[str]:
-        return self.model.config.get("access-interface")
-
-    def _get_access_interface_mac_address(self) -> Optional[str]:
+    def _get_interface_mac_address(self, interface_name: str) -> Optional[str]:
         """Reads the `access-interface-mac-address` charm config.
 
         Returns:
             Optional[str]: The `access-interface-mac-address` charm config
         """
-        return self.model.config.get("access-interface-mac-address")
+        return self.model.config.get(f"{interface_name}-interface-mac-address")
 
-    def _get_core_network_gateway_ip_config(self) -> Optional[str]:
-        return self.model.config.get("core-gateway-ip")
-
-    def _get_access_network_gateway_ip_config(self) -> Optional[str]:
-        return self.model.config.get("access-gateway-ip")
+    def _get_network_gateway_ip_config(self, interface_name: str) -> Optional[str]:
+        return self.model.config.get(f"{interface_name}-gateway-ip")
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return self.model.config.get("gnb-subnet")
@@ -923,18 +913,18 @@ class UPFOperatorCharm(CharmBase):
                 "routes": [
                     {
                         "dst": self._get_gnb_subnet_config(),
-                        "gw": self._get_access_network_gateway_ip_config(),
+                        "gw": self._get_network_gateway_ip_config("access"),
                     },
                 ],
                 "addresses": [
                     {
-                        "address": self._get_access_network_ip_config(),
+                        "address": self._get_network_ip_config("access"),
                     }
                 ],
             },
             "capabilities": {"mac": True},
         }
-        if access_mtu := self._get_access_interface_mtu_config():
+        if access_mtu := self._get_interface_mtu_config("access"):
             config.update({"mtu": access_mtu})
         return config
 
@@ -951,35 +941,31 @@ class UPFOperatorCharm(CharmBase):
                 "type": "static",
                 "addresses": [
                     {
-                        "address": self._get_core_network_ip_config(),
+                        "address": self._get_network_ip_config("core"),
                     }
                 ],
             },
             "capabilities": {"mac": True},
         }
-        if core_mtu := self._get_core_interface_mtu_config():
+        if core_mtu := self._get_interface_mtu_config("core"):
             config.update({"mtu": core_mtu})
         return config
 
-    def _get_core_interface_mtu_config(self) -> Optional[str]:
-        """Get Core interface MTU size.
+    def _get_interface_mtu_config(self, interface_name) -> Optional[str]:
+        """Get MTU size for the specified interface.
+
+        Args:
+            interface_name: str
 
         Returns:
             mtu_size (str/None): If MTU size is not configured return None
                                     If it is set, returns the configured value
 
         """
-        return self.model.config.get("core-interface-mtu-size")
+        return self.model.config.get(f"{interface_name}-interface-mtu-size")
 
-    def _get_access_interface_mtu_config(self) -> Optional[str]:
-        """Get Access interface MTU size.
-
-        Returns:
-            mtu_size (str/None): If MTU size is not configured return None
-                                    If it is set, returns the configured value
-
-        """
-        return self.model.config.get("access-interface-mtu-size")
+    def _get_cni_type_config(self) -> Optional[str]:
+        return self.model.config.get("cni-type")
 
     def _hugepages_is_enabled(self) -> bool:
         """Returns whether HugePages are enabled.
