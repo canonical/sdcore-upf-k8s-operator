@@ -314,75 +314,48 @@ class UPFOperatorCharm(CharmBase):
             access_nad = self._create_dpdk_access_nad_from_config()
             core_nad = self._create_dpdk_core_nad_from_config()
         else:
-            access_nad = self._create_access_nad_from_config()
-            core_nad = self._create_core_nad_from_config()
+            access_nad = self._create_nad_from_config("access")
+            core_nad = self._create_nad_from_config("core")
 
         return [access_nad, core_nad]
 
-    def _create_access_nad_from_config(self) -> NetworkAttachmentDefinition:
-        """Returns a NetworkAttachmentDefinition for the Access interface.
-
-        Returns:
-            NetworkAttachmentDefinition: NetworkAttachmentDefinition object
-        """
-        access_nad_config = self._get_nad_base_config("access")
-        cni_type = self._get_cni_type_config()
-        # MTU is optional for bridge, macvlan, dpdk
-        # MTU is ignored by host-device
-        if cni_type == "host-device":
-            pass
-        else:
-            if interface_mtu := self._get_interface_mtu_config("access"):
-                access_nad_config.update({"mtu": interface_mtu})
-        access_nad_config["ipam"].update(
-            {"addresses": [{"address": self._get_network_ip_config("access")}]}
-        )
-        # interface name is ignored by bridge and dpdk
-        if access_interface := self._get_interface_config("access"):
-            if cni_type == "macvlan":
-                access_nad_config.update({"master": access_interface})
-            elif cni_type == "host-device":
-                access_nad_config.update({"device": access_interface})
-        else:
-            access_nad_config.update({"bridge": ACCESS_INTERFACE_BRIDGE_NAME})
-        access_nad_config.update({"type": cni_type})
-
-        return NetworkAttachmentDefinition(
-            metadata=ObjectMeta(name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME),
-            spec={"config": json.dumps(access_nad_config)},
-        )
-
-    def _create_core_nad_from_config(self) -> NetworkAttachmentDefinition:
+    def _create_nad_from_config(self, interface_name: str) -> NetworkAttachmentDefinition:
         """Returns a NetworkAttachmentDefinition for the Core interface.
 
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        core_nad_config = self._get_nad_base_config("core")
+        nad_config = self._get_nad_base_config(interface_name)
         cni_type = self._get_cni_type_config()
         # MTU is optional for bridge, macvlan, dpdk
         # MTU is ignored by host-device
         if cni_type == "host-device":
             pass
         else:
-            if interface_mtu := self._get_interface_mtu_config("core"):
-                core_nad_config.update({"mtu": interface_mtu})
-        core_nad_config["ipam"].update(
-            {"addresses": [{"address": self._get_network_ip_config("core")}]}
+            if interface_mtu := self._get_interface_mtu_config(interface_name):
+                nad_config.update({"mtu": interface_mtu})
+        nad_config["ipam"].update(
+            {"addresses": [{"address": self._get_network_ip_config(interface_name)}]}
         )
-        # interface name is ignored by bridge and dpdk
-        if core_interface := self._get_interface_config("core"):
+        # host interface name is used only by macvlan and host-device
+        if host_interface := self._get_interface_config(interface_name):
             if cni_type == "macvlan":
-                core_nad_config.update({"master": core_interface})
+                nad_config.update({"master": host_interface})
             elif cni_type == "host-device":
-                core_nad_config.update({"device": core_interface})
+                nad_config.update({"device": host_interface})
         else:
-            core_nad_config.update({"bridge": ACCESS_INTERFACE_BRIDGE_NAME})
-        core_nad_config.update({"type": cni_type})
+            nad_config.update({"bridge": ACCESS_INTERFACE_BRIDGE_NAME})
+        nad_config.update({"type": cni_type})
 
         return NetworkAttachmentDefinition(
-            metadata=ObjectMeta(name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME),
-            spec={"config": json.dumps(core_nad_config)},
+            metadata=ObjectMeta(
+                name=(
+                    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
+                    if interface_name == "core"
+                    else ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
+                )
+            ),
+            spec={"config": json.dumps(nad_config)},
         )
 
     def _create_dpdk_access_nad_from_config(self) -> NetworkAttachmentDefinition:
@@ -423,7 +396,8 @@ class UPFOperatorCharm(CharmBase):
             spec={"config": json.dumps(core_nad_config)},
         )
 
-    def _get_nad_base_config(self, interface_name: str) -> Dict[Any, Any]:
+    @staticmethod
+    def _get_nad_base_config(self) -> Dict[Any, Any]:
         """Base NetworkAttachmentDefinition config to be extended according to charm config.
 
         Returns:
