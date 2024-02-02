@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 import json
+import logging
 import unittest
 from unittest.mock import Mock, call, patch
 
@@ -272,7 +273,14 @@ class TestCharm(unittest.TestCase):
                         "PYTHONUNBUFFERED": "1",
                     },
                 },
-            }
+            },
+            "checks": {
+                "online": {
+                    "override": "replace",
+                    "level": "ready",
+                    "tcp": {"port": 10514},
+                }
+            },
         }
 
         updated_plan = self.harness.get_container_pebble_plan("bessd").to_dict()
