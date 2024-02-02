@@ -1,7 +1,7 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""State of the Charm."""
+"""Config of the Charm."""
 
 import dataclasses
 import logging
@@ -31,8 +31,8 @@ class CNIType(str, Enum):
 
     bridge = "bridge"
     macvlan = "macvlan"
-    dpdk = "dpdk"
     host_device = "host-device"
+    vfioveth = "vfioveth"
 
 
 class UpfMode(str, Enum):
@@ -66,11 +66,7 @@ class LaxIPvAnyNetwork(IPvAnyNetwork):
 
 
 class CharmConfigInvalidError(Exception):
-    """Exception raised when a charm configuration is found to be invalid.
-
-    Attrs:
-        msg (str): Explanation of the error.
-    """
+    """Exception raised when a charm configuration is found to be invalid."""
 
     def __init__(self, msg: str):
         """Initialize a new instance of the CharmConfigInvalidError exception.
@@ -91,7 +87,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
 
     model_config = ConfigDict(alias_generator=to_kebab, use_enum_values=True)
 
-    cni_type: CNIType
+    cni_type: CNIType = CNIType.bridge
     upf_mode: UpfMode = UpfMode.af_packet
     dnn: StrictStr = Field(default="internet", min_length=1)
     gnb_subnet: LaxIPvAnyNetwork = LaxIPvAnyNetwork("192.168.251.0/24")
@@ -127,8 +123,8 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
 
 
 @dataclasses.dataclass(frozen=True)
-class CharmState:
-    """State of the Charm."""
+class CharmConfig:
+    """Config of the Charm."""
 
     upf_config: UpfConfig
 
@@ -136,7 +132,7 @@ class CharmState:
     def from_charm(
         cls,
         charm: ops.CharmBase,
-    ) -> "CharmState":
+    ) -> "CharmConfig":
         """Initialize a new instance of the CharmState class from the associated charm."""
         try:
             # ignoring because mypy fails with:

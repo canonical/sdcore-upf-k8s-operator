@@ -121,7 +121,7 @@ class TestCharm(unittest.TestCase):
             [],
             [],
         ]
-        self.harness.update_config(key_values={"cni-type": "dpdk", "upf-mode": "dpdk"})
+        self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -142,7 +142,7 @@ class TestCharm(unittest.TestCase):
             [],
             [],
         ]
-        self.harness.update_config(key_values={"cni-type": "dpdk", "upf-mode": "dpdk"})
+        self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -165,7 +165,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": INVALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -193,7 +193,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": INVALID_CORE_MAC,
@@ -917,7 +917,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -950,7 +950,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -988,7 +988,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -1044,7 +1044,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -1309,7 +1309,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -1356,7 +1356,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-ip": VALID_ACCESS_IP,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
@@ -1416,7 +1416,7 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "core-ip": VALID_CORE_IP,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
@@ -1588,7 +1588,7 @@ class TestCharm(unittest.TestCase):
 
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": "00-B0-D0-63-C2-26",
                 "core-interface-mac-address": "00-B0-D0-63-C2-26",
@@ -1613,7 +1613,7 @@ class TestCharm(unittest.TestCase):
 
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": "00-B0-D0-63-C2-26",
                 "core-interface-mac-address": "00-B0-D0-63-C2-26",
@@ -1648,7 +1648,7 @@ class TestCharm(unittest.TestCase):
 
         self.harness.update_config(
             key_values={
-                "cni-type": "dpdk",
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": "00-B0-D0-63-C2-26",
                 "core-interface-mac-address": "00-B0-D0-63-C2-26",

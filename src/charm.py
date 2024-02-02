@@ -36,7 +36,7 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
-from charm_state import CharmConfigInvalidError, CharmState
+from charm_config import CharmConfig, CharmConfigInvalidError
 from dpdk import DPDK
 
 logger = logging.getLogger(__name__)
@@ -325,7 +325,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        nad_config = self._get_nad_base_config(interface_name)
+        nad_config = self._get_nad_base_config()
         cni_type = self._get_cni_type_config()
         # MTU is optional for bridge, macvlan, dpdk
         # MTU is ignored by host-device
@@ -364,7 +364,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        access_nad_config = self._get_nad_base_config("access")
+        access_nad_config = self._get_nad_base_config()
         access_nad_config.update({"type": "vfioveth"})
 
         return NetworkAttachmentDefinition(
@@ -383,7 +383,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        core_nad_config = self._get_nad_base_config("core")
+        core_nad_config = self._get_nad_base_config()
         core_nad_config.update({"type": "vfioveth"})
 
         return NetworkAttachmentDefinition(
@@ -397,7 +397,7 @@ class UPFOperatorCharm(CharmBase):
         )
 
     @staticmethod
-    def _get_nad_base_config(self) -> Dict[Any, Any]:
+    def _get_nad_base_config() -> Dict[Any, Any]:
         """Base NetworkAttachmentDefinition config to be extended according to charm config.
 
         Returns:
@@ -457,7 +457,7 @@ class UPFOperatorCharm(CharmBase):
             self.unit.status = BlockedStatus("Multus is not installed or enabled")
             return
         try:
-            CharmState.from_charm(charm=self)
+            CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError as e:
             self.unit.status = BlockedStatus(e.msg)
             return
@@ -477,7 +477,7 @@ class UPFOperatorCharm(CharmBase):
         if not self.unit.is_leader():
             return
         try:
-            CharmState.from_charm(charm=self)
+            CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError as e:
             self.unit.status = BlockedStatus(e.msg)
             return
@@ -669,7 +669,7 @@ class UPFOperatorCharm(CharmBase):
     def _set_unit_status(self) -> None:
         """Set the unit status based on config and container services running."""
         try:
-            CharmState.from_charm(charm=self)
+            CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError as e:
             self.unit.status = BlockedStatus(e.msg)
             return
