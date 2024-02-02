@@ -2,7 +2,6 @@
 # See LICENSE file for licensing details.
 
 import json
-import logging
 import unittest
 from unittest.mock import Mock, call, patch
 
