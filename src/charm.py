@@ -111,6 +111,11 @@ class UPFOperatorCharm(CharmBase):
             ],
         )
         self.unit.set_ports(PROMETHEUS_PORT)
+        try:
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
+        except CharmConfigInvalidError as exc:
+            self.model.unit.status = BlockedStatus(exc.msg)
+            return
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
             container_name=self._bessd_container_name,
@@ -456,11 +461,6 @@ class UPFOperatorCharm(CharmBase):
         if not self._kubernetes_multus.multus_is_available():
             self.unit.status = BlockedStatus("Multus is not installed or enabled")
             return
-        try:
-            CharmConfig.from_charm(charm=self)
-        except CharmConfigInvalidError as e:
-            self.unit.status = BlockedStatus(e.msg)
-            return
         self.on.nad_config_changed.emit()
         self.on.hugepages_volumes_config_changed.emit()
         if self._get_upf_mode() == "dpdk":
@@ -475,11 +475,6 @@ class UPFOperatorCharm(CharmBase):
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
         """Handle Pebble ready event."""
         if not self.unit.is_leader():
-            return
-        try:
-            CharmConfig.from_charm(charm=self)
-        except CharmConfigInvalidError as e:
-            self.unit.status = BlockedStatus(e.msg)
             return
         if not self._is_cpu_compatible():
             return
@@ -668,11 +663,6 @@ class UPFOperatorCharm(CharmBase):
 
     def _set_unit_status(self) -> None:
         """Set the unit status based on config and container services running."""
-        try:
-            CharmConfig.from_charm(charm=self)
-        except CharmConfigInvalidError as e:
-            self.unit.status = BlockedStatus(e.msg)
-            return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
             return
@@ -747,10 +737,10 @@ class UPFOperatorCharm(CharmBase):
         }
 
     def _get_upf_mode(self) -> Optional[str]:
-        return self.model.config.get("upf-mode")
+        return self._charm_config.upf_config.upf_mode
 
     def _get_dnn_config(self) -> Optional[str]:
-        return self.model.config.get("dnn")
+        return self._charm_config.upf_config.dnn
 
     def _get_enable_hw_checksum(self) -> bool:
         """Reads the `enable-hw-checksum` charm config.
@@ -758,13 +748,19 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether hardware checksum should be enabled
         """
-        return bool(self.model.config.get("enable-hw-checksum", False))
+        return bool(self._charm_config.upf_config.enable_hw_checksum)
 
     def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
-        return self.model.config.get(f"{interface_name}-ip")
+        if interface_name == "access":
+            return str(self._charm_config.upf_config.access_ip)
+        elif interface_name == "core":
+            return str(self._charm_config.upf_config.core_ip)
 
     def _get_interface_config(self, interface_name: str) -> Optional[str]:
-        return self.model.config.get(f"{interface_name}-interface")
+        if interface_name == "access":
+            return self._charm_config.upf_config.access_interface
+        elif interface_name == "core":
+            return self._charm_config.upf_config.core_interface
 
     def _get_interface_mac_address(self, interface_name: str) -> Optional[str]:
         """Reads the `access-interface-mac-address` charm config.
@@ -772,16 +768,22 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             Optional[str]: The `access-interface-mac-address` charm config
         """
-        return self.model.config.get(f"{interface_name}-interface-mac-address")
+        if interface_name == "access":
+            return self._charm_config.upf_config.access_interface_mac_address
+        elif interface_name == "core":
+            return self._charm_config.upf_config.core_interface_mac_address
 
     def _get_network_gateway_ip_config(self, interface_name: str) -> Optional[str]:
-        return self.model.config.get(f"{interface_name}-gateway-ip")
+        if interface_name == "access":
+            return str(self._charm_config.upf_config.access_gateway_ip)
+        elif interface_name == "core":
+            return str(self._charm_config.upf_config.core_gateway_ip)
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
-        return self.model.config.get("gnb-subnet")
+        return str(self._charm_config.upf_config.gnb_subnet)
 
     def _get_external_upf_hostname_config(self) -> Optional[str]:
-        return self.model.config.get("external-upf-hostname")
+        return self._charm_config.upf_config.external_upf_hostname
 
     def _upf_load_balancer_service_hostname(self) -> Optional[str]:
         """Returns the hostname of UPF's LoadBalancer service.
@@ -936,10 +938,13 @@ class UPFOperatorCharm(CharmBase):
                                     If it is set, returns the configured value
 
         """
-        return self.model.config.get(f"{interface_name}-interface-mtu-size")
+        if interface_name == "access":
+            return self._charm_config.upf_config.access_interface_mtu_size
+        elif interface_name == "core":
+            return self._charm_config.upf_config.core_interface_mtu_size
 
     def _get_cni_type_config(self) -> Optional[str]:
-        return self.model.config.get("cni-type")
+        return self._charm_config.upf_config.cni_type
 
     def _hugepages_is_enabled(self) -> bool:
         """Returns whether HugePages are enabled.
