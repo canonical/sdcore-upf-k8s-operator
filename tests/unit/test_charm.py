@@ -22,7 +22,6 @@ from charm import (
     CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
     DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
     DPDK_CORE_INTERFACE_RESOURCE_NAME,
-    IncompatibleCPUError,
     UPFOperatorCharm,
 )
 
@@ -251,7 +250,6 @@ class TestCharm(unittest.TestCase):
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
-
         expected_plan = {
             "services": {
                 "bessd": {
@@ -1447,13 +1445,16 @@ class TestCharm(unittest.TestCase):
 
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
-    def test_given_cpu_not_supporting_required_instructions_when_install_then_incompatiblecpuerror_is_raised(  # noqa: E501
+    def test_given_cpu_not_supporting_required_instructions_when_install_then_charm_goes_to_blocked_status(  # noqa: E501
         self, patched_check_output
     ):
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
+        self.harness.charm.on.install.emit()
 
-        with self.assertRaises(IncompatibleCPUError):
-            self.harness.charm.on.install.emit()
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("Please use a CPU that has the following capabilities: avx2, rdrand"),
+        )
 
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
@@ -1547,8 +1548,12 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched.return_value = False
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
 
-        with self.assertRaises(IncompatibleCPUError):
-            self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(key_values={"enable-hugepages": True})
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("Please use a CPU that has the following capabilities: avx2, rdrand"),
+        )
 
     @patch("charm.check_output")
     @patch("lightkube.core.client.GenericSyncClient", new=Mock)
