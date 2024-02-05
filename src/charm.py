@@ -207,7 +207,7 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: Juju event
         """
-        if not self._cpu_check():
+        if not self._is_cpu_compatible():
             return
         self._create_external_upf_service()
 
@@ -471,7 +471,7 @@ class UPFOperatorCharm(CharmBase):
         if not self.unit.is_leader():
             return
 
-        if not self._cpu_check():
+        if not self._is_cpu_compatible():
             return
         if not self._kubernetes_multus.multus_is_available():
             self.unit.status = BlockedStatus("Multus is not installed or enabled")
@@ -492,26 +492,6 @@ class UPFOperatorCharm(CharmBase):
         self._update_fiveg_n3_relation_data()
         self._update_fiveg_n4_relation_data()
 
-    def _cpu_check(self):
-        if not self._is_cpu_compatible():
-            logger.info("Blocked!")
-            self.unit.status = BlockedStatus(
-                "Please use a CPU that has the following capabilities: "
-                f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
-            )
-            return False
-        if self._hugepages_is_enabled():
-            if not self._cpu_is_compatible_for_hugepages():
-                self.unit.status = BlockedStatus(
-                    "Please use a CPU that has the following capabilities: "
-                    f"{', '.join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES)}"
-                )
-                return False
-            if not self._hugepages_are_available():
-                self.unit.status = BlockedStatus("Not enough HugePages available")
-                return False
-        return True
-
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
         """Handle Pebble ready event."""
         if not self.unit.is_leader():
@@ -522,7 +502,7 @@ class UPFOperatorCharm(CharmBase):
                 f"The following configurations are not valid: {invalid_configs}"
             )
             return
-        if not self._cpu_check():
+        if not self._is_cpu_compatible():
             return
         if not self._kubernetes_multus.is_ready():
             self.unit.status = WaitingStatus("Waiting for Multus to be ready")
@@ -537,7 +517,7 @@ class UPFOperatorCharm(CharmBase):
         """Handle pfcp agent Pebble ready event."""
         if not self.unit.is_leader():
             return
-        if not self._cpu_check():
+        if not self._is_cpu_compatible():
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             self.unit.status = WaitingStatus("Waiting for bessd service to run")
@@ -1028,10 +1008,26 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether the CPU meets requirements to run this charm
         """
-        return all(
+        if not all(
             required_extension in self._get_cpu_extensions()
             for required_extension in REQUIRED_CPU_EXTENSIONS
-        )
+        ):
+            self.unit.status = BlockedStatus(
+                "Please use a CPU that has the following capabilities: "
+                f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
+            )
+            return False
+        if self._hugepages_is_enabled():
+            if not self._cpu_is_compatible_for_hugepages():
+                self.unit.status = BlockedStatus(
+                    "Please use a CPU that has the following capabilities: "
+                    f"{', '.join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES)}"
+                )
+                return False
+            if not self._hugepages_are_available():
+                self.unit.status = BlockedStatus("Not enough HugePages available")
+                return False
+        return True
 
     @staticmethod
     def _get_cpu_extensions() -> list[str]:

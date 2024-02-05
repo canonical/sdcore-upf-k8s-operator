@@ -1542,7 +1542,7 @@ class TestCharm(unittest.TestCase):
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_incompatiblecpuerror_is_raised(  # noqa: E501
+    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
         self, patch_hugepages_is_patched, patched_check_output
     ):
         patch_hugepages_is_patched.return_value = False
