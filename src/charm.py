@@ -755,12 +755,16 @@ class UPFOperatorCharm(CharmBase):
             return str(self._charm_config.upf_config.access_ip)
         elif interface_name == "core":
             return str(self._charm_config.upf_config.core_ip)
+        else:
+            return None
 
     def _get_interface_config(self, interface_name: str) -> Optional[str]:
         if interface_name == "access":
             return self._charm_config.upf_config.access_interface
         elif interface_name == "core":
             return self._charm_config.upf_config.core_interface
+        else:
+            return None
 
     def _get_interface_mac_address(self, interface_name: str) -> Optional[str]:
         """Reads the `access-interface-mac-address` charm config.
@@ -772,12 +776,16 @@ class UPFOperatorCharm(CharmBase):
             return self._charm_config.upf_config.access_interface_mac_address
         elif interface_name == "core":
             return self._charm_config.upf_config.core_interface_mac_address
+        else:
+            return None
 
     def _get_network_gateway_ip_config(self, interface_name: str) -> Optional[str]:
         if interface_name == "access":
             return str(self._charm_config.upf_config.access_gateway_ip)
         elif interface_name == "core":
             return str(self._charm_config.upf_config.core_gateway_ip)
+        else:
+            return None
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
         return str(self._charm_config.upf_config.gnb_subnet)
@@ -939,9 +947,11 @@ class UPFOperatorCharm(CharmBase):
 
         """
         if interface_name == "access":
-            return self._charm_config.upf_config.access_interface_mtu_size
+            return str(self._charm_config.upf_config.access_interface_mtu_size)
         elif interface_name == "core":
-            return self._charm_config.upf_config.core_interface_mtu_size
+            return str(self._charm_config.upf_config.core_interface_mtu_size)
+        else:
+            return None
 
     def _get_cni_type_config(self) -> Optional[str]:
         return self._charm_config.upf_config.cni_type
