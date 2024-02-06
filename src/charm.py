@@ -883,73 +883,21 @@ class UPFOperatorCharm(CharmBase):
             return False
         return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
 
-    def _get_access_nad_config(self) -> Dict[Any, Any]:
-        """Get access interface NAD config.
-
-        Returns:
-            config (dict): Access interface NAD config
-
-        """
-        config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "routes": [
-                    {
-                        "dst": self._get_gnb_subnet_config(),
-                        "gw": self._get_network_gateway_ip_config("access"),
-                    },
-                ],
-                "addresses": [
-                    {
-                        "address": self._get_network_ip_config("access"),
-                    }
-                ],
-            },
-            "capabilities": {"mac": True},
-        }
-        if access_mtu := self._get_interface_mtu_config("access"):
-            config.update({"mtu": access_mtu})
-        return config
-
-    def _get_core_nad_config(self) -> Dict[Any, Any]:
-        """Get core interface NAD config.
-
-        Returns:
-            config (dict): Core interface NAD config
-
-        """
-        config = {
-            "cniVersion": "0.3.1",
-            "ipam": {
-                "type": "static",
-                "addresses": [
-                    {
-                        "address": self._get_network_ip_config("core"),
-                    }
-                ],
-            },
-            "capabilities": {"mac": True},
-        }
-        if core_mtu := self._get_interface_mtu_config("core"):
-            config.update({"mtu": core_mtu})
-        return config
-
-    def _get_interface_mtu_config(self, interface_name) -> Optional[str]:
+    def _get_interface_mtu_config(self, interface_name) -> Optional[int]:
         """Get MTU size for the specified interface.
 
         Args:
             interface_name: str
 
         Returns:
-            mtu_size (str/None): If MTU size is not configured return None
+            mtu_size (int/None): If MTU size is not configured return None
                                     If it is set, returns the configured value
 
         """
         if interface_name == "access":
-            return str(self._charm_config.upf_config.access_interface_mtu_size)
+            return self._charm_config.upf_config.access_interface_mtu_size
         elif interface_name == "core":
-            return str(self._charm_config.upf_config.core_interface_mtu_size)
+            return self._charm_config.upf_config.core_interface_mtu_size
         else:
             return None
 
