@@ -325,7 +325,10 @@ class UPFOperatorCharm(CharmBase):
         return [access_nad, core_nad]
 
     def _create_nad_from_config(self, interface_name: str) -> NetworkAttachmentDefinition:
-        """Returns a NetworkAttachmentDefinition for the Core interface.
+        """Returns a NetworkAttachmentDefinition for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to create the NetworkAttachmentDefinition from
 
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
@@ -416,14 +419,13 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             config (dict): Base NAD config
         """
-        base_nad_config = {
+        return {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
             },
             "capabilities": {"mac": True},
         }
-        return base_nad_config
 
     def _write_bessd_config_file(self, content: str) -> None:
         """Write the configuration file for the 5G UPF service.
@@ -759,6 +761,14 @@ class UPFOperatorCharm(CharmBase):
         return bool(self._charm_config.upf_config.enable_hw_checksum)
 
     def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
+        """Retrieves the network IP address to use for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to retrieve the network IP address from
+
+        Returns:
+            Optional[str]: The network IP address to use
+        """
         if interface_name == "access":
             return str(self._charm_config.upf_config.access_ip)
         elif interface_name == "core":
@@ -767,6 +777,14 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _get_interface_config(self, interface_name: str) -> Optional[str]:
+        """Retrieves the interface on the host to use for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to retrieve the interface host from
+
+        Returns:
+            Optional[str]: The interface on the host to use
+        """
         if interface_name == "access":
             return self._charm_config.upf_config.access_interface
         elif interface_name == "core":
@@ -775,10 +793,13 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _get_interface_mac_address(self, interface_name: str) -> Optional[str]:
-        """Reads the `access-interface-mac-address` charm config.
+        """Retrieves the MAC address to use for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to retrieve the MAC address from
 
         Returns:
-            Optional[str]: The `access-interface-mac-address` charm config
+            Optional[str]: The MAC address to use
         """
         if interface_name == "access":
             return self._charm_config.upf_config.access_interface_mac_address
@@ -788,6 +809,14 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _get_network_gateway_ip_config(self, interface_name: str) -> Optional[str]:
+        """Retrieves the gateway IP address to use for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to retrieve the gateway IP address from
+
+        Returns:
+            Optional[str]: The gateway IP address to use
+        """
         if interface_name == "access":
             return str(self._charm_config.upf_config.access_gateway_ip)
         elif interface_name == "core":
@@ -892,15 +921,13 @@ class UPFOperatorCharm(CharmBase):
         return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
 
     def _get_interface_mtu_config(self, interface_name) -> Optional[int]:
-        """Get MTU size for the specified interface.
+        """Retrieves the MTU to use for the specified interface.
 
         Args:
-            interface_name: str
+            interface_name (str): Interface name to retrieve the MTU from
 
         Returns:
-            mtu_size (int/None): If MTU size is not configured return None
-                                    If it is set, returns the configured value
-
+            Optional[int]: The MTU to use for the specified interface
         """
         if interface_name == "access":
             return self._charm_config.upf_config.access_interface_mtu_size
