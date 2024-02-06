@@ -349,7 +349,15 @@ class UPFOperatorCharm(CharmBase):
             elif cni_type == "host-device":
                 nad_config.update({"device": host_interface})
         else:
-            nad_config.update({"bridge": ACCESS_INTERFACE_BRIDGE_NAME})
+            nad_config.update(
+                {
+                    "bridge": (
+                        ACCESS_INTERFACE_BRIDGE_NAME
+                        if interface_name == "access"
+                        else CORE_INTERFACE_BRIDGE_NAME
+                    )
+                }
+            )
         nad_config.update({"type": cni_type})
 
         return NetworkAttachmentDefinition(
