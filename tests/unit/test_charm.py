@@ -1625,7 +1625,14 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched.return_value = False
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
         self.reinstantiate_charm()
 
         self.assertEqual(
@@ -1826,6 +1833,10 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
     def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
@@ -1835,6 +1846,7 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mtu-size": ZERO_MTU_SIZE,
             }
         )
+        self.reinstantiate_charm()
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
@@ -1967,6 +1979,7 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.update_config(key_values={"enable-hw-checksum": False})
+        self.reinstantiate_charm()
         self.harness.container_pebble_ready(container_name="bessd")
 
         config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
