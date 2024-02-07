@@ -237,7 +237,7 @@ class UPFOperatorCharm(CharmBase):
 
     def _update_fiveg_n3_relation_data(self) -> None:
         """Publishes UPF IP address in the `fiveg_n3` relation data bag."""
-        upf_access_ip_address = self._get_network_ip_config("access").split("/")[0]  # type: ignore[union-attr]  # noqa: E501
+        upf_access_ip_address = self._get_network_ip_config(ACCESS_INTERFACE_NAME).split("/")[0]  # type: ignore[union-attr]  # noqa: E501
         fiveg_n3_relations = self.model.relations.get("fiveg_n3")
         if not fiveg_n3_relations:
             logger.info("No `fiveg_n3` relations found.")
@@ -303,10 +303,10 @@ class UPFOperatorCharm(CharmBase):
             interface=CORE_INTERFACE_NAME,
         )
         if self._get_upf_mode() == "dpdk":
-            access_network_annotation.mac = self._get_interface_mac_address("access")
-            access_network_annotation.ips = [self._get_network_ip_config("access")]
-            core_network_annotation.mac = self._get_interface_mac_address("core")
-            core_network_annotation.ips = [self._get_network_ip_config("core")]
+            access_network_annotation.mac = self._get_interface_mac_address(ACCESS_INTERFACE_NAME)
+            access_network_annotation.ips = [self._get_network_ip_config(ACCESS_INTERFACE_NAME)]
+            core_network_annotation.mac = self._get_interface_mac_address(CORE_INTERFACE_NAME)
+            core_network_annotation.ips = [self._get_network_ip_config(CORE_INTERFACE_NAME)]
         return [access_network_annotation, core_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
@@ -319,8 +319,8 @@ class UPFOperatorCharm(CharmBase):
             access_nad = self._create_dpdk_access_nad_from_config()
             core_nad = self._create_dpdk_core_nad_from_config()
         else:
-            access_nad = self._create_nad_from_config("access")
-            core_nad = self._create_nad_from_config("core")
+            access_nad = self._create_nad_from_config(ACCESS_INTERFACE_NAME)
+            core_nad = self._create_nad_from_config(CORE_INTERFACE_NAME)
 
         return [access_nad, core_nad]
 
@@ -356,7 +356,7 @@ class UPFOperatorCharm(CharmBase):
                 {
                     "bridge": (
                         ACCESS_INTERFACE_BRIDGE_NAME
-                        if interface_name == "access"
+                        if interface_name == ACCESS_INTERFACE_NAME
                         else CORE_INTERFACE_BRIDGE_NAME
                     )
                 }
@@ -367,7 +367,7 @@ class UPFOperatorCharm(CharmBase):
             metadata=ObjectMeta(
                 name=(
                     CORE_NETWORK_ATTACHMENT_DEFINITION_NAME
-                    if interface_name == "core"
+                    if interface_name == CORE_INTERFACE_NAME
                     else ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME
                 )
             ),
@@ -516,7 +516,7 @@ class UPFOperatorCharm(CharmBase):
         Writes configuration file, creates routes, creates iptable rule and pebble layer.
         """
         restart = False
-        core_ip_address = self._get_network_ip_config("core")
+        core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=self._get_upf_mode(),  # type: ignore[arg-type]
@@ -769,9 +769,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             Optional[str]: The network IP address to use
         """
-        if interface_name == "access":
+        if interface_name == ACCESS_INTERFACE_NAME:
             return str(self._charm_config.upf_config.access_ip)
-        elif interface_name == "core":
+        elif interface_name == CORE_INTERFACE_NAME:
             return str(self._charm_config.upf_config.core_ip)
         else:
             return None
@@ -785,9 +785,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             Optional[str]: The interface on the host to use
         """
-        if interface_name == "access":
+        if interface_name == ACCESS_INTERFACE_NAME:
             return self._charm_config.upf_config.access_interface
-        elif interface_name == "core":
+        elif interface_name == CORE_INTERFACE_NAME:
             return self._charm_config.upf_config.core_interface
         else:
             return None
@@ -801,9 +801,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             Optional[str]: The MAC address to use
         """
-        if interface_name == "access":
+        if interface_name == ACCESS_INTERFACE_NAME:
             return self._charm_config.upf_config.access_interface_mac_address
-        elif interface_name == "core":
+        elif interface_name == CORE_INTERFACE_NAME:
             return self._charm_config.upf_config.core_interface_mac_address
         else:
             return None
@@ -817,9 +817,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             Optional[str]: The gateway IP address to use
         """
-        if interface_name == "access":
+        if interface_name == ACCESS_INTERFACE_NAME:
             return str(self._charm_config.upf_config.access_gateway_ip)
-        elif interface_name == "core":
+        elif interface_name == CORE_INTERFACE_NAME:
             return str(self._charm_config.upf_config.core_gateway_ip)
         else:
             return None
@@ -929,9 +929,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             Optional[int]: The MTU to use for the specified interface
         """
-        if interface_name == "access":
+        if interface_name == ACCESS_INTERFACE_NAME:
             return self._charm_config.upf_config.access_interface_mtu_size
-        elif interface_name == "core":
+        elif interface_name == CORE_INTERFACE_NAME:
             return self._charm_config.upf_config.core_interface_mtu_size
         else:
             return None
