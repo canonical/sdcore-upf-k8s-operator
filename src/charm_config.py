@@ -16,8 +16,8 @@ from pydantic import (  # pylint: disable=no-name-in-module,import-error
     Field,
     StrictStr,
     ValidationError,
+    ValidationInfo,
 )
-from pydantic import ValidationInfo
 from pydantic.functional_validators import field_validator, model_validator
 from pydantic.networks import IPvAnyAddress, IPvAnyNetwork
 from pydantic_extra_types.mac_address import MacAddress
@@ -107,6 +107,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
         """Validate that IP network address is valid."""
         ip_network(value, strict=False)
         return value
+
 
 @dataclasses.dataclass(frozen=True)
 class CharmConfig:

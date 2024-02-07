@@ -36,7 +36,7 @@ from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ExecError, Layer
 
-from charm_config import CharmConfig, CharmConfigInvalidError
+from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
 from dpdk import DPDK
 
 logger = logging.getLogger(__name__)
@@ -302,7 +302,7 @@ class UPFOperatorCharm(CharmBase):
             name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=CORE_INTERFACE_NAME,
         )
-        if self._get_upf_mode() == "dpdk":
+        if self._get_upf_mode() == UpfMode.dpdk:
             access_network_annotation.mac = self._get_interface_mac_address(ACCESS_INTERFACE_NAME)
             access_network_annotation.ips = [self._get_network_ip_config(ACCESS_INTERFACE_NAME)]
             core_network_annotation.mac = self._get_interface_mac_address(CORE_INTERFACE_NAME)
@@ -315,7 +315,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             network_attachment_definitions: list[NetworkAttachmentDefinition]
         """
-        if self._get_upf_mode() == "dpdk":
+        if self._get_upf_mode() == UpfMode.dpdk:
             access_nad = self._create_dpdk_access_nad_from_config()
             core_nad = self._create_dpdk_core_nad_from_config()
         else:
@@ -337,7 +337,7 @@ class UPFOperatorCharm(CharmBase):
         cni_type = self._get_cni_type_config()
         # MTU is optional for bridge, macvlan, dpdk
         # MTU is ignored by host-device
-        if cni_type == "host-device":
+        if cni_type == CNIType.host_device:
             pass
         else:
             if interface_mtu := self._get_interface_mtu_config(interface_name):
@@ -347,9 +347,9 @@ class UPFOperatorCharm(CharmBase):
         )
         # host interface name is used only by macvlan and host-device
         if host_interface := self._get_interface_config(interface_name):
-            if cni_type == "macvlan":
+            if cni_type == CNIType.macvlan:
                 nad_config.update({"master": host_interface})
-            elif cni_type == "host-device":
+            elif cni_type == CNIType.host_device:
                 nad_config.update({"device": host_interface})
         else:
             nad_config.update(
@@ -473,7 +473,7 @@ class UPFOperatorCharm(CharmBase):
             return
         self.on.nad_config_changed.emit()
         self.on.hugepages_volumes_config_changed.emit()
-        if self._get_upf_mode() == "dpdk":
+        if self._get_upf_mode() == UpfMode.dpdk:
             self._configure_bessd_for_dpdk()
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
@@ -945,7 +945,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether HugePages are enabled
         """
-        return self._get_upf_mode() == "dpdk"
+        return self._get_upf_mode() == UpfMode.dpdk
 
     def _generate_bessd_startup_command(self) -> str:
         """Returns bessd startup command.
