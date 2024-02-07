@@ -6,7 +6,7 @@
 import dataclasses
 import logging
 from enum import Enum
-from ipaddress import IPv4Network, IPv6Network
+from ipaddress import ip_network
 from typing import Optional
 
 import ops
@@ -17,9 +17,9 @@ from pydantic import (  # pylint: disable=no-name-in-module,import-error
     StrictStr,
     ValidationError,
 )
-from pydantic.functional_validators import model_validator
+from pydantic import ValidationInfo
+from pydantic.functional_validators import field_validator, model_validator
 from pydantic.networks import IPvAnyAddress, IPvAnyNetwork
-from pydantic_core import PydanticCustomError
 from pydantic_extra_types.mac_address import MacAddress
 from typing_extensions import TypeAlias
 
@@ -43,26 +43,6 @@ class UpfMode(str, Enum):
 
 
 NetworkType: TypeAlias = "str | bytes | int | tuple[str | bytes | int, str | int]"
-
-
-class LaxIPvAnyNetwork(IPvAnyNetwork):
-    """Validate an IPv4 or IPv6 network."""
-
-    def __new__(cls, value: NetworkType):
-        """Validate an IPv4 or IPv6 network."""
-        # Assume IP Network is defined with a default value for `strict` argument.
-        # Define your own class if you want to specify network address check strictness.
-        try:
-            return IPv4Network(value, strict=False)
-        except ValueError:
-            pass
-
-        try:
-            return IPv6Network(value, strict=False)
-        except ValueError:
-            raise PydanticCustomError(
-                "ip_any_network", "value is not a valid IPv4 or IPv6 network"
-            )
 
 
 class CharmConfigInvalidError(Exception):
@@ -90,17 +70,17 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     cni_type: CNIType = CNIType.bridge
     upf_mode: UpfMode = UpfMode.af_packet
     dnn: StrictStr = Field(default="internet", min_length=1)
-    gnb_subnet: LaxIPvAnyNetwork = LaxIPvAnyNetwork("192.168.251.0/24")
+    gnb_subnet: IPvAnyNetwork = IPvAnyNetwork("192.168.251.0/24")
     access_interface: Optional[StrictStr] = Field(default="")
     access_interface_mac_address: MacAddress = Field(default=None)
-    access_ip: LaxIPvAnyNetwork = LaxIPvAnyNetwork("192.168.252.3/24")
+    access_ip: str = Field(default="192.168.252.3/24")
     access_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.252.1")
     access_interface_mtu_size: Optional[int] = Field(
         default=None, ge=1200, le=65535, validate_default=True
     )
     core_interface: Optional[StrictStr] = Field(default="")
     core_interface_mac_address: MacAddress = Field(default=None)
-    core_ip: LaxIPvAnyNetwork = LaxIPvAnyNetwork("192.168.250.3/24")
+    core_ip: str = Field(default="192.168.250.3/24")
     core_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.250.1")
     core_interface_mtu_size: Optional[int] = Field(default=None, ge=1200, le=65535)
     external_upf_hostname: Optional[StrictStr] = Field(default="")
@@ -121,6 +101,12 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
                 raise ValueError(" ".join(invalid_configs))
         return values
 
+    @field_validator("access_ip", "core_ip", mode="before")
+    @classmethod
+    def validate_ip_network_address(cls, value: str, info: ValidationInfo) -> str:
+        """Validate that IP network address is valid."""
+        ip_network(value, strict=False)
+        return value
 
 @dataclasses.dataclass(frozen=True)
 class CharmConfig:
