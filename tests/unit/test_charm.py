@@ -815,7 +815,6 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
@@ -841,7 +840,6 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
@@ -861,7 +859,6 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
@@ -964,7 +961,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -997,7 +993,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1035,7 +1030,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1091,7 +1085,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1145,7 +1138,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1179,7 +1171,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1223,7 +1214,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1267,7 +1257,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1311,7 +1300,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1356,7 +1344,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1403,7 +1390,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1463,7 +1449,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1585,7 +1570,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1641,7 +1625,6 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("dpdk.DPDK.is_configured")
@@ -1676,7 +1659,6 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     def test_given_cpu_supporting_required_hugepages_instructions_and_not_available_hugepages_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
@@ -1700,7 +1682,6 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("dpdk.DPDK.is_configured")
@@ -1742,7 +1723,6 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.multus_is_available")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     def test_given_multus_disabled_then_enabled_when_update_status_then_status_is_active(
@@ -1784,7 +1764,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
