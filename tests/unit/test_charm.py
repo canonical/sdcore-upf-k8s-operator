@@ -952,6 +952,7 @@ class TestCharm(unittest.TestCase):
                 "cni-type": "macvlan",
             }
         )
+        self.reinstantiate_charm()
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
             config = json.loads(nad.spec["config"])
