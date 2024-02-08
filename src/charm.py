@@ -463,6 +463,12 @@ class UPFOperatorCharm(CharmBase):
 
     def _on_config_changed(self, event: EventBase):
         """Handler for config changed events."""
+        # workaround for https://github.com/canonical/operator/issues/736
+        try:
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+        except CharmConfigInvalidError as exc:
+            self.model.unit.status = BlockedStatus(exc.msg)
+            return
         if not self.unit.is_leader():
             return
 
@@ -484,6 +490,12 @@ class UPFOperatorCharm(CharmBase):
 
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
         """Handle Pebble ready event."""
+        # workaround for https://github.com/canonical/operator/issues/736
+        try:
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+        except CharmConfigInvalidError as exc:
+            self.model.unit.status = BlockedStatus(exc.msg)
+            return
         if not self.unit.is_leader():
             return
         if not self._is_cpu_compatible():
