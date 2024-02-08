@@ -72,14 +72,14 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     dnn: StrictStr = Field(default="internet", min_length=1)
     gnb_subnet: IPvAnyNetwork = IPvAnyNetwork("192.168.251.0/24")
     access_interface: Optional[StrictStr] = Field(default="")
-    access_interface_mac_address: MacAddress = Field(default=None)
+    access_interface_mac_address: Optional[StrictStr] = Field(default="")
     access_ip: str = Field(default="192.168.252.3/24")
     access_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.252.1")
     access_interface_mtu_size: Optional[int] = Field(
         default=None, ge=1200, le=65535, validate_default=True
     )
     core_interface: Optional[StrictStr] = Field(default="")
-    core_interface_mac_address: MacAddress = Field(default=None)
+    core_interface_mac_address: Optional[StrictStr] = Field(default="")
     core_ip: str = Field(default="192.168.250.3/24")
     core_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.250.1")
     core_interface_mtu_size: Optional[int] = Field(default=None, ge=1200, le=65535)
@@ -105,6 +105,13 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     def validate_ip_network_address(cls, value: str, info: ValidationInfo) -> str:
         """Validate that IP network address is valid."""
         ip_network(value, strict=False)
+        return value
+
+    @field_validator("access_interface_mac_address", "core_interface_mac_address", mode="before")
+    @classmethod
+    def validate_interface_mac_address(cls, value: str, info: ValidationInfo) -> str:
+        """Validate that IP network address is valid."""
+        MacAddress.validate_mac_address(value.encode())
         return value
 
 
