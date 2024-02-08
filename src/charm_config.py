@@ -88,18 +88,17 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     enable_hw_checksum: bool = True
 
     @model_validator(mode="after")
-    @classmethod
-    def validate_upf_mode_with_mac_addresses(cls, values):
+    def validate_upf_mode_with_mac_addresses(self):
         """Validate that MAC addresses are defined when in DPDK mode."""
-        if values.upf_mode == "dpdk":
+        if self.upf_mode == "dpdk":
             invalid_configs = []
-            if not values.access_interface_mac_address:
+            if not self.access_interface_mac_address:
                 invalid_configs.append("access-interface-mac-address")
-            if not values.core_interface_mac_address:
+            if not self.core_interface_mac_address:
                 invalid_configs.append("core-interface-mac-address")
             if invalid_configs:
                 raise ValueError(" ".join(invalid_configs))
-        return values
+        return self
 
     @field_validator("access_ip", "core_ip", mode="before")
     @classmethod
