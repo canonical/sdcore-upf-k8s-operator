@@ -337,9 +337,7 @@ class UPFOperatorCharm(CharmBase):
         cni_type = self._get_cni_type_config()
         # MTU is optional for bridge, macvlan, dpdk
         # MTU is ignored by host-device
-        if cni_type == CNIType.host_device:
-            pass
-        else:
+        if cni_type != CNIType.host_device:
             if interface_mtu := self._get_interface_mtu_config(interface_name):
                 nad_config.update({"mtu": interface_mtu})
         nad_config["ipam"].update(
