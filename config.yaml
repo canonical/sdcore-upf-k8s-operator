@@ -2,6 +2,9 @@ options:
   cni-type:
     type: string
     default: bridge
+    description: |
+      Multus CNI plugin to use for the interfaces.
+      Allowed values are `bridge`, `host-device`, `macvlan`, `vfioveth`.
   upf-mode:
     type: string
     default: af_packet
