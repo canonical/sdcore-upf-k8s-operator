@@ -59,7 +59,6 @@ PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 REQUIRED_CPU_EXTENSIONS_HUGEPAGES = ["pdpe1gb"]
-SUPPORTED_UPF_MODES = ["af_packet", "dpdk"]
 
 # The default field manager set when using kubectl to create resources
 DEFAULT_FIELD_MANAGER = "controller"
@@ -617,14 +616,14 @@ class UPFOperatorCharm(CharmBase):
     def _create_default_route(self) -> None:
         """Creates ip route towards core network."""
         self._exec_command_in_bessd_workload(
-            command=f"ip route replace default via {self._get_network_gateway_ip_config('core')} metric 110"  # noqa: E501
+            command=f"ip route replace default via {self._get_network_gateway_ip_config(CORE_INTERFACE_NAME)} metric 110"  # noqa: E501
         )
         logger.info("Default core network route created")
 
     def _create_ran_route(self) -> None:
         """Creates ip route towards gnb-subnet."""
         self._exec_command_in_bessd_workload(
-            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_network_gateway_ip_config('access')}"  # noqa: E501
+            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME)}"  # noqa: E501
         )
         logger.info("Route to gnb-subnet created")
 
