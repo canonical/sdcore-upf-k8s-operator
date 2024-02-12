@@ -271,7 +271,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             str: Hostname of the UPF
         """
-        if configured_hostname := self._get_external_upf_hostname_config():
+        if configured_hostname := self._charm_config.external_upf_hostname:
             return configured_hostname
         elif lb_hostname := self._upf_load_balancer_service_hostname():
             return lb_hostname
@@ -301,7 +301,7 @@ class UPFOperatorCharm(CharmBase):
             name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=CORE_INTERFACE_NAME,
         )
-        if self._get_upf_mode() == UpfMode.dpdk:
+        if self._charm_config.upf_mode == UpfMode.dpdk:
             access_network_annotation.mac = self._get_interface_mac_address(ACCESS_INTERFACE_NAME)
             access_network_annotation.ips = [self._get_network_ip_config(ACCESS_INTERFACE_NAME)]
             core_network_annotation.mac = self._get_interface_mac_address(CORE_INTERFACE_NAME)
@@ -314,7 +314,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             network_attachment_definitions: list[NetworkAttachmentDefinition]
         """
-        if self._get_upf_mode() == UpfMode.dpdk:
+        if self._charm_config.upf_mode == UpfMode.dpdk:
             access_nad = self._create_dpdk_access_nad_from_config()
             core_nad = self._create_dpdk_core_nad_from_config()
         else:
@@ -476,7 +476,7 @@ class UPFOperatorCharm(CharmBase):
             return
         self.on.nad_config_changed.emit()
         self.on.hugepages_volumes_config_changed.emit()
-        if self._get_upf_mode() == UpfMode.dpdk:
+        if self._charm_config.upf_mode == UpfMode.dpdk:
             self._configure_bessd_for_dpdk()
         if not self._bessd_container.can_connect():
             self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
@@ -528,13 +528,13 @@ class UPFOperatorCharm(CharmBase):
         core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
-            upf_mode=self._get_upf_mode(),  # type: ignore[arg-type]
+            upf_mode=self._charm_config.upf_mode,  # type: ignore[arg-type]
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
             core_ip_address=core_ip_address.split("/")[0] if core_ip_address else "",
-            dnn=self._get_dnn_config(),  # type: ignore[arg-type]
+            dnn=self._charm_config.dnn,  # type: ignore[arg-type]
             pod_share_path=POD_SHARE_PATH,
-            enable_hw_checksum=self._get_enable_hw_checksum(),
+            enable_hw_checksum=self._charm_config.enable_hw_checksum,
         )
         if not self._bessd_config_file_is_written() or not self._bessd_config_file_content_matches(
             content=content
@@ -623,7 +623,7 @@ class UPFOperatorCharm(CharmBase):
     def _create_ran_route(self) -> None:
         """Creates ip route towards gnb-subnet."""
         self._exec_command_in_bessd_workload(
-            command=f"ip route replace {self._get_gnb_subnet_config()} via {self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME)}"  # noqa: E501
+            command=f"ip route replace {self._charm_config.gnb_subnet} via {self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME)}"  # noqa: E501
         )
         logger.info("Route to gnb-subnet created")
 
@@ -755,20 +755,6 @@ class UPFOperatorCharm(CharmBase):
             "PYTHONUNBUFFERED": "1",
         }
 
-    def _get_upf_mode(self) -> Optional[str]:
-        return self._charm_config.upf_mode
-
-    def _get_dnn_config(self) -> Optional[str]:
-        return self._charm_config.dnn
-
-    def _get_enable_hw_checksum(self) -> bool:
-        """Reads the `enable-hw-checksum` charm config.
-
-        Returns:
-            bool: Whether hardware checksum should be enabled
-        """
-        return bool(self._charm_config.enable_hw_checksum)
-
     def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
         """Retrieves the network IP address to use for the specified interface.
 
@@ -832,12 +818,6 @@ class UPFOperatorCharm(CharmBase):
             return str(self._charm_config.core_gateway_ip)
         else:
             return None
-
-    def _get_gnb_subnet_config(self) -> Optional[str]:
-        return str(self._charm_config.gnb_subnet)
-
-    def _get_external_upf_hostname_config(self) -> Optional[str]:
-        return self._charm_config.external_upf_hostname
 
     def _upf_load_balancer_service_hostname(self) -> Optional[str]:
         """Returns the hostname of UPF's LoadBalancer service.
@@ -954,7 +934,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether HugePages are enabled
         """
-        return self._get_upf_mode() == UpfMode.dpdk
+        return self._charm_config.upf_mode == UpfMode.dpdk
 
     def _generate_bessd_startup_command(self) -> str:
         """Returns bessd startup command.
