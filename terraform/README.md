@@ -5,8 +5,8 @@ This folder contains a base [Terraform][Terraform] module for the sdcore-gnbsim-
 The module uses the [Terraform Juju provider][Terraform Juju provider] to model the charm
 deployment onto any Kubernetes environment managed by [Juju][Juju].
 
-The base module is not intended to be deployed in separation (it is possible though), but should
-rather serve as a building block for higher level modules.
+The module can be used to deploy the UPF separately as well as a part of a higher level module,
+depending on the deployment architecture.
 
 ## Module structure
 
@@ -18,6 +18,49 @@ rather serve as a building block for higher level modules.
   by defining potential integration endpoints (charm integrations), but also by exposing
   the application name.
 - **terraform.tf** - Defines the Terraform provider.
+
+## Deploying sdcore-upf-k8s base module separately
+
+### Pre-requisites
+
+- A Kubernetes host with a CPU supporting AVX2 and RDRAND instructions (Intel Haswell, AMD Excavator or equivalent)
+- A Kubernetes cluster with the Multus addon enabled.
+- Juju 3.x
+- Juju controller bootstrapped onto the K8s cluster
+- Terraform
+
+### Deploying UPF with Terraform
+
+Clone the `sdcore-upf-k8s-operator` Git repository.
+
+From inside the `terraform` folder, initialize the provider:
+
+```shell
+terraform init
+```
+
+Create Terraform plan:
+
+```shell
+terraform plan
+```
+
+While creating the plan, the default configuration can be overwritten with `-var-file`. To do that,
+Terraform `tfvars` file should be prepared prior to the plan creation.
+
+Deploy UPF:
+
+```console
+terraform apply -auto-approve 
+```
+
+### Cleaning up
+
+Destroy the deployment:
+
+```shell
+terraform destroy -auto-approve
+```
 
 ## Using sdcore-upf-k8s base module in higher level modules
 
