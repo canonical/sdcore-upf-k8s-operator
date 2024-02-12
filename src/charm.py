@@ -756,10 +756,10 @@ class UPFOperatorCharm(CharmBase):
         }
 
     def _get_upf_mode(self) -> Optional[str]:
-        return self._charm_config.upf_config.upf_mode
+        return self._charm_config.upf_mode
 
     def _get_dnn_config(self) -> Optional[str]:
-        return self._charm_config.upf_config.dnn
+        return self._charm_config.dnn
 
     def _get_enable_hw_checksum(self) -> bool:
         """Reads the `enable-hw-checksum` charm config.
@@ -767,7 +767,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether hardware checksum should be enabled
         """
-        return bool(self._charm_config.upf_config.enable_hw_checksum)
+        return bool(self._charm_config.enable_hw_checksum)
 
     def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
         """Retrieves the network IP address to use for the specified interface.
@@ -779,9 +779,9 @@ class UPFOperatorCharm(CharmBase):
             Optional[str]: The network IP address to use
         """
         if interface_name == ACCESS_INTERFACE_NAME:
-            return str(self._charm_config.upf_config.access_ip)
+            return str(self._charm_config.access_ip)
         elif interface_name == CORE_INTERFACE_NAME:
-            return str(self._charm_config.upf_config.core_ip)
+            return str(self._charm_config.core_ip)
         else:
             return None
 
@@ -795,9 +795,9 @@ class UPFOperatorCharm(CharmBase):
             Optional[str]: The interface on the host to use
         """
         if interface_name == ACCESS_INTERFACE_NAME:
-            return self._charm_config.upf_config.access_interface
+            return self._charm_config.access_interface
         elif interface_name == CORE_INTERFACE_NAME:
-            return self._charm_config.upf_config.core_interface
+            return self._charm_config.core_interface
         else:
             return None
 
@@ -811,9 +811,9 @@ class UPFOperatorCharm(CharmBase):
             Optional[str]: The MAC address to use
         """
         if interface_name == ACCESS_INTERFACE_NAME:
-            return self._charm_config.upf_config.access_interface_mac_address
+            return self._charm_config.access_interface_mac_address
         elif interface_name == CORE_INTERFACE_NAME:
-            return self._charm_config.upf_config.core_interface_mac_address
+            return self._charm_config.core_interface_mac_address
         else:
             return None
 
@@ -827,17 +827,17 @@ class UPFOperatorCharm(CharmBase):
             Optional[str]: The gateway IP address to use
         """
         if interface_name == ACCESS_INTERFACE_NAME:
-            return str(self._charm_config.upf_config.access_gateway_ip)
+            return str(self._charm_config.access_gateway_ip)
         elif interface_name == CORE_INTERFACE_NAME:
-            return str(self._charm_config.upf_config.core_gateway_ip)
+            return str(self._charm_config.core_gateway_ip)
         else:
             return None
 
     def _get_gnb_subnet_config(self) -> Optional[str]:
-        return str(self._charm_config.upf_config.gnb_subnet)
+        return str(self._charm_config.gnb_subnet)
 
     def _get_external_upf_hostname_config(self) -> Optional[str]:
-        return self._charm_config.upf_config.external_upf_hostname
+        return self._charm_config.external_upf_hostname
 
     def _upf_load_balancer_service_hostname(self) -> Optional[str]:
         """Returns the hostname of UPF's LoadBalancer service.
@@ -939,14 +939,14 @@ class UPFOperatorCharm(CharmBase):
             Optional[int]: The MTU to use for the specified interface
         """
         if interface_name == ACCESS_INTERFACE_NAME:
-            return self._charm_config.upf_config.access_interface_mtu_size
+            return self._charm_config.access_interface_mtu_size
         elif interface_name == CORE_INTERFACE_NAME:
-            return self._charm_config.upf_config.core_interface_mtu_size
+            return self._charm_config.core_interface_mtu_size
         else:
             return None
 
     def _get_cni_type_config(self) -> Optional[str]:
-        return self._charm_config.upf_config.cni_type
+        return self._charm_config.cni_type
 
     def _hugepages_is_enabled(self) -> bool:
         """Returns whether HugePages are enabled.

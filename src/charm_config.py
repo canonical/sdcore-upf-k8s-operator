@@ -84,7 +84,6 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     core_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.250.1")
     core_interface_mtu_size: Optional[int] = Field(default=None, ge=1200, le=65535)
     external_upf_hostname: Optional[StrictStr] = Field(default="")
-    vlan_id: Optional[int] = Field(default=None, ge=1, le=4095)
     enable_hw_checksum: bool = True
 
     @model_validator(mode="after")
@@ -115,11 +114,68 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
         return value
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class CharmConfig:
-    """Config of the Charm."""
+    """Represents the state of the UPF operator charm.
 
-    upf_config: UpfConfig
+    Attributes:
+        cni_type: Multus CNI plugin to use for the interfaces.
+        upf_mode: Either `af_packet` (default) or `dpdk`.
+        dnn: Data Network Name (DNN).
+        gnb_subnet: gNodeB subnet.
+        access_interface: Interface on the host to use for the Access Network.
+        access_interface_mac_address: MAC address of the UPF's Access interface.
+        access_ip: IP address used by the UPF's Access interface.
+        access_gateway_ip: Gateway IP address to the Access Network.
+        access_interface_mtu_size: MTU for the access interface in bytes.
+        core_interface: Interface on the host to use for the Core Network.
+        core_interface_mac_address: MAC address of the UPF's Core interface.
+        core_ip: IP address used by the UPF's Core interface.
+        core_gateway_ip: Gateway IP address to the Core Network.
+        core_interface_mtu_size: MTU for the core interface in bytes.
+        external_upf_hostname: Externally accessible FQDN for the UPF.
+        enable_hw_checksum: When enabled, hardware checksum will be used on the network interfaces.
+    """
+
+    cni_type: CNIType
+    upf_mode: UpfMode
+    dnn: StrictStr
+    gnb_subnet: IPvAnyNetwork
+    access_interface: Optional[StrictStr]
+    access_interface_mac_address: Optional[StrictStr]
+    access_ip: str
+    access_gateway_ip: IPvAnyAddress
+    access_interface_mtu_size: Optional[int]
+    core_interface: Optional[StrictStr]
+    core_interface_mac_address: Optional[StrictStr]
+    core_ip: str
+    core_gateway_ip: IPvAnyAddress
+    core_interface_mtu_size: Optional[int]
+    external_upf_hostname: Optional[StrictStr]
+    enable_hw_checksum: bool
+
+    def __init__(self, *, upf_config: UpfConfig):
+        """Initialize a new instance of the CharmConfig class.
+
+        Args:
+            upf_config: UPF operator configuration.
+        """
+        self.cni_type = upf_config.cni_type
+        self.upf_mode = upf_config.upf_mode
+        self.dnn = upf_config.dnn
+        self.gnb_subnet = upf_config.gnb_subnet
+        self.access_interface = upf_config.access_interface
+        self.access_interface_mac_address = upf_config.access_interface_mac_address
+        self.access_ip = upf_config.access_ip
+        self.access_gateway_ip = upf_config.access_gateway_ip
+        self.access_interface_mtu_size = upf_config.access_interface_mtu_size
+        self.core_interface = upf_config.core_interface
+        self.core_interface_mac_address = upf_config.core_interface_mac_address
+        self.core_ip = upf_config.core_ip
+        self.core_gateway_ip = upf_config.core_gateway_ip
+        self.core_interface_mtu_size = upf_config.core_interface_mtu_size
+        self.external_upf_hostname = upf_config.external_upf_hostname
+        self.enable_hw_checksum = upf_config.enable_hw_checksum
 
     @classmethod
     def from_charm(
@@ -130,7 +186,7 @@ class CharmConfig:
         try:
             # ignoring because mypy fails with:
             # "has incompatible type "**dict[str, str]"; expected ...""
-            valid_upf_config = UpfConfig(**dict(charm.config.items()))  # type: ignore
+            return cls(upf_config=UpfConfig(**dict(charm.config.items())))  # type: ignore
         except ValidationError as exc:
             error_fields: list = []
             for error in exc.errors():
@@ -144,5 +200,3 @@ class CharmConfig:
             raise CharmConfigInvalidError(
                 f"The following configurations are not valid: [{error_field_str}]"
             ) from exc
-
-        return cls(upf_config=valid_upf_config)
