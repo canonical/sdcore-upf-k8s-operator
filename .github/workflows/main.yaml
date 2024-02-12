@@ -19,6 +19,9 @@ jobs:
   static-analysis:
     uses: canonical/sdcore-github-workflows/.github/workflows/static-analysis.yaml@main
 
+  terraform-check:
+    uses: canonical/sdcore-github-workflows/.github/workflows/terraform.yaml@main
+
   unit-tests-with-coverage:
     uses: canonical/sdcore-github-workflows/.github/workflows/unit-test.yaml@main
 
