@@ -72,8 +72,24 @@ def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) ->
 
 
 class TestCharm(unittest.TestCase):
-    @patch("lightkube.core.client.GenericSyncClient")
-    def setUp(self, patch_k8s_client):
+
+    def reinstantiate_charm(self):
+        charm = self.harness.charm
+        self.harness.framework._forget(charm)
+        self.harness.framework._forget(charm.on)
+        self.harness.framework._forget(charm.fiveg_n3_provider)
+        self.harness.framework._forget(charm.fiveg_n3_provider.on)
+        self.harness.framework._forget(charm.fiveg_n4_provider)
+        self.harness.framework._forget(charm.fiveg_n4_provider.on)
+        self.harness.framework._forget(charm._metrics_endpoint)
+        self.harness.framework._forget(charm._kubernetes_multus)
+        self.harness.framework._forget(charm._kubernetes_volumes_patch)
+        self.harness._charm = None
+        self.harness.begin()
+
+    def setUp(self):
+        self.patch_k8s_client = patch("lightkube.core.client.GenericSyncClient")
+        self.patch_k8s_client.start()
         self.namespace = "whatever"
         self.harness = testing.Harness(UPFOperatorCharm)
         self.harness.set_model_name(name=self.namespace)
@@ -85,45 +101,96 @@ class TestCharm(unittest.TestCase):
         self.addCleanup(self.harness.cleanup)
         self.harness.begin()
 
-    def test_given_bad_config_when_config_changed_then_status_is_blocked(self):
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch("lightkube.core.client.Client.list")
+    def test_given_bad_config_when_config_changed_then_status_is_blocked(self, patched_list):
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(key_values={"dnn": ""})
+        self.reinstantiate_charm()
 
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus("The following configurations are not valid: ['dnn']"),
         )
 
-    def test_given_empty_upf_mode_when_config_changed_then_status_is_blocked(self):
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch("lightkube.core.client.Client.list")
+    def test_given_empty_upf_mode_when_config_changed_then_status_is_blocked(self, patched_list):
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
         self.harness.update_config(key_values={"upf-mode": ""})
+        self.reinstantiate_charm()
 
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus("The following configurations are not valid: ['upf-mode']"),
         )
 
-    def test_given_unsupported_upf_mode_when_config_changed_then_status_is_blocked(self):
-        self.harness.update_config(key_values={"upf-mode": "unsupported"})
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("The following configurations are not valid: ['upf-mode']"),
-        )
-
-    def test_given_upf_mode_set_to_dpdk_but_other_required_configs_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self,
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch("lightkube.core.client.Client.list")
+    def test_given_unsupported_upf_mode_when_config_changed_then_status_is_blocked(
+        self, patched_list
     ):
-        self.harness.update_config(key_values={"upf-mode": "dpdk"})
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
+        self.harness.update_config(key_values={"upf-mode": "unsupported"})
+        self.reinstantiate_charm()
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("The following configurations are not valid: ['upf-mode']"),
+        )
+
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch("charm.check_output")
+    @patch("lightkube.core.client.Client.list")
+    def test_given_upf_mode_set_to_dpdk_but_other_required_configs_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
+        self, patched_list, patched_check_output
+    ):
+        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+        ]
+        self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
+        self.reinstantiate_charm()
 
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
-                "The following configurations are not valid: ['enable-hugepages', 'access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
+                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
             ),
         )
 
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
         self, patched_list, patched_check_output
     ):
@@ -133,7 +200,8 @@ class TestCharm(unittest.TestCase):
             [],
             [],
         ]
-        self.harness.update_config(key_values={"upf-mode": "dpdk", "enable-hugepages": True})
+        self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
+        self.reinstantiate_charm()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -142,9 +210,12 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_access_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
         self, patched_list, patched_check_output
     ):
@@ -156,12 +227,13 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": INVALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
         )
+        self.reinstantiate_charm()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -170,9 +242,12 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_core_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
         self, patched_list, patched_check_output
     ):
@@ -184,12 +259,13 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": INVALID_CORE_MAC,
             }
         )
+        self.reinstantiate_charm()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -739,7 +815,6 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
@@ -765,7 +840,6 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
@@ -785,7 +859,6 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
@@ -876,8 +949,10 @@ class TestCharm(unittest.TestCase):
                 "core-interface": CORE_INTERFACE_NAME,
                 "core-ip": VALID_CORE_IP,
                 "core-gateway-ip": CORE_GW_IP,
+                "cni-type": "macvlan",
             }
         )
+        self.reinstantiate_charm()
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
             config = json.loads(nad.spec["config"])
@@ -887,7 +962,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -907,8 +981,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -920,7 +994,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -940,8 +1013,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -958,7 +1031,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -978,8 +1050,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -1014,7 +1086,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1034,8 +1105,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -1068,7 +1139,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1102,7 +1172,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1146,7 +1215,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1190,7 +1258,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1234,7 +1301,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1279,7 +1345,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1299,8 +1364,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
@@ -1326,7 +1391,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1346,8 +1410,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "access-ip": VALID_ACCESS_IP,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -1386,7 +1450,6 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.patch")
     @patch("ops.model.Container.get_service")
     @patch("lightkube.core.client.Client.list")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1406,8 +1469,8 @@ class TestCharm(unittest.TestCase):
         ]
         self.harness.update_config(
             key_values={
+                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "enable-hugepages": True,
                 "core-ip": VALID_CORE_IP,
                 "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
@@ -1508,7 +1571,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1548,7 +1610,15 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched.return_value = False
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
+        self.reinstantiate_charm()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -1556,12 +1626,17 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    @patch("dpdk.DPDK.is_configured")
     def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_waiting_status(  # noqa: E501
-        self, patch_hugepages_is_patched, patch_list, patched_check_output
+        self,
+        patch_dpdk_is_configured,
+        patch_hugepages_is_patched,
+        patch_list,
+        patched_check_output,
     ):
+        patch_dpdk_is_configured.return_value = True
         patch_hugepages_is_patched.return_value = True
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
@@ -1570,7 +1645,14 @@ class TestCharm(unittest.TestCase):
             [],
         ]
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -1578,7 +1660,6 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     def test_given_cpu_supporting_required_hugepages_instructions_and_not_available_hugepages_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
@@ -1588,19 +1669,31 @@ class TestCharm(unittest.TestCase):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.return_value = [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))]
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
 
         self.assertEqual(
             self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    @patch("dpdk.DPDK.is_configured")
     def test_given_hugepages_not_available_then_hugepages_available_when_update_status_then_charm_goes_to_waiting_status(  # noqa: E501
-        self, patch_hugepages_is_patched, patch_list, patched_check_output
+        self,
+        patch_dpdk_is_configured,
+        patch_hugepages_is_patched,
+        patch_list,
+        patched_check_output,
     ):
+        patch_dpdk_is_configured.return_value = True
         patch_hugepages_is_patched.return_value = True
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
@@ -1610,7 +1703,14 @@ class TestCharm(unittest.TestCase):
             [],
         ]
 
-        self.harness.update_config(key_values={"enable-hugepages": True})
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
 
         self.assertEqual(
             self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
@@ -1624,7 +1724,6 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.check_output")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.multus_is_available")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     def test_given_multus_disabled_then_enabled_when_update_status_then_status_is_active(
@@ -1666,7 +1765,6 @@ class TestCharm(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
-    @patch("lightkube.core.client.GenericSyncClient", new=Mock)
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
@@ -1715,6 +1813,10 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
     def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self,
     ):
@@ -1724,6 +1826,7 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mtu-size": ZERO_MTU_SIZE,
             }
         )
+        self.reinstantiate_charm()
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
@@ -1825,6 +1928,10 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
     def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
         self,
         patch_delete_pod,
@@ -1839,6 +1946,7 @@ class TestCharm(unittest.TestCase):
         update_nad_labels(original_nads, self.harness.charm.app.name)
         patch_list_na_definitions.return_value = original_nads
         self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
+        self.reinstantiate_charm()
         patch_delete_pod.assert_not_called()
 
     @patch(
@@ -1851,6 +1959,7 @@ class TestCharm(unittest.TestCase):
     ):
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.update_config(key_values={"enable-hw-checksum": False})
+        self.reinstantiate_charm()
         self.harness.container_pebble_ready(container_name="bessd")
 
         config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())

@@ -1,4 +1,10 @@
 options:
+  cni-type:
+    type: string
+    default: bridge
+    description: |
+      Multus CNI plugin to use for the interfaces.
+      Allowed values are `bridge`, `host-device`, `macvlan`, `vfioveth`.
   upf-mode:
     type: string
     default: af_packet
@@ -61,12 +67,6 @@ options:
       If not provided, it will default to the LoadBalancer Service hostname. 
       If that is not available, it will default to the internal
       Kubernetes FQDN of the service.
-  enable-hugepages:
-    type: boolean
-    default: false
-    description: |
-      When enabled, HugePages of 1Gi will be used for a total of 2Gi HugePages.
-      HugePages must be enabled if `upf-mode` is `dpdk`.
   enable-hw-checksum:
     type: boolean
     default: true
