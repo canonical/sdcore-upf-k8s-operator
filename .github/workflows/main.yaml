@@ -50,7 +50,7 @@ jobs:
       needs-publishing: ${{ steps.changes.outputs.fiveg_n3 }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
@@ -74,7 +74,7 @@ jobs:
       needs-publishing: ${{ steps.changes.outputs.fiveg_n4 }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
