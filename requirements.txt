@@ -2,7 +2,7 @@ httpx
 ipaddress
 ops
 jinja2
-juju==3.3.0.0
+juju==3.3.1.0
 lightkube
 lightkube-models
 macaddress
