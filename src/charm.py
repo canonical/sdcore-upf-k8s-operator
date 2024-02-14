@@ -333,7 +333,7 @@ class UPFOperatorCharm(CharmBase):
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
         nad_config = self._get_nad_base_config()
-        cni_type = self._get_cni_type_config()
+        cni_type = self._charm_config.cni_type
         # MTU is optional for bridge, macvlan, dpdk
         # MTU is ignored by host-device
         if cni_type != CNIType.host_device:
@@ -924,9 +924,6 @@ class UPFOperatorCharm(CharmBase):
             return self._charm_config.core_interface_mtu_size
         else:
             return None
-
-    def _get_cni_type_config(self) -> Optional[str]:
-        return self._charm_config.cni_type
 
     def _hugepages_is_enabled(self) -> bool:
         """Returns whether HugePages are enabled.
