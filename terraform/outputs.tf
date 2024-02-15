@@ -10,15 +10,15 @@ output "app_name" {
 
 output "metrics_endpoint" {
   description = "Exposes the Prometheus metrics endpoint providing telemetry about the UPF instance."
-  value = "metrics-endpoint"
+  value       = "metrics-endpoint"
 }
 
 output "fiveg_n3_endpoint" {
   description = "Name of the endpoint used to provide information on connectivity to the N3 plane."
-  value = "fiveg_n3"
+  value       = "fiveg_n3"
 }
 
 output "fiveg_n4_endpoint" {
   description = "Name of the endpoint used to provide information on connectivity to the N4 plane."
-  value = "fiveg_n4"
+  value       = "fiveg_n4"
 }
