@@ -24,6 +24,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 )
 from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides  # type: ignore[import]
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides  # type: ignore[import]
+from httpx import HTTPStatusError
 from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
@@ -189,12 +190,15 @@ class UPFOperatorCharm(CharmBase):
         # dirty state in k8s, but it will be cleaned up when the juju model is
         # destroyed. It will be re-used if the charm is re-deployed.
         client = Client()
-        client.delete(
-            Service,
-            name=f"{self.app.name}-external",
-            namespace=self._namespace,
-        )
-        logger.info("Deleted external UPF service")
+        try:
+            client.delete(
+                Service,
+                name=f"{self.app.name}-external",
+                namespace=self._namespace,
+            )
+            logger.info("Deleted external UPF service")
+        except HTTPStatusError as status:
+            logger.info(f"Could not delete {self.app.name}-external due to: {status}")
 
     @property
     def _namespace(self) -> str:

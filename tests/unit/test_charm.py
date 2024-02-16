@@ -9,6 +9,7 @@ from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
+from httpx import HTTPStatusError
 from lightkube.models.core_v1 import Node, NodeStatus, ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
@@ -1560,7 +1561,24 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch("charm.Client")
-    def test_when_remove_then_external_service_is_deleted(self, patch_client):
+    def test_given_service_exists_on_remove_then_external_service_is_deleted(self, patch_client):
+        self.harness.charm.on.remove.emit()
+
+        patch_client.return_value.delete.assert_called_once_with(
+            Service,
+            name=f"{self.harness.charm.app.name}-external",
+            namespace=self.namespace,
+        )
+
+    @patch("charm.Client")
+    def test_given_service_does_not_exist_on_remove_then_no_exception_is_thrown(
+        self, patch_client
+    ):
+        patch_client.return_value.delete.side_effect = HTTPStatusError(
+            message='services "upf-external" not found',
+            request=None,
+            response=None,
+        )
         self.harness.charm.on.remove.emit()
 
         patch_client.return_value.delete.assert_called_once_with(
