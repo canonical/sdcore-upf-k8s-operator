@@ -583,7 +583,7 @@ class UPFOperatorCharm(CharmBase):
             self._bessd_container.add_layer("bessd", self._bessd_pebble_layer, combine=True)
             restart = True
         if recreate_pod:
-            logger.warning("Recreating POD after changing hardware check config")
+            logger.warning("Recreating POD after changing hardware checksum offloading config")
             self.delete_pod()
         elif restart:
             self._bessd_container.restart(self._routectl_service_name)
