@@ -203,7 +203,7 @@ class UPFOperatorCharm(CharmBase):
     def delete_pod(self):
         """Delete the pod."""
         client = Client()
-        client.delete(Pod, name=self._pod, namespace=self._namespace)
+        client.delete(Pod, name=self._pod_name, namespace=self._namespace)
 
     @property
     def _namespace(self) -> str:
@@ -211,7 +211,7 @@ class UPFOperatorCharm(CharmBase):
         return self.model.name
 
     @property
-    def _pod(self) -> str:
+    def _pod_name(self) -> str:
         """Name of the unit's pod.
 
         Returns:
@@ -476,7 +476,7 @@ class UPFOperatorCharm(CharmBase):
             return False
         return True
 
-    def _hwcksum_config_changed(self) -> bool:
+    def _hwcksum_config_matches_pod_config(self) -> bool:
         try:
             existing_content = json.loads(
                 self._bessd_container.pull(
@@ -569,7 +569,7 @@ class UPFOperatorCharm(CharmBase):
         if not self._bessd_config_file_is_written() or not self._bessd_config_file_content_matches(
             content=content
         ):
-            if self._hwcksum_config_changed():
+            if self._hwcksum_config_matches_pod_config():
                 recreate_pod = True
             self._write_bessd_config_file(content=content)
             restart = True
