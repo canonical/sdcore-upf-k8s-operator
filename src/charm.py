@@ -29,13 +29,13 @@ from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.resources.core_v1 import Node, Service
+from lightkube.resources.core_v1 import Node, Pod, Service
 from ops import RemoveEvent
 from ops.charm import CharmBase, CharmEvents
 from ops.framework import EventBase, EventSource
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
-from ops.pebble import ExecError, Layer
+from ops.pebble import ExecError, Layer, PathError
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
 from dpdk import DPDK
@@ -200,10 +200,24 @@ class UPFOperatorCharm(CharmBase):
         except HTTPStatusError as status:
             logger.info(f"Could not delete {self.app.name}-external due to: {status}")
 
+    def delete_pod(self):
+        """Delete the pod."""
+        client = Client()
+        client.delete(Pod, name=self._pod, namespace=self._namespace)
+
     @property
     def _namespace(self) -> str:
         """Returns the k8s namespace."""
         return self.model.name
+
+    @property
+    def _pod(self) -> str:
+        """Name of the unit's pod.
+
+        Returns:
+            str: A string containing the name of the current unit's pod.
+        """
+        return "-".join(self.model.unit.name.rsplit("/", 1))
 
     def _on_install(self, event: EventBase) -> None:
         """Handler for Juju install event.
@@ -462,6 +476,17 @@ class UPFOperatorCharm(CharmBase):
             return False
         return True
 
+    def _hwcksum_config_changed(self) -> bool:
+        try:
+            existing_content = json.loads(
+                self._bessd_container.pull(
+                    path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
+                ).read()
+            )
+        except PathError:
+            existing_content = {}
+        return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
+
     def _on_config_changed(self, event: EventBase):
         """Handler for config changed events."""
         # workaround for https://github.com/canonical/operator/issues/736
@@ -529,6 +554,7 @@ class UPFOperatorCharm(CharmBase):
         Writes configuration file, creates routes, creates iptable rule and pebble layer.
         """
         restart = False
+        recreate_pod = False
         core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
@@ -543,6 +569,8 @@ class UPFOperatorCharm(CharmBase):
         if not self._bessd_config_file_is_written() or not self._bessd_config_file_content_matches(
             content=content
         ):
+            if self._hwcksum_config_changed():
+                recreate_pod = True
             self._write_bessd_config_file(content=content)
             restart = True
         self._create_default_route()
@@ -554,7 +582,10 @@ class UPFOperatorCharm(CharmBase):
         if plan.services != layer.services:
             self._bessd_container.add_layer("bessd", self._bessd_pebble_layer, combine=True)
             restart = True
-        if restart:
+        if recreate_pod:
+            logger.warning("Recreating POD after changing hardware check config")
+            self.delete_pod()
+        elif restart:
             self._bessd_container.restart(self._routectl_service_name)
             logger.info("Service `routectl` restarted")
             self._bessd_container.restart(self._bessd_service_name)
