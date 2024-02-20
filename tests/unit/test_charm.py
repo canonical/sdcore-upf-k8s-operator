@@ -1983,3 +1983,20 @@ class TestCharm(unittest.TestCase):
         config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
         self.assertIn("hwcksum", config)
         self.assertFalse(config["hwcksum"])
+
+    @patch("charm.UPFOperatorCharm.delete_pod")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_hardware_checksum_is_enabled_when_value_changes_then_delete_pod_is_called_once(  # noqa: E501
+        self,
+        patch_hugepages_is_patched,
+        patch_multus_is_ready,
+        patch_delete_pod,
+    ):
+        self.harness.handle_exec("bessd", [], result=0)
+        patch_hugepages_is_patched.return_value = True
+        patch_multus_is_ready.return_value = True
+        self.harness.set_can_connect(container="bessd", val=True)
+        self.harness.set_can_connect(container="pfcp-agent", val=True)
+        self.harness.update_config(key_values={"enable-hw-checksum": False})
+        patch_delete_pod.assert_called_once()
