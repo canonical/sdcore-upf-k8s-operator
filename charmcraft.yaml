@@ -12,6 +12,3 @@ parts:
     build-packages:
       - cargo
       - rustc
-    charm-python-packages:
-      - pip
-      - setuptools
