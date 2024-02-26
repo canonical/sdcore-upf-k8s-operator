@@ -1,0 +1,13 @@
+httpx
+ipaddress
+ops
+jinja2
+juju==3.3.1.1
+lightkube
+lightkube-models
+macaddress
+pydantic==2.5.3
+pydantic_extra_types
+pytest-interface-tester
+PyYAML>=6.0.1
+cosl # required by prometheus_k8s.v0.prometheus_scrape
