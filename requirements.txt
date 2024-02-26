@@ -101,12 +101,12 @@ pyasn1-modules==0.3.0
     # via google-auth
 pycparser==2.21
     # via cffi
-pydantic==2.5.3
+pydantic==2.6.2
     # via
     #   -r requirements.in
     #   pydantic-extra-types
     #   pytest-interface-tester
-pydantic-core==2.14.6
+pydantic-core==2.16.3
     # via pydantic
 pydantic-extra-types==2.5.0
     # via -r requirements.in

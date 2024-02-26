@@ -11,7 +11,7 @@ pyproject-flake8
 pytest
 pytest-asyncio==0.21.1
 pytest-interface-tester
-pydantic==2.5.3
+pydantic==2.6.2
 pytest-operator
 types-PyYAML
 types-setuptools
