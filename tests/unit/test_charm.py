@@ -83,6 +83,7 @@ class TestCharm(unittest.TestCase):
         self.harness.framework._forget(charm.fiveg_n4_provider)
         self.harness.framework._forget(charm.fiveg_n4_provider.on)
         self.harness.framework._forget(charm._metrics_endpoint)
+        self.harness.framework._forget(charm._logging)
         self.harness.framework._forget(charm._kubernetes_multus)
         self.harness.framework._forget(charm._kubernetes_volumes_patch)
         self.harness._charm = None

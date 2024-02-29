@@ -19,6 +19,7 @@ from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
+from charms.loki_k8s.v1.loki_push_api import LogForwarder  # type: ignore[import]
 from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
     MetricsEndpointProvider,
 )
@@ -60,6 +61,7 @@ PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 REQUIRED_CPU_EXTENSIONS_HUGEPAGES = ["pdpe1gb"]
+LOGGING_RELATION_NAME = "logging"
 
 # The default field manager set when using kubectl to create resources
 DEFAULT_FIELD_MANAGER = "controller"
@@ -110,6 +112,7 @@ class UPFOperatorCharm(CharmBase):
                 }
             ],
         )
+        self._logging = LogForwarder(charm=self, relation_name=LOGGING_RELATION_NAME)
         self.unit.set_ports(PROMETHEUS_PORT)
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
