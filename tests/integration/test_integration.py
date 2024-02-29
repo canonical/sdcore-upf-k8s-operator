@@ -8,11 +8,23 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
 APP_NAME = METADATA["name"]
+GRAFANA_AGENT_APP_NAME = "grafana-agent-k8s"
+
+
+async def _deploy_grafana_agent(ops_test: OpsTest):
+    """Deploy a Grafana agent."""
+    assert ops_test.model
+    await ops_test.model.deploy(
+        GRAFANA_AGENT_APP_NAME,
+        application_name=GRAFANA_AGENT_APP_NAME,
+        channel="stable",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -30,6 +42,7 @@ async def build_and_deploy(ops_test):
         application_name=APP_NAME,
         trust=True,
     )
+    await _deploy_grafana_agent(ops_test)
 
 
 @pytest.mark.abort_on_fail
@@ -37,6 +50,9 @@ async def test_given_charm_is_built_when_deployed_then_status_is_active(
     ops_test,
     build_and_deploy,
 ):
+    await ops_test.model.integrate(
+        relation1=f"{APP_NAME}:logging", relation2=GRAFANA_AGENT_APP_NAME
+    )
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME],
         raise_on_error=False,

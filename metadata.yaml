@@ -51,6 +51,10 @@ provides:
   metrics-endpoint:
     interface: prometheus_scrape
 
+requires:
+  logging:
+    interface: loki_push_api
+
 assumes:
-  - juju >= 3.1
+  - juju >= 3.4
   - k8s-api
