@@ -22,3 +22,10 @@ output "fiveg_n4_endpoint" {
   description = "Name of the endpoint used to provide information on connectivity to the N4 plane."
   value       = "fiveg_n4"
 }
+
+# Requires integration endpoints
+
+output "logging_endpoint" {
+  description = "Name of the endpoint used to integrate with the Logging provider."
+  value       = "logging"
+}
