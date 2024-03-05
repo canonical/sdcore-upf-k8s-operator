@@ -1558,7 +1558,7 @@ class TestCharm(unittest.TestCase):
         )
 
         patch_client.return_value.apply.assert_called_once_with(
-            expected_service, field_manager="controller"
+            expected_service, field_manager="sdcore-upf-k8s"
         )
 
     @patch("charm.Client")
