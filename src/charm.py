@@ -7,8 +7,9 @@
 import json
 import logging
 import time
+from pathlib import PurePath
 from subprocess import check_output
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (  # type: ignore[import]
     HugePagesVolume,
@@ -444,8 +445,10 @@ class UPFOperatorCharm(CharmBase):
         Args:
             content: Bessd config file content
         """
-        self._bessd_container.push(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}", source=content
+        self.push_file(
+            container=self._bessd_container,
+            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}",
+            source=content,
         )
         logger.info("Pushed %s config file", CONFIG_FILE_NAME)
 
@@ -455,8 +458,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether the bessd config file was written
         """
-        return self._bessd_container.exists(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
+        return self.path_exists(
+            container=self._bessd_container,
+            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}",
         )
 
     def _bessd_config_file_content_matches(self, content: str) -> bool:
@@ -677,7 +681,9 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool:   True/False
         """
-        return self._bessd_container.exists(path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}")
+        return self.path_exists(
+            container=self._bessd_container, path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}"
+        )
 
     def _create_bessctl_executed_validation_file(self, content) -> None:
         """Create BESSCTL_CONFIGURE_EXECUTED_FILE_NAME.
@@ -685,7 +691,8 @@ class UPFOperatorCharm(CharmBase):
         This must be created outside of the persistent storage volume so that
         on container restart, bessd configuration will run again.
         """
-        self._bessd_container.push(
+        self.push_file(
+            container=self._bessd_container,
             path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
             source=content,
         )
@@ -1008,6 +1015,44 @@ class UPFOperatorCharm(CharmBase):
             hugepages_cmd = "-m 0"  # "-m 0" means that we are not using hugepages
         return f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} {hugepages_cmd}"
 
+    def push_file(
+        self,
+        container: Container,
+        path: Union[str, PurePath],
+        source: str,
+    ) -> None:
+        """Pushes source content to path in container.
+
+        Args:
+            container: Container object
+            path: Path in which content is pushed
+            source: Content to be pushed to container
+        """
+        try:
+            container.push(path=path, source=source)
+        except ConnectionError:
+            self.unit.status = WaitingStatus(f"Waiting for {container.name} to be ready")
+
+    def path_exists(
+        self,
+        container: Container,
+        path: Union[str, PurePath],
+    ) -> bool:
+        """Returns existence of path in container.
+
+        Args:
+            container: Container object
+            path: Path to verify the existence of
+
+        Returns:
+            bool: existence of path in container
+        """
+        try:
+            return container.exists(path=path)
+        except ConnectionError:
+            self.unit.status = WaitingStatus("Waiting for Pebble API to be ready")
+            return False
+
 
 def render_bessd_config_file(
     upf_hostname: str,
@@ -1061,6 +1106,8 @@ def service_is_running_on_container(container: Container, service_name: str) -> 
     try:
         service = container.get_service(service_name)
     except ModelError:
+        return False
+    except ConnectionError:
         return False
     return service.is_running()
 

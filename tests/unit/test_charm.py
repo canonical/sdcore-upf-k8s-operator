@@ -756,7 +756,7 @@ class TestCharm(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="bessd")
 
         self.assertEqual(
-            self.harness.model.unit.status, WaitingStatus("Waiting for Pebble API to be ready")
+            self.harness.model.unit.status, WaitingStatus("Waiting for bessd service to run")
         )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
