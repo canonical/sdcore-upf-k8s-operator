@@ -63,9 +63,6 @@ REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 REQUIRED_CPU_EXTENSIONS_HUGEPAGES = ["pdpe1gb"]
 LOGGING_RELATION_NAME = "logging"
 
-# The default field manager set when using kubectl to create resources
-DEFAULT_FIELD_MANAGER = "controller"
-
 
 class NadConfigChangedEvent(EventBase):
     """Event triggered when an existing network attachment definition is changed."""
@@ -170,7 +167,7 @@ class UPFOperatorCharm(CharmBase):
             ),
         )
 
-        client.apply(service, field_manager=DEFAULT_FIELD_MANAGER)
+        client.apply(service, field_manager=self.model.app.name)
         logger.info("Created/asserted existence of the external UPF service")
 
     def _on_remove(self, event: RemoveEvent) -> None:
