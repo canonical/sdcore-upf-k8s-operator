@@ -469,9 +469,15 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether the bessd config file content matches
         """
-        existing_content = self._bessd_container.pull(
-            path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
-        )
+        try:
+            existing_content = self._bessd_container.pull(
+                path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
+            )
+        except ConnectionError:
+            self.unit.status = WaitingStatus(
+                f"Waiting for {self._bessd_container.name} to be ready"
+            )
+            return False
         if existing_content.read() != content:
             return False
         return True
@@ -484,6 +490,11 @@ class UPFOperatorCharm(CharmBase):
                 ).read()
             )
         except PathError:
+            existing_content = {}
+        except ConnectionError:
+            self.unit.status = WaitingStatus(
+                f"Waiting for {self._bessd_container.name} to be ready"
+            )
             existing_content = {}
         return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
 
