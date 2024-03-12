@@ -135,7 +135,7 @@ pycodestyle==2.11.1
     # via flake8
 pycparser==2.21
     # via cffi
-pydantic==2.6.3
+pydantic==2.6.4
     # via
     #   -r test-requirements.in
     #   pytest-interface-tester
