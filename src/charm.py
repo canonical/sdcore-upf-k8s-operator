@@ -602,7 +602,6 @@ class UPFOperatorCharm(CharmBase):
                     logger.info("Starting configuration of the `bessd` service")
                     self._exec_command_in_bessd_workload(
                         command="/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4",
-                        timeout=timeout,
                         environment=self._bessd_environment_variables,
                     )
                     message = "Service `bessd` configured"
