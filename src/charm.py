@@ -509,6 +509,8 @@ class UPFOperatorCharm(CharmBase):
             return WaitingStatus("Waiting for Multus to be ready")
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             return WaitingStatus("Waiting for storage to be attached")
+        if status := self._check_container_availability():
+            return status
 
     def _check_container_availability(self):
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
