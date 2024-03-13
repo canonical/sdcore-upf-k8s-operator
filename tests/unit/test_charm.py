@@ -555,7 +555,7 @@ class TestCharm(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="bessd")
 
         self.assertTrue(bessctl_called)
-        self.assertEqual(timeout, 300)
+        self.assertEqual(timeout, 30)
         self.assertEqual(
             environment, {"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"}
         )
@@ -612,7 +612,7 @@ class TestCharm(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="bessd")
 
         self.assertTrue(bessctl_called)
-        self.assertEqual(timeout, 300)
+        self.assertEqual(timeout, 30)
         self.assertEqual(
             environment, {"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"}
         )
