@@ -36,7 +36,7 @@ from ops.charm import CharmBase, CharmEvents
 from ops.framework import EventBase, EventSource
 from ops.main import main
 from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
-from ops.pebble import ExecError, Layer, PathError
+from ops.pebble import ChangeError, ExecError, Layer, PathError
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
 from dpdk import DPDK
@@ -609,7 +609,7 @@ class UPFOperatorCharm(CharmBase):
                     self._create_bessctl_executed_validation_file(message)
                     return
                 return
-            except ExecError:
+            except (ChangeError, ExecError):
                 logger.info("Failed running configuration for bess")
                 time.sleep(2)
         raise TimeoutError("Timed out trying to run configuration for bess")
