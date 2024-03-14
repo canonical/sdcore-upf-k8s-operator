@@ -551,6 +551,8 @@ class UPFOperatorCharm(CharmBase):
         """Handle pfcp agent Pebble ready event."""
         if self._check_cpu_compatibility():
             return
+        if self._unit_is_non_active_status():
+            return
         self._configure_pfcp_agent_workload()
 
     def _configure_bessd_workload(self) -> None:

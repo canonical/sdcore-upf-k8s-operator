@@ -698,18 +698,22 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
 
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.get_service")
     def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_get_service,
+        patch_multus_is_ready,
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
         self.harness.evaluate_status()
+        self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
 
         expected_plan = {
             "services": {
