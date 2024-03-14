@@ -1602,7 +1602,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("Please use a CPU that has the following capabilities: avx2, rdrand"),
+            BlockedStatus("CPU is not compatible, see logs"),
         )
 
     @patch("charm.check_output")
@@ -1726,7 +1726,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("Please use a CPU that has the following capabilities: avx2, rdrand"),
+            BlockedStatus("CPU is not compatible, see logs"),
         )
 
     @patch("charm.check_output")

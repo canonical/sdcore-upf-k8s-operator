@@ -93,6 +93,13 @@ class UPFOperatorCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        if not self.unit.is_leader():
+            # NOTE: In cases where leader status is lost before the charm is
+            # finished processing all teardown events, this prevents teardown
+            # event code from running. Luckily, for this charm, none of the
+            # teardown code is necessary to perform if we're removing the
+            # charm.
+            return
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_service_name = "routectl"
         self._pfcp_agent_container_name = self._pfcp_agent_service_name = "pfcp-agent"
@@ -228,7 +235,9 @@ class UPFOperatorCharm(CharmBase):
         Args:
             event: Juju event
         """
-        if self._check_cpu_compatibility():
+        if not self._is_cpu_compatible():
+            return
+        if not self._hugepages_are_available():
             return
         self._create_external_upf_service()
 
@@ -499,8 +508,8 @@ class UPFOperatorCharm(CharmBase):
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
         except CharmConfigInvalidError as exc:
             return BlockedStatus(exc.msg)
-        if status := self._check_cpu_compatibility():
-            return status
+        if cpu_status := self._cpu_status_setter():
+            return cpu_status
         if not self._kubernetes_multus.multus_is_available():
             return BlockedStatus("Multus is not installed or enabled")
         if not self._bessd_container.can_connect():
@@ -509,10 +518,17 @@ class UPFOperatorCharm(CharmBase):
             return WaitingStatus("Waiting for Multus to be ready")
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             return WaitingStatus("Waiting for storage to be attached")
-        if status := self._check_container_availability():
-            return status
+        if container_status := self._container_status_setter():
+            return container_status
 
-    def _check_container_availability(self):
+    def _cpu_status_setter(self) -> Optional[StatusBase]:
+        if not self._is_cpu_compatible():
+            return BlockedStatus("CPU is not compatible, see logs")
+        if not self._hugepages_are_available():
+            return BlockedStatus("Not enough HugePages available")
+        return None
+
+    def _container_status_setter(self):
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             return WaitingStatus("Waiting for bessd service to run")
         if not service_is_running_on_container(self._bessd_container, self._routectl_service_name):
@@ -535,7 +551,9 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self.unit.is_leader():
             return
-        if self._check_cpu_compatibility():
+        if not self._is_cpu_compatible():
+            return
+        if not self._hugepages_are_available():
             return
         if not self._kubernetes_multus.multus_is_available():
             return
@@ -557,7 +575,9 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self.unit.is_leader():
             return
-        if self._check_cpu_compatibility():
+        if not self._is_cpu_compatible():
+            return
+        if not self._hugepages_are_available():
             return
         if not self._kubernetes_multus.is_ready():
             return
@@ -569,7 +589,9 @@ class UPFOperatorCharm(CharmBase):
         """Handle pfcp agent Pebble ready event."""
         if not self.unit.is_leader():
             return
-        if self._check_cpu_compatibility():
+        if not self._is_cpu_compatible():
+            return
+        if not self._hugepages_are_available():
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             event.defer()
@@ -895,7 +917,7 @@ class UPFOperatorCharm(CharmBase):
         """
         return f"{self.model.app.name}-external.{self.model.name}.svc.cluster.local"
 
-    def _check_cpu_compatibility(self) -> Optional[StatusBase]:
+    def _is_cpu_compatible(self) -> bool:
         """Returns whether the CPU meets requirements to run this charm.
 
         Returns:
@@ -905,19 +927,19 @@ class UPFOperatorCharm(CharmBase):
             required_extension in self._get_cpu_extensions()
             for required_extension in REQUIRED_CPU_EXTENSIONS
         ):
-            return BlockedStatus(
-                "Please use a CPU that has the following capabilities: "
-                f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
+            logger.warning(
+                "Please use a CPU that has the following capabilities: %s",
+                ", ".join(REQUIRED_CPU_EXTENSIONS),
             )
+            return False
         if self._hugepages_is_enabled():
             if not self._cpu_is_compatible_for_hugepages():
-                return BlockedStatus(
-                    "Please use a CPU that has the following capabilities: "
-                    f"{', '.join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES)}"
+                logger.warning(
+                    "Please use a CPU that has the following capabilities: %s",
+                    ", ".join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES),
                 )
-            if not self._hugepages_are_available():
-                return BlockedStatus("Not enough HugePages available")
-        return None
+                return False
+        return True
 
     @staticmethod
     def _get_cpu_extensions() -> list[str]:
@@ -940,8 +962,7 @@ class UPFOperatorCharm(CharmBase):
             for required_extension in REQUIRED_CPU_EXTENSIONS_HUGEPAGES
         )
 
-    @staticmethod
-    def _hugepages_are_available() -> bool:
+    def _hugepages_are_available(self) -> bool:
         """Checks whether HugePages are available in the K8S nodes.
 
         Returns:
@@ -949,6 +970,8 @@ class UPFOperatorCharm(CharmBase):
         """
         client = Client()
         nodes = client.list(Node)
+        if not self._hugepages_is_enabled():
+            return True
         if not nodes:
             return False
         return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
