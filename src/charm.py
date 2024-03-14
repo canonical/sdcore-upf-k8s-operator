@@ -529,29 +529,50 @@ class UPFOperatorCharm(CharmBase):
 
     def _on_config_changed(self, event: EventBase):
         """Handler for config changed events."""
-        if self._unit_is_non_active_status():
+        try:  # workaround for https://github.com/canonical/operator/issues/736
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+        except CharmConfigInvalidError:
+            return
+        if not self.unit.is_leader():
+            return
+        if self._check_cpu_compatibility():
+            return
+        if not self._kubernetes_multus.multus_is_available():
             return
         self.on.nad_config_changed.emit()
         self.on.hugepages_volumes_config_changed.emit()
         if self._charm_config.upf_mode == UpfMode.dpdk:
             self._configure_bessd_for_dpdk()
+        if not self._bessd_container.can_connect():
+            return
         self._on_bessd_pebble_ready(event)
         self._update_fiveg_n3_relation_data()
         self._update_fiveg_n4_relation_data()
 
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
         """Handle Pebble ready event."""
+        try:
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+        except CharmConfigInvalidError:
+            return
+        if not self.unit.is_leader():
+            return
         if self._check_cpu_compatibility():
             return
-        if self._unit_is_non_active_status():
+        if not self._kubernetes_multus.is_ready():
+            return
+        if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             return
         self._configure_bessd_workload()
 
     def _on_pfcp_agent_pebble_ready(self, event: EventBase) -> None:
         """Handle pfcp agent Pebble ready event."""
+        if not self.unit.is_leader():
+            return
         if self._check_cpu_compatibility():
             return
-        if self._unit_is_non_active_status():
+        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
+            event.defer()
             return
         self._configure_pfcp_agent_workload()
 

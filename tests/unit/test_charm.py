@@ -1745,6 +1745,7 @@ class TestCharm(unittest.TestCase):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
