@@ -28,7 +28,6 @@ async def _deploy_grafana_agent(ops_test: OpsTest):
 
 
 @pytest.fixture(scope="module")
-@pytest.mark.abort_on_fail
 async def build_and_deploy(ops_test):
     """Build the charm-under-test and deploy it."""
     charm = await ops_test.build_charm(".")
