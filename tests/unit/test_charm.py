@@ -1024,6 +1024,7 @@ class TestCharm(unittest.TestCase):
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
             [],
@@ -1099,6 +1100,7 @@ class TestCharm(unittest.TestCase):
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
             [],
@@ -1156,6 +1158,7 @@ class TestCharm(unittest.TestCase):
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
@@ -1435,6 +1438,7 @@ class TestCharm(unittest.TestCase):
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
             [],
@@ -1484,6 +1488,7 @@ class TestCharm(unittest.TestCase):
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
@@ -1548,6 +1553,7 @@ class TestCharm(unittest.TestCase):
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
             [],
@@ -1602,7 +1608,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("CPU is not compatible, see logs"),
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
     @patch("charm.check_output")
@@ -1726,7 +1732,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("CPU is not compatible, see logs"),
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
     @patch("charm.check_output")
@@ -1744,6 +1750,7 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched.return_value = True
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
@@ -1787,7 +1794,7 @@ class TestCharm(unittest.TestCase):
         self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+            self.harness.model.unit.status, BlockedStatus("CPU is not compatible, see logs for more details")
         )
 
     @patch("charm.check_output")
@@ -1824,7 +1831,7 @@ class TestCharm(unittest.TestCase):
         self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+            self.harness.model.unit.status, BlockedStatus("CPU is not compatible, see logs for more details")
         )
 
         self.harness.charm.on.update_status.emit()

@@ -37,7 +37,6 @@ from ops import (
     Container,
     ModelError,
     RemoveEvent,
-    StatusBase,
     WaitingStatus,
 )
 from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
@@ -134,7 +133,6 @@ class UPFOperatorCharm(CharmBase):
         )
         self.framework.observe(self.on.update_status, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.config_storage_attached, self._on_bessd_pebble_ready)
         self.framework.observe(self.on.pfcp_agent_pebble_ready, self._on_pfcp_agent_pebble_ready)
@@ -499,39 +497,41 @@ class UPFOperatorCharm(CharmBase):
             # event code from running. Luckily, for this charm, none of the
             # teardown code is necessary to perform if we're removing the
             # charm.
+            logger.info("Scaling is not implemented for this charm")
             return BlockedStatus("Scaling is not implemented for this charm")
         try:  # workaround for https://github.com/canonical/operator/issues/736
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
         except CharmConfigInvalidError as exc:
+            logger.info(exc.msg)
             return BlockedStatus(exc.msg)
-        if cpu_status := self._cpu_status_setter():
-            return cpu_status
+        if not self._is_cpu_compatible():
+            return BlockedStatus("CPU is not compatible, see logs for more details")
         if not self._kubernetes_multus.multus_is_available():
+            logger.info("Multus is not installed or enabled")
             return BlockedStatus("Multus is not installed or enabled")
         if not self._bessd_container.can_connect():
+            logger.info("Waiting for bessd container to be ready")
             return WaitingStatus("Waiting for bessd container to be ready")
         if not self._kubernetes_multus.is_ready():
+            logger.info("Waiting for Multus to be ready")
             return WaitingStatus("Waiting for Multus to be ready")
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+            logger.info("Waiting for storage to be attached")
             return WaitingStatus("Waiting for storage to be attached")
         if container_status := self._container_status_setter():
             return container_status
 
-    def _cpu_status_setter(self) -> Optional[StatusBase]:
-        if not self._is_cpu_compatible():
-            return BlockedStatus("CPU is not compatible, see logs")
-        if not self._hugepages_are_available():
-            return BlockedStatus("Not enough HugePages available")
-        return None
-
     def _container_status_setter(self):
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
+            logger.info("Waiting for bessd service to run")
             return WaitingStatus("Waiting for bessd service to run")
         if not service_is_running_on_container(self._bessd_container, self._routectl_service_name):
+            logger.info("Waiting for routectl service to run")
             return WaitingStatus("Waiting for routectl service to run")
         if not service_is_running_on_container(
             self._pfcp_agent_container, self._pfcp_agent_service_name
         ):
+            logger.info("Waiting for pfcp agent service to run")
             return WaitingStatus("Waiting for pfcp agent service to run")
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):
@@ -934,6 +934,9 @@ class UPFOperatorCharm(CharmBase):
                     "Please use a CPU that has the following capabilities: %s",
                     ", ".join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES),
                 )
+                return False
+            if not self._hugepages_are_available():
+                logger.warning("Not enough HugePages available")
                 return False
         return True
 
