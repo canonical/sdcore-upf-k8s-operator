@@ -1794,7 +1794,8 @@ class TestCharm(unittest.TestCase):
         self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, BlockedStatus("CPU is not compatible, see logs for more details")
+            self.harness.model.unit.status,
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
     @patch("charm.check_output")
@@ -1831,7 +1832,8 @@ class TestCharm(unittest.TestCase):
         self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, BlockedStatus("CPU is not compatible, see logs for more details")
+            self.harness.model.unit.status,
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
         self.harness.charm.on.update_status.emit()

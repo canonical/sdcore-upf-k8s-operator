@@ -31,14 +31,7 @@ from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod, Service
-from ops import (
-    ActiveStatus,
-    BlockedStatus,
-    Container,
-    ModelError,
-    RemoveEvent,
-    WaitingStatus,
-)
+from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent, WaitingStatus
 from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.main import main
