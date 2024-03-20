@@ -31,15 +31,7 @@ from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod, Service
-from ops import (
-    ActiveStatus,
-    BlockedStatus,
-    Container,
-    ModelError,
-    RemoveEvent,
-    StatusBase,
-    WaitingStatus,
-)
+from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent, WaitingStatus
 from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.main import main
@@ -491,66 +483,56 @@ class UPFOperatorCharm(CharmBase):
             existing_content = {}
         return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
 
-    def _unit_is_non_active_status(self) -> Optional[StatusBase]:
-        """Returns status representation of preconditions for application readiness.
-
-        Returns:
-            status/None: status for preconditions not met or None.
-        """
+    def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
+        """Handler for collect status event."""
         if not self.unit.is_leader():
             # NOTE: In cases where leader status is lost before the charm is
             # finished processing all teardown events, this prevents teardown
             # event code from running. Luckily, for this charm, none of the
             # teardown code is necessary to perform if we're removing the
             # charm.
+            event.add_status(BlockedStatus("Scaling is not implemented for this charm"))
             logger.info("Scaling is not implemented for this charm")
-            return BlockedStatus("Scaling is not implemented for this charm")
+            return
         try:  # workaround for https://github.com/canonical/operator/issues/736
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
         except CharmConfigInvalidError as exc:
+            event.add_status(BlockedStatus(exc.msg))
             logger.info(exc.msg)
-            return BlockedStatus(exc.msg)
+            return
         if not self._is_cpu_compatible():
-            return BlockedStatus("CPU is not compatible, see logs for more details")
+            event.add_status(BlockedStatus("CPU is not compatible, see logs for more details"))
+            return
         if not self._kubernetes_multus.multus_is_available():
+            event.add_status(BlockedStatus("Multus is not installed or enabled"))
             logger.info("Multus is not installed or enabled")
-            return BlockedStatus("Multus is not installed or enabled")
+            return
         if not self._bessd_container.can_connect():
+            event.add_status(WaitingStatus("Waiting for bessd container to be ready"))
             logger.info("Waiting for bessd container to be ready")
-            return WaitingStatus("Waiting for bessd container to be ready")
+            return
         if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
             logger.info("Waiting for Multus to be ready")
-            return WaitingStatus("Waiting for Multus to be ready")
+            return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+            event.add_status(WaitingStatus("Waiting for storage to be attached"))
             logger.info("Waiting for storage to be attached")
-            return WaitingStatus("Waiting for storage to be attached")
-        if container_status := self._unavailable_container_services():
-            return container_status
-        return None
-
-    def _unavailable_container_services(self) -> Optional[WaitingStatus]:
-        """Returns status representation of container services availability.
-
-        Returns:
-            status/None: waiting status for unavailable services or None.
-        """
+            return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
+            event.add_status(WaitingStatus("Waiting for bessd service to run"))
             logger.info("Waiting for bessd service to run")
-            return WaitingStatus("Waiting for bessd service to run")
+            return
         if not service_is_running_on_container(self._bessd_container, self._routectl_service_name):
+            event.add_status(WaitingStatus("Waiting for routectl service to run"))
             logger.info("Waiting for routectl service to run")
-            return WaitingStatus("Waiting for routectl service to run")
+            return
         if not service_is_running_on_container(
             self._pfcp_agent_container, self._pfcp_agent_service_name
         ):
+            event.add_status(WaitingStatus("Waiting for pfcp agent service to run"))
             logger.info("Waiting for pfcp agent service to run")
-            return WaitingStatus("Waiting for pfcp agent service to run")
-        return None
-
-    def _on_collect_unit_status(self, event: CollectStatusEvent):
-        """Handler for collect status event."""
-        if status := self._unit_is_non_active_status():
-            event.add_status(status)
+            return
         event.add_status(ActiveStatus())
 
     def _on_config_changed(self, event: EventBase):
