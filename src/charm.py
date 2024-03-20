@@ -31,7 +31,15 @@ from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod, Service
-from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent, WaitingStatus
+from ops import (
+    ActiveStatus,
+    BlockedStatus,
+    Container,
+    ModelError,
+    RemoveEvent,
+    StatusBase,
+    WaitingStatus,
+)
 from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.main import main
@@ -483,7 +491,12 @@ class UPFOperatorCharm(CharmBase):
             existing_content = {}
         return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
 
-    def _unit_is_non_active_status(self):
+    def _unit_is_non_active_status(self) -> Optional[StatusBase]:
+        """Returns status representation of preconditions for application readiness.
+
+        Returns:
+            status/None: status for preconditions not met or None.
+        """
         if not self.unit.is_leader():
             # NOTE: In cases where leader status is lost before the charm is
             # finished processing all teardown events, this prevents teardown
@@ -511,10 +524,16 @@ class UPFOperatorCharm(CharmBase):
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             logger.info("Waiting for storage to be attached")
             return WaitingStatus("Waiting for storage to be attached")
-        if container_status := self._container_status_setter():
+        if container_status := self._container_services_are_running():
             return container_status
+        return None
 
-    def _container_status_setter(self):
+    def _container_services_are_running(self) -> Optional[WaitingStatus]:
+        """Returns status representation of container services availability.
+
+        Returns:
+            status/None: waiting status for unavailable services or None.
+        """
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             logger.info("Waiting for bessd service to run")
             return WaitingStatus("Waiting for bessd service to run")
@@ -526,8 +545,10 @@ class UPFOperatorCharm(CharmBase):
         ):
             logger.info("Waiting for pfcp agent service to run")
             return WaitingStatus("Waiting for pfcp agent service to run")
+        return None
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):
+        """Handler for collect status event."""
         if status := self._unit_is_non_active_status():
             event.add_status(status)
         event.add_status(ActiveStatus())
