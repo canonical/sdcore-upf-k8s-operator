@@ -524,11 +524,11 @@ class UPFOperatorCharm(CharmBase):
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
             logger.info("Waiting for storage to be attached")
             return WaitingStatus("Waiting for storage to be attached")
-        if container_status := self._container_services_are_running():
+        if container_status := self._unavailable_container_services():
             return container_status
         return None
 
-    def _container_services_are_running(self) -> Optional[WaitingStatus]:
+    def _unavailable_container_services(self) -> Optional[WaitingStatus]:
         """Returns status representation of container services availability.
 
         Returns:
