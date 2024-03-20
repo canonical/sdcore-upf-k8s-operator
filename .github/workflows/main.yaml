@@ -27,7 +27,7 @@ jobs:
     uses: canonical/sdcore-github-workflows/.github/workflows/unit-test.yaml@main
 
   integration-test:
-    uses: canonical/sdcore-github-workflows/.github/workflows/integration-test-with-multus.yaml@main
+    uses: canonical/sdcore-github-workflows/.github/workflows/integration-test-with-multus.yaml@TELCO-1082-Publish-charms-and-snaps-to-branch-on-pull-request
     with:
       charm-file-name: "sdcore-upf-k8s_ubuntu-22.04-amd64.charm"
 
@@ -41,6 +41,22 @@ jobs:
     if: ${{ github.ref_name == 'main' }}
     uses: canonical/sdcore-github-workflows/.github/workflows/publish-charm.yaml@TELCO-1082-Publish-charms-and-snaps-to-branch-on-pull-request
     with:
+      charm-file-name: "sdcore-upf-k8s_ubuntu-22.04-amd64.charm"
+      track-name: 1.3
+    secrets:
+      CHARMCRAFT_AUTH: ${{ secrets.CHARMCRAFT_AUTH }}
+
+  publish-charm-on-pr:
+    name: Publish Charm On Pull Request
+    needs:
+      - lint-report
+      - static-analysis
+      - unit-tests-with-coverage
+      - integration-test
+    if: ${{ github.ref_name != 'main' }}
+    uses: canonical/sdcore-github-workflows/.github/workflows/publish-charm.yaml@TELCO-1082-Publish-charms-and-snaps-to-branch-on-pull-request
+    with:
+      branch-name: ${{ github.ref_name }
       charm-file-name: "sdcore-upf-k8s_ubuntu-22.04-amd64.charm"
       track-name: 1.3
     secrets:
