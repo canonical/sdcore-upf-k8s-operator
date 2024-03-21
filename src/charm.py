@@ -586,7 +586,6 @@ class UPFOperatorCharm(CharmBase):
         if not self._hugepages_are_available():
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
-            event.defer()
             return
         self._configure_pfcp_agent_workload()
 
