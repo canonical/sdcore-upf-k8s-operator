@@ -13,8 +13,7 @@ from httpx import HTTPStatusError
 from lightkube.models.core_v1 import Node, NodeStatus, ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
-from ops import testing
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
 
 from charm import (
     ACCESS_INTERFACE_NAME,
@@ -276,25 +275,31 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
-        self, _
+        self,
+        _,
+        __,
     ):
         self.harness.handle_exec("bessd", [], result=0)
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         self.harness.container_pebble_ready(container_name="bessd")
-
         expected_config_file_content = read_file("tests/unit/expected_upf.json").strip()
 
         self.assertEqual(
             (self.root / "etc/bess/conf/upf.json").read_text(), expected_config_file_content
         )
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_bessd_config_file_not_yet_written_when_config_storage_attached_then_config_file_is_written(  # noqa: E501
-        self, _
+        self, _, __
     ):
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         (self.root / "etc/bess/conf").rmdir()
         self.harness.add_storage(storage_name="config", count=1)
         self.harness.attach_storage(storage_id="config/0")
@@ -319,12 +324,16 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual((self.root / "etc/bess/conf/upf.json").read_text(), expected_upf_content)
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_is_ready,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -362,10 +371,13 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_ip_route_is_created(
-        self, patch_is_ready
+        self, patch_is_ready, _
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         ip_route_replace_called = False
         timeout = 0
         environment = {}
@@ -403,10 +415,13 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(timeout, 30)
         self.assertEqual(environment, {})
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_gnb_subnet_route_is_created(
-        self, patch_is_ready
+        self, patch_is_ready, _
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         gnb_subnet_route_replace_called = False
         timeout = 0
         environment = {}
@@ -444,10 +459,13 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(timeout, 30)
         self.assertEqual(environment, {})
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_iptables_rule_is_not_yet_created_when_bessd_pebble_ready_then_rule_is_created(
-        self, patch_is_ready
+        self, patch_is_ready, _
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         iptables_drop_called = False
         timeout = 0
         environment = {}
@@ -495,10 +513,13 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(timeout, 30)
         self.assertEqual(environment, {})
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_iptables_rule_is_created_when_bessd_pebble_ready_then_rule_is_not_re_created(
-        self, patch_is_ready
+        self, patch_is_ready, _
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         iptables_drop_called = False
 
         iptables_drop_cmd = [
@@ -528,10 +549,13 @@ class TestCharm(unittest.TestCase):
 
         self.assertFalse(iptables_drop_called)
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
-        self, patch_is_ready
+        self, patch_is_ready, _
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         bessctl_called = False
         timeout = 0
         environment = {}
@@ -560,10 +584,13 @@ class TestCharm(unittest.TestCase):
             environment, {"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"}
         )
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
-        self, patch_is_ready
+        self, patch_is_ready, _
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         (self.root / "bessctl_configure_executed").write_text("")
 
         bessctl_called = False
@@ -584,10 +611,13 @@ class TestCharm(unittest.TestCase):
 
         self.assertFalse(bessctl_called)
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_connects_and_bessctl_executed_file_dont_exist_then_bessctl_configure_executed(
-        self, patch_is_ready
+        self, patch_is_ready, _
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         bessctl_called = False
         timeout = 0
         environment = {}
@@ -627,6 +657,7 @@ class TestCharm(unittest.TestCase):
         (self.root / "etc/bess/conf").rmdir()
 
         self.harness.container_pebble_ready(container_name="bessd")
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -641,6 +672,7 @@ class TestCharm(unittest.TestCase):
         patch_is_ready.return_value = False
 
         self.harness.container_pebble_ready(container_name="bessd")
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -662,20 +694,26 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container="pfcp-agent", val=True)
 
         self.harness.container_pebble_ready(container_name="bessd")
+        self.harness.evaluate_status()
 
         self.assertEqual(self.harness.model.unit.status, ActiveStatus())
 
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.get_service")
     def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_get_service,
+        patch_multus_is_ready,
     ):
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
+        patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
+        self.harness.evaluate_status()
+        self.assertEqual(self.harness.charm.unit.status, ActiveStatus())
 
         expected_plan = {
             "services": {
@@ -697,9 +735,11 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container="bessd", val=False)
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
+        self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, WaitingStatus("Waiting for bessd service to run")
+            self.harness.model.unit.status,
+            WaitingStatus("Waiting for bessd container to be ready"),
         )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
@@ -733,6 +773,7 @@ class TestCharm(unittest.TestCase):
 
         patched_publish_upf_information.assert_not_called()
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
@@ -742,6 +783,7 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready,
         patch_hugepages_is_patched,
         patched_publish_upf_information,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         patch_multus_is_ready.return_value = True
@@ -880,6 +922,7 @@ class TestCharm(unittest.TestCase):
             upf_n4_port=TEST_PFCP_PORT,
         )
 
+    @patch("ops.model.Container.get_service")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
@@ -889,6 +932,7 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready,
         patch_hugepages_is_ready,
         patched_publish_upf_n4_information,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         test_external_upf_hostname = "test-upf.external.hostname.com"
@@ -973,11 +1017,15 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_2_nads_are_returned(  # noqa: E501
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
             [],
             [],
         ]
@@ -1005,11 +1053,14 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_nad_type_is_vfioveth(  # noqa: E501
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
             [],
             [],
         ]
@@ -1042,11 +1093,15 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_access_nad_has_valid_dpdk_access_resource_specified_in_annotations(  # noqa: E501
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
             [],
             [],
         ]
@@ -1097,11 +1152,15 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(  # noqa: E501
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
             [],
             [],
         ]
@@ -1150,6 +1209,9 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
@@ -1183,6 +1245,9 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
@@ -1226,6 +1291,9 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
@@ -1269,6 +1337,9 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
@@ -1312,6 +1383,9 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
         self, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
@@ -1356,11 +1430,16 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
         self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
             [],
             [],
         ]
@@ -1402,11 +1481,16 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
         self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
             [],
             [],
         ]
@@ -1461,11 +1545,16 @@ class TestCharm(unittest.TestCase):
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
         self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.handle_exec("bessd", [], result=0)
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
         patched_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
             [],
             [],
         ]
@@ -1515,10 +1604,11 @@ class TestCharm(unittest.TestCase):
     ):
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
         self.harness.charm.on.install.emit()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("Please use a CPU that has the following capabilities: avx2, rdrand"),
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
     @patch("charm.check_output")
@@ -1638,10 +1728,11 @@ class TestCharm(unittest.TestCase):
             }
         )
         self.reinstantiate_charm()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("Please use a CPU that has the following capabilities: avx2, rdrand"),
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
     @patch("charm.check_output")
@@ -1660,7 +1751,10 @@ class TestCharm(unittest.TestCase):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
         ]
 
@@ -1672,6 +1766,7 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mac-address": "00-B0-D0-63-C2-26",
             }
         )
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -1696,9 +1791,11 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mac-address": "00-B0-D0-63-C2-26",
             }
         )
+        self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+            self.harness.model.unit.status,
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
     @patch("charm.check_output")
@@ -1717,6 +1814,8 @@ class TestCharm(unittest.TestCase):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         patch_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "1Gi"}))],
+            [],
+            [],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "2Gi"}))],
             [],
             [],
@@ -1730,12 +1829,15 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mac-address": "00-B0-D0-63-C2-26",
             }
         )
+        self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, BlockedStatus("Not enough HugePages available")
+            self.harness.model.unit.status,
+            BlockedStatus("CPU is not compatible, see logs for more details"),
         )
 
         self.harness.charm.on.update_status.emit()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -1749,13 +1851,15 @@ class TestCharm(unittest.TestCase):
         self, patch_hugepages_is_patched, patch_multus_available, patched_check_output
     ):
         patch_hugepages_is_patched.return_value = True
-        patch_multus_available.side_effect = [False, True]
+        patch_multus_available.side_effect = [False, False, False, True]
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         self.harness.charm.on.update_status.emit()
+        self.harness.evaluate_status()
         self.assertEqual(
             self.harness.model.unit.status, BlockedStatus("Multus is not installed or enabled")
         )
         self.harness.charm.on.update_status.emit()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -1825,6 +1929,7 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mtu-size": TOO_BIG_MTU_SIZE,
             }
         )
+        self.harness.evaluate_status()
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
@@ -1853,6 +1958,7 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
@@ -1864,6 +1970,7 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         patch_hugepages_is_patched.return_value = True
@@ -1876,6 +1983,7 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_1})
         patch_delete_pod.assert_called_once()
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
@@ -1887,6 +1995,7 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         patch_hugepages_is_patched.return_value = True
@@ -1903,6 +2012,7 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         self.assertEqual(patch_delete_pod.call_count, 2)
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
@@ -1914,6 +2024,7 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         """Delete pod is called for the first config change, setting the same config value does not trigger pod restarts."""  # noqa: E501, W505
@@ -1943,6 +2054,7 @@ class TestCharm(unittest.TestCase):
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         patch_delete_pod.assert_called_once()
 
+    @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
@@ -1956,6 +2068,7 @@ class TestCharm(unittest.TestCase):
         patch_delete_pod,
         patch_multus_is_ready,
         patch_list_na_definitions,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         patch_multus_is_ready.return_value = True
@@ -1968,15 +2081,20 @@ class TestCharm(unittest.TestCase):
         self.reinstantiate_charm()
         patch_delete_pod.assert_not_called()
 
+    @patch("ops.model.Container.get_service")
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_hardware_checksum_is_enabled_when_bessd_pebble_ready_then_config_file_has_hwcksum_enabled(  # noqa: E501
-        self, _
+        self,
+        _,
+        __,
     ):
         self.harness.handle_exec("bessd", [], result=0)
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
         self.harness.update_config(key_values={"enable-hw-checksum": False})
         self.reinstantiate_charm()
         self.harness.container_pebble_ready(container_name="bessd")
@@ -1985,6 +2103,7 @@ class TestCharm(unittest.TestCase):
         self.assertIn("hwcksum", config)
         self.assertFalse(config["hwcksum"])
 
+    @patch("ops.model.Container.get_service")
     @patch("charm.UPFOperatorCharm.delete_pod")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
@@ -1993,6 +2112,7 @@ class TestCharm(unittest.TestCase):
         patch_hugepages_is_patched,
         patch_multus_is_ready,
         patch_delete_pod,
+        _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         patch_hugepages_is_patched.return_value = True
