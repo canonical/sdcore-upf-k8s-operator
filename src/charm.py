@@ -31,11 +31,10 @@ from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod, Service
-from ops import RemoveEvent
-from ops.charm import CharmBase, CharmEvents
+from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent, WaitingStatus
+from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, Container, ModelError, WaitingStatus
 from ops.pebble import ChangeError, ExecError, Layer, PathError
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
@@ -86,13 +85,8 @@ class UPFOperatorCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        self.framework.observe(self.on.collect_unit_status, self._on_collect_unit_status)
         if not self.unit.is_leader():
-            # NOTE: In cases where leader status is lost before the charm is
-            # finished processing all teardown events, this prevents teardown
-            # event code from running. Luckily, for this charm, none of the
-            # teardown code is necessary to perform if we're removing the
-            # charm.
-            self.unit.status = BlockedStatus("Scaling is not implemented for this charm")
             return
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_service_name = "routectl"
@@ -229,6 +223,8 @@ class UPFOperatorCharm(CharmBase):
             event: Juju event
         """
         if not self._is_cpu_compatible():
+            return
+        if not self._hugepages_are_available():
             return
         self._create_external_upf_service()
 
@@ -487,28 +483,77 @@ class UPFOperatorCharm(CharmBase):
             existing_content = {}
         return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
 
-    def _on_config_changed(self, event: EventBase):
-        """Handler for config changed events."""
-        # workaround for https://github.com/canonical/operator/issues/736
-        try:
+    def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
+        """Handler for collect status event."""
+        if not self.unit.is_leader():
+            # NOTE: In cases where leader status is lost before the charm is
+            # finished processing all teardown events, this prevents teardown
+            # event code from running. Luckily, for this charm, none of the
+            # teardown code is necessary to perform if we're removing the
+            # charm.
+            event.add_status(BlockedStatus("Scaling is not implemented for this charm"))
+            logger.info("Scaling is not implemented for this charm")
+            return
+        try:  # workaround for https://github.com/canonical/operator/issues/736
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
         except CharmConfigInvalidError as exc:
-            self.model.unit.status = BlockedStatus(exc.msg)
+            event.add_status(BlockedStatus(exc.msg))
+            logger.info(exc.msg)
+            return
+        if not self._is_cpu_compatible():
+            event.add_status(BlockedStatus("CPU is not compatible, see logs for more details"))
+            return
+        if not self._kubernetes_multus.multus_is_available():
+            event.add_status(BlockedStatus("Multus is not installed or enabled"))
+            logger.info("Multus is not installed or enabled")
+            return
+        if not self._bessd_container.can_connect():
+            event.add_status(WaitingStatus("Waiting for bessd container to be ready"))
+            logger.info("Waiting for bessd container to be ready")
+            return
+        if not self._kubernetes_multus.is_ready():
+            event.add_status(WaitingStatus("Waiting for Multus to be ready"))
+            logger.info("Waiting for Multus to be ready")
+            return
+        if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+            event.add_status(WaitingStatus("Waiting for storage to be attached"))
+            logger.info("Waiting for storage to be attached")
+            return
+        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
+            event.add_status(WaitingStatus("Waiting for bessd service to run"))
+            logger.info("Waiting for bessd service to run")
+            return
+        if not service_is_running_on_container(self._bessd_container, self._routectl_service_name):
+            event.add_status(WaitingStatus("Waiting for routectl service to run"))
+            logger.info("Waiting for routectl service to run")
+            return
+        if not service_is_running_on_container(
+            self._pfcp_agent_container, self._pfcp_agent_service_name
+        ):
+            event.add_status(WaitingStatus("Waiting for pfcp agent service to run"))
+            logger.info("Waiting for pfcp agent service to run")
+            return
+        event.add_status(ActiveStatus())
+
+    def _on_config_changed(self, event: EventBase):
+        """Handler for config changed events."""
+        try:  # workaround for https://github.com/canonical/operator/issues/736
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+        except CharmConfigInvalidError:
             return
         if not self.unit.is_leader():
             return
-
         if not self._is_cpu_compatible():
             return
+        if not self._hugepages_are_available():
+            return
         if not self._kubernetes_multus.multus_is_available():
-            self.unit.status = BlockedStatus("Multus is not installed or enabled")
             return
         self.on.nad_config_changed.emit()
         self.on.hugepages_volumes_config_changed.emit()
         if self._charm_config.upf_mode == UpfMode.dpdk:
             self._configure_bessd_for_dpdk()
         if not self._bessd_container.can_connect():
-            self.unit.status = WaitingStatus("Waiting for bessd container to be ready")
             return
         self._on_bessd_pebble_ready(event)
         self._update_fiveg_n3_relation_data()
@@ -516,24 +561,21 @@ class UPFOperatorCharm(CharmBase):
 
     def _on_bessd_pebble_ready(self, event: EventBase) -> None:
         """Handle Pebble ready event."""
-        # workaround for https://github.com/canonical/operator/issues/736
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
-        except CharmConfigInvalidError as exc:
-            self.model.unit.status = BlockedStatus(exc.msg)
+        except CharmConfigInvalidError:
             return
         if not self.unit.is_leader():
             return
         if not self._is_cpu_compatible():
             return
+        if not self._hugepages_are_available():
+            return
         if not self._kubernetes_multus.is_ready():
-            self.unit.status = WaitingStatus("Waiting for Multus to be ready")
             return
         if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
-            self.unit.status = WaitingStatus("Waiting for storage to be attached")
             return
         self._configure_bessd_workload()
-        self._set_unit_status()
 
     def _on_pfcp_agent_pebble_ready(self, event: EventBase) -> None:
         """Handle pfcp agent Pebble ready event."""
@@ -541,12 +583,11 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._is_cpu_compatible():
             return
+        if not self._hugepages_are_available():
+            return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
-            self.unit.status = WaitingStatus("Waiting for bessd service to run")
-            event.defer()
             return
         self._configure_pfcp_agent_workload()
-        self._set_unit_status()
 
     def _configure_bessd_workload(self) -> None:
         """Configures bessd workload.
@@ -714,21 +755,6 @@ class UPFOperatorCharm(CharmBase):
             self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
             logger.info("Service `pfcp` restarted")
 
-    def _set_unit_status(self) -> None:
-        """Set the unit status based on config and container services running."""
-        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
-            self.unit.status = WaitingStatus("Waiting for bessd service to run")
-            return
-        if not service_is_running_on_container(self._bessd_container, self._routectl_service_name):
-            self.unit.status = WaitingStatus("Waiting for routectl service to run")
-            return
-        if not service_is_running_on_container(
-            self._pfcp_agent_container, self._pfcp_agent_service_name
-        ):
-            self.unit.status = WaitingStatus("Waiting for pfcp agent service to run")
-            return
-        self.unit.status = ActiveStatus()
-
     @property
     def _bessd_pebble_layer(self) -> Layer:
         return Layer(
@@ -892,20 +918,20 @@ class UPFOperatorCharm(CharmBase):
             required_extension in self._get_cpu_extensions()
             for required_extension in REQUIRED_CPU_EXTENSIONS
         ):
-            self.unit.status = BlockedStatus(
-                "Please use a CPU that has the following capabilities: "
-                f"{', '.join(REQUIRED_CPU_EXTENSIONS)}"
+            logger.warning(
+                "Please use a CPU that has the following capabilities: %s",
+                ", ".join(REQUIRED_CPU_EXTENSIONS),
             )
             return False
         if self._hugepages_is_enabled():
             if not self._cpu_is_compatible_for_hugepages():
-                self.unit.status = BlockedStatus(
-                    "Please use a CPU that has the following capabilities: "
-                    f"{', '.join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES)}"
+                logger.warning(
+                    "Please use a CPU that has the following capabilities: %s",
+                    ", ".join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES),
                 )
                 return False
             if not self._hugepages_are_available():
-                self.unit.status = BlockedStatus("Not enough HugePages available")
+                logger.warning("Not enough HugePages available")
                 return False
         return True
 
@@ -930,8 +956,7 @@ class UPFOperatorCharm(CharmBase):
             for required_extension in REQUIRED_CPU_EXTENSIONS_HUGEPAGES
         )
 
-    @staticmethod
-    def _hugepages_are_available() -> bool:
+    def _hugepages_are_available(self) -> bool:
         """Checks whether HugePages are available in the K8S nodes.
 
         Returns:
@@ -939,6 +964,8 @@ class UPFOperatorCharm(CharmBase):
         """
         client = Client()
         nodes = client.list(Node)
+        if not self._hugepages_is_enabled():
+            return True
         if not nodes:
             return False
         return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
