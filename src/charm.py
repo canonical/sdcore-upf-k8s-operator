@@ -35,7 +35,7 @@ from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent,
 from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.main import main
-from ops.pebble import ChangeError, ExecError, Layer, PathError
+from ops.pebble import ChangeError, ConnectionError, ExecError, Layer, PathError
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
 from dpdk import DPDK
@@ -573,7 +573,10 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._kubernetes_multus.is_ready():
             return
-        if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+        try:
+            if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+                return
+        except ConnectionError:
             return
         self._configure_bessd_workload()
 
