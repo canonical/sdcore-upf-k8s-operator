@@ -14,6 +14,7 @@ from lightkube.models.core_v1 import Node, NodeStatus, ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
+from ops.pebble import ConnectionError
 
 from charm import (
     ACCESS_INTERFACE_NAME,
@@ -740,6 +741,22 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(
             self.harness.model.unit.status,
             WaitingStatus("Waiting for bessd container to be ready"),
+        )
+
+    @patch("ops.model.Container.get_service")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    def test_given_pebble_connection_error_when_bessd_pebble_ready_then_status_is_waiting(  # noqa: E501
+        self, patch_is_ready, patch_get_service
+    ):
+        self.harness.handle_exec("bessd", [], result=0)
+        patch_get_service.side_effect = ConnectionError()
+        patch_is_ready.return_value = True
+        self.harness.set_can_connect(container="bessd", val=True)
+
+        self.harness.container_pebble_ready(container_name="bessd")
+
+        self.assertEqual(
+            self.harness.model.unit.status, WaitingStatus("Waiting for Pebble API to be ready")
         )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
