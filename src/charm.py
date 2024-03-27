@@ -445,7 +445,7 @@ class UPFOperatorCharm(CharmBase):
         Args:
             content: Bessd config file content
         """
-        self.push_file(
+        push_file(
             container=self._bessd_container,
             path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}",
             source=content,
@@ -458,7 +458,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether the bessd config file was written
         """
-        return self.path_exists(
+        return path_exists(
             container=self._bessd_container,
             path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}",
         )
@@ -474,9 +474,6 @@ class UPFOperatorCharm(CharmBase):
                 path=f"{BESSD_CONTAINER_CONFIG_PATH}/{CONFIG_FILE_NAME}"
             )
         except ConnectionError:
-            self.unit.status = WaitingStatus(
-                f"Waiting for {self._bessd_container.name} to be ready"
-            )
             return False
         if existing_content.read() != content:
             return False
@@ -492,9 +489,6 @@ class UPFOperatorCharm(CharmBase):
         except PathError:
             existing_content = {}
         except ConnectionError:
-            self.unit.status = WaitingStatus(
-                f"Waiting for {self._bessd_container.name} to be ready"
-            )
             existing_content = {}
         return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
 
@@ -530,7 +524,7 @@ class UPFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for Multus to be ready"))
             logger.info("Waiting for Multus to be ready")
             return
-        if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
+        if not path_exists(container=self._bessd_container, path=BESSD_CONTAINER_CONFIG_PATH):
             event.add_status(WaitingStatus("Waiting for storage to be attached"))
             logger.info("Waiting for storage to be attached")
             return
@@ -588,10 +582,7 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._kubernetes_multus.is_ready():
             return
-        try:
-            if not self._bessd_container.exists(path=BESSD_CONTAINER_CONFIG_PATH):
-                return
-        except ConnectionError:
+        if not path_exists(container=self._bessd_container, path=BESSD_CONTAINER_CONFIG_PATH):
             return
         self._configure_bessd_workload()
 
@@ -692,7 +683,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool:   True/False
         """
-        return self.path_exists(
+        return path_exists(
             container=self._bessd_container, path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}"
         )
 
@@ -702,7 +693,7 @@ class UPFOperatorCharm(CharmBase):
         This must be created outside of the persistent storage volume so that
         on container restart, bessd configuration will run again.
         """
-        self.push_file(
+        push_file(
             container=self._bessd_container,
             path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
             source=content,
@@ -1026,44 +1017,6 @@ class UPFOperatorCharm(CharmBase):
             hugepages_cmd = "-m 0"  # "-m 0" means that we are not using hugepages
         return f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} {hugepages_cmd}"
 
-    def push_file(
-        self,
-        container: Container,
-        path: Union[str, PurePath],
-        source: str,
-    ) -> None:
-        """Pushes source content to path in container.
-
-        Args:
-            container: Container object
-            path: Path in which content is pushed
-            source: Content to be pushed to container
-        """
-        try:
-            container.push(path=path, source=source)
-        except ConnectionError:
-            self.unit.status = WaitingStatus(f"Waiting for {container.name} to be ready")
-
-    def path_exists(
-        self,
-        container: Container,
-        path: Union[str, PurePath],
-    ) -> bool:
-        """Returns existence of path in container.
-
-        Args:
-            container: Container object
-            path: Path to verify the existence of
-
-        Returns:
-            bool: existence of path in container
-        """
-        try:
-            return container.exists(path=path)
-        except ConnectionError:
-            self.unit.status = WaitingStatus("Waiting for Pebble API to be ready")
-            return False
-
 
 def render_bessd_config_file(
     upf_hostname: str,
@@ -1121,6 +1074,43 @@ def service_is_running_on_container(container: Container, service_name: str) -> 
     except ConnectionError:
         return False
     return service.is_running()
+
+
+def push_file(
+    container: Container,
+    path: Union[str, PurePath],
+    source: str,
+) -> None:
+    """Pushes source content to path in container.
+
+    Args:
+        container: Container object
+        path: Path in which content is pushed
+        source: Content to be pushed to container
+    """
+    try:
+        container.push(path=path, source=source)
+    except ConnectionError:
+        return
+
+
+def path_exists(
+    container: Container,
+    path: Union[str, PurePath],
+) -> bool:
+    """Returns existence of path in container.
+
+    Args:
+        container: Container object
+        path: Path to verify the existence of
+
+    Returns:
+        bool: existence of path in container
+    """
+    try:
+        return container.exists(path=path)
+    except ConnectionError:
+        return False
 
 
 if __name__ == "__main__":  # pragma: no cover
