@@ -754,6 +754,7 @@ class TestCharm(unittest.TestCase):
         self.harness.set_can_connect(container="bessd", val=True)
 
         self.harness.container_pebble_ready(container_name="bessd")
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status, WaitingStatus("Waiting for bessd service to run")
