@@ -72,22 +72,7 @@ def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) ->
         nad.metadata.labels = {"app.juju.is/created-by": app_name}
 
 
-class TestCharm(unittest.TestCase):
-
-    def reinstantiate_charm(self):
-        charm = self.harness.charm
-        self.harness.framework._forget(charm)
-        self.harness.framework._forget(charm.on)
-        self.harness.framework._forget(charm.fiveg_n3_provider)
-        self.harness.framework._forget(charm.fiveg_n3_provider.on)
-        self.harness.framework._forget(charm.fiveg_n4_provider)
-        self.harness.framework._forget(charm.fiveg_n4_provider.on)
-        self.harness.framework._forget(charm._metrics_endpoint)
-        self.harness.framework._forget(charm._logging)
-        self.harness.framework._forget(charm._kubernetes_multus)
-        self.harness.framework._forget(charm._kubernetes_volumes_patch)
-        self.harness._charm = None
-        self.harness.begin()
+class TestCharmInitialisation(unittest.TestCase):
 
     def setUp(self):
         self.patch_k8s_client = patch("lightkube.core.client.GenericSyncClient")
@@ -101,7 +86,6 @@ class TestCharm(unittest.TestCase):
         self.root = self.harness.get_filesystem_root("bessd")
         (self.root / "etc/bess/conf").mkdir(parents=True)
         self.addCleanup(self.harness.cleanup)
-        self.harness.begin()
 
     @patch(
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -115,7 +99,7 @@ class TestCharm(unittest.TestCase):
             [],
         ]
         self.harness.update_config(key_values={"dnn": ""})
-        self.reinstantiate_charm()
+        self.harness.begin()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -134,7 +118,7 @@ class TestCharm(unittest.TestCase):
             [],
         ]
         self.harness.update_config(key_values={"upf-mode": ""})
-        self.reinstantiate_charm()
+        self.harness.begin()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -155,7 +139,7 @@ class TestCharm(unittest.TestCase):
             [],
         ]
         self.harness.update_config(key_values={"upf-mode": "unsupported"})
-        self.reinstantiate_charm()
+        self.harness.begin()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -178,7 +162,7 @@ class TestCharm(unittest.TestCase):
             [],
         ]
         self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
-        self.reinstantiate_charm()
+        self.harness.begin()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -203,7 +187,7 @@ class TestCharm(unittest.TestCase):
             [],
         ]
         self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
-        self.reinstantiate_charm()
+        self.harness.begin()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -235,7 +219,7 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
         )
-        self.reinstantiate_charm()
+        self.harness.begin()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -267,7 +251,7 @@ class TestCharm(unittest.TestCase):
                 "core-interface-mac-address": INVALID_CORE_MAC,
             }
         )
-        self.reinstantiate_charm()
+        self.harness.begin()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -275,6 +259,141 @@ class TestCharm(unittest.TestCase):
                 "The following configurations are not valid: ['core-interface-mac-address']"
             ),
         )
+
+    @patch("charm.check_output")
+    @patch("charm.Client", new=Mock)
+    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
+    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
+        self, patch_hugepages_is_patched, patched_check_output
+    ):
+        patch_hugepages_is_patched.return_value = False
+        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
+
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "00-B0-D0-63-C2-26",
+                "core-interface-mac-address": "00-B0-D0-63-C2-26",
+            }
+        )
+        self.harness.begin()
+        self.harness.evaluate_status()
+
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus("CPU is not compatible, see logs for more details"),
+        )
+
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
+        self,
+    ):
+        self.harness.update_config(
+            key_values={
+                "access-interface-mtu-size": ZERO_MTU_SIZE,
+                "core-interface-mtu-size": ZERO_MTU_SIZE,
+            }
+        )
+        self.harness.begin()
+        self.assertEqual(
+            self.harness.model.unit.status,
+            BlockedStatus(
+                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']"  # noqa: E501, W505
+            ),
+        )
+
+    @patch("ops.model.Container.get_service")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
+        self,
+        patch_delete_pod,
+        patch_multus_is_ready,
+        patch_list_na_definitions,
+        _,
+    ):
+        self.harness.handle_exec("bessd", [], result=0)
+        patch_multus_is_ready.return_value = True
+        self.harness.set_can_connect(container="bessd", val=True)
+        self.harness.set_can_connect(container="pfcp-agent", val=True)
+        self.harness.begin()
+        original_nads = self.harness.charm._network_attachment_definitions_from_config()
+        update_nad_labels(original_nads, self.harness.charm.app.name)
+        patch_list_na_definitions.return_value = original_nads
+        self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
+        patch_delete_pod.assert_not_called()
+
+    @patch("ops.model.Container.get_service")
+    @patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+        Mock(return_value=True),
+    )
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    def test_given_hardware_checksum_is_enabled_when_bessd_pebble_ready_then_config_file_has_hwcksum_enabled(  # noqa: E501
+        self,
+        _,
+        __,
+    ):
+        self.harness.handle_exec("bessd", [], result=0)
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        self.harness.update_config(key_values={"enable-hw-checksum": False})
+        self.harness.begin()
+        self.harness.container_pebble_ready(container_name="bessd")
+
+        config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
+        self.assertIn("hwcksum", config)
+        self.assertFalse(config["hwcksum"])
+
+    def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
+        self,
+    ):
+        self.harness.disable_hooks()
+        self.harness.update_config(
+            key_values={
+                "access-interface": ACCESS_INTERFACE_NAME,
+                "access-ip": DEFAULT_ACCESS_IP,
+                "access-gateway-ip": ACCESS_GW_IP,
+                "gnb-subnet": GNB_SUBNET,
+                "core-interface": CORE_INTERFACE_NAME,
+                "core-ip": VALID_CORE_IP,
+                "core-gateway-ip": CORE_GW_IP,
+                "cni-type": "macvlan",
+            }
+        )
+        self.harness.begin()
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            config = json.loads(nad.spec["config"])
+            self.assertTrue(ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"])
+            self.assertEqual(config["type"], "macvlan")
+
+
+class TestCharm(unittest.TestCase):
+
+    def setUp(self):
+        self.patch_k8s_client = patch("lightkube.core.client.GenericSyncClient")
+        self.patch_k8s_client.start()
+        self.namespace = "whatever"
+        self.harness = testing.Harness(UPFOperatorCharm)
+        self.harness.set_model_name(name=self.namespace)
+        self.harness.set_leader(is_leader=True)
+
+        self.maxDiff = None
+        self.root = self.harness.get_filesystem_root("bessd")
+        (self.root / "etc/bess/conf").mkdir(parents=True)
+        self.addCleanup(self.harness.cleanup)
+        self.harness.begin()
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
@@ -974,29 +1093,6 @@ class TestCharm(unittest.TestCase):
             self.assertNotIn("master", config)
             self.assertEqual("bridge", config["type"])
             self.assertIn(config["bridge"], ("core-br", "access-br"))
-
-    def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
-        self,
-    ):
-        self.harness.disable_hooks()
-        self.harness.update_config(
-            key_values={
-                "access-interface": ACCESS_INTERFACE_NAME,
-                "access-ip": DEFAULT_ACCESS_IP,
-                "access-gateway-ip": ACCESS_GW_IP,
-                "gnb-subnet": GNB_SUBNET,
-                "core-interface": CORE_INTERFACE_NAME,
-                "core-ip": VALID_CORE_IP,
-                "core-gateway-ip": CORE_GW_IP,
-                "cni-type": "macvlan",
-            }
-        )
-        self.reinstantiate_charm()
-        nads = self.harness.charm._network_attachment_definitions_from_config()
-        for nad in nads:
-            config = json.loads(nad.spec["config"])
-            self.assertTrue(ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"])
-            self.assertEqual(config["type"], "macvlan")
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
@@ -1704,31 +1800,6 @@ class TestCharm(unittest.TestCase):
             self.assertNotIn("mtu", nad_config)
 
     @patch("charm.check_output")
-    @patch("charm.Client", new=Mock)
-    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
-        self, patch_hugepages_is_patched, patched_check_output
-    ):
-        patch_hugepages_is_patched.return_value = False
-        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
-
-        self.harness.update_config(
-            key_values={
-                "cni-type": "vfioveth",
-                "upf-mode": "dpdk",
-                "access-interface-mac-address": "00-B0-D0-63-C2-26",
-                "core-interface-mac-address": "00-B0-D0-63-C2-26",
-            }
-        )
-        self.reinstantiate_charm()
-        self.harness.evaluate_status()
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("CPU is not compatible, see logs for more details"),
-        )
-
-    @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("dpdk.DPDK.is_configured")
@@ -1930,27 +2001,6 @@ class TestCharm(unittest.TestCase):
             ),
         )
 
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
-        self,
-    ):
-        self.harness.update_config(
-            key_values={
-                "access-interface-mtu-size": ZERO_MTU_SIZE,
-                "core-interface-mtu-size": ZERO_MTU_SIZE,
-            }
-        )
-        self.reinstantiate_charm()
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']"  # noqa: E501, W505
-            ),
-        )
-
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
@@ -2046,55 +2096,6 @@ class TestCharm(unittest.TestCase):
         patch_list_na_definitions.return_value = nads_after_second_config_change
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})
         patch_delete_pod.assert_called_once()
-
-    @patch("ops.model.Container.get_service")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
-        self,
-        patch_delete_pod,
-        patch_multus_is_ready,
-        patch_list_na_definitions,
-        _,
-    ):
-        self.harness.handle_exec("bessd", [], result=0)
-        patch_multus_is_ready.return_value = True
-        self.harness.set_can_connect(container="bessd", val=True)
-        self.harness.set_can_connect(container="pfcp-agent", val=True)
-        original_nads = self.harness.charm._network_attachment_definitions_from_config()
-        update_nad_labels(original_nads, self.harness.charm.app.name)
-        patch_list_na_definitions.return_value = original_nads
-        self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
-        self.reinstantiate_charm()
-        patch_delete_pod.assert_not_called()
-
-    @patch("ops.model.Container.get_service")
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_hardware_checksum_is_enabled_when_bessd_pebble_ready_then_config_file_has_hwcksum_enabled(  # noqa: E501
-        self,
-        _,
-        __,
-    ):
-        self.harness.handle_exec("bessd", [], result=0)
-        self.harness.set_can_connect("bessd", True)
-        self.harness.set_can_connect("pfcp-agent", True)
-        self.harness.update_config(key_values={"enable-hw-checksum": False})
-        self.reinstantiate_charm()
-        self.harness.container_pebble_ready(container_name="bessd")
-
-        config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
-        self.assertIn("hwcksum", config)
-        self.assertFalse(config["hwcksum"])
 
     @patch("ops.model.Container.get_service")
     @patch("charm.UPFOperatorCharm.delete_pod")
