@@ -669,7 +669,7 @@ class UPFOperatorCharm(CharmBase):
             logger.info("Service `bessd` configuration script complete")
             for line in stdout.splitlines():
                 logger.debug("`up4.bess`: %s", line)
-            if isinstance(stderr, str) and len(stderr) > 0:
+            if stderr:
                 for line in stderr.split():
                     logger.error("`up4.bess`: %s", line)
             return
