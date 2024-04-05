@@ -57,7 +57,7 @@ For detailed instructions on running UPF in `dpdk` mode please visit
 
 ## Image
 
-- **bessd**: ghcr.io/canonical/sdcore-upf-bess:1.3
-- **routectl**: ghcr.io/canonical/sdcore-upf-bess:1.3
-- **pfcp-agent**: ghcr.io/canonical/sdcore-upf-pfcpiface:1.3
+- **bessd**: ghcr.io/canonical/sdcore-upf-bess:1.4.0
+- **routectl**: ghcr.io/canonical/sdcore-upf-bess:1.4.0
+- **pfcp-agent**: ghcr.io/canonical/sdcore-upf-pfcpiface:1.4.0
 
