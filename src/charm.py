@@ -55,7 +55,6 @@ CORE_INTERFACE_BRIDGE_NAME = "core-br"
 DPDK_ACCESS_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_vfio_access"
 DPDK_CORE_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_vfio_core"
 CONFIG_FILE_NAME = "upf.json"
-BESSCTL_CONFIGURE_EXECUTED_FILE_NAME = "bessctl_configure_executed"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
 PFCP_PORT = 8805
@@ -532,6 +531,16 @@ class UPFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for bessd service to run"))
             logger.info("Waiting for bessd service to run")
             return
+        if not self._is_bessd_grpc_service_ready():
+            event.add_status(
+                WaitingStatus("Waiting for bessd service to accept configuration messages")
+            )
+            logger.info("Waiting for bessd service to accept configuration messages")
+            return
+        if not self._is_bessd_configured():
+            event.add_status(WaitingStatus("Waiting for bessd configuration to complete"))
+            logger.info("Waiting for bessd configuration to complete")
+            return
         if not service_is_running_on_container(self._bessd_container, self._routectl_service_name):
             event.add_status(WaitingStatus("Waiting for routectl service to run"))
             logger.info("Waiting for routectl service to run")
@@ -640,29 +649,84 @@ class UPFOperatorCharm(CharmBase):
             logger.info("Service `routectl` restarted")
             self._bessd_container.restart(self._bessd_service_name)
             logger.info("Service `bessd` restarted")
+        self._wait_for_bessd_grpc_service_to_be_ready(timeout=60)
         self._run_bess_configuration()
 
     def _run_bess_configuration(self) -> None:
         """Runs bessd configuration in workload."""
+        if self._is_bessd_configured():
+            return
+
+        logger.info("Starting configuration of the `bessd` service")
+        command = "/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4"
+        try:
+            (stdout, stderr) = self._exec_command_in_bessd_workload(
+                command=command,
+                environment=self._bessd_environment_variables,
+                timeout=30,
+            )
+
+            logger.info("Service `bessd` configuration script complete")
+            for line in stdout.splitlines():
+                logger.debug("`up4.bess`: %s", line)
+            if stderr:
+                for line in stderr.split():
+                    logger.error("`up4.bess`: %s", line)
+            return
+        except ExecError as e:
+            logger.info("Failed running configuration for bess: %s", e.stderr)
+        except ChangeError:
+            logger.info("Timout executing: %s", command)
+
+    def _wait_for_bessd_grpc_service_to_be_ready(self, timeout: float = 60):
         initial_time = time.time()
-        timeout = 300
-        while time.time() - initial_time <= timeout:
-            try:
-                if not self._is_bessctl_executed():
-                    logger.info("Starting configuration of the `bessd` service")
-                    self._exec_command_in_bessd_workload(
-                        command="/opt/bess/bessctl/bessctl run /opt/bess/bessctl/conf/up4",
-                        environment=self._bessd_environment_variables,
-                    )
-                    message = "Service `bessd` configured"
-                    logger.info(message)
-                    self._create_bessctl_executed_validation_file(message)
-                    return
-                return
-            except (ChangeError, ExecError):
-                logger.info("Failed running configuration for bess")
-                time.sleep(2)
-        raise TimeoutError("Timed out trying to run configuration for bess")
+
+        while not self._is_bessd_grpc_service_ready():
+            if time.time() - initial_time > timeout:
+                raise TimeoutError("Timed out waiting for bessd gRPC server to become ready")
+            time.sleep(2)
+
+    def _is_bessd_grpc_service_ready(self) -> bool:
+        """Checks if bessd grpc service is ready.
+
+        Examines the output from bessctl to see if it is able to communicate
+        with bessd. This indicates the service is ready to accept configuration
+        commands.
+
+        Returns:
+            bool:   True/False
+        """
+        command = "/opt/bess/bessctl/bessctl show version"
+        try:
+            self._exec_command_in_bessd_workload(
+                command=command,
+                timeout=10,
+            )
+            return True
+        except ExecError as e:
+            logger.info("gRPC Check: %s", e)
+            return False
+
+    def _is_bessd_configured(self) -> bool:
+        """Checks if bessd has been configured.
+
+        Examines the output from bessctl to show worker. If there is no
+        active worker, bessd is assumed not to be configured.
+
+        Returns:
+            bool:   True/False
+        """
+        command = "/opt/bess/bessctl/bessctl show worker"
+        try:
+            (stdout, _) = self._exec_command_in_bessd_workload(
+                command=command,
+                timeout=10,
+            )
+            logger.debug("bessd configured workers: %s", stdout)
+            return True
+        except ExecError as e:
+            logger.info("Configuration check: %s", e)
+            return False
 
     def _configure_bessd_for_dpdk(self) -> None:
         """Configures bessd container for DPDK."""
@@ -674,31 +738,6 @@ class UPFOperatorCharm(CharmBase):
         )
         if not dpdk.is_configured(container_name=self._bessd_container_name):
             dpdk.configure(container_name=self._bessd_container_name)
-
-    def _is_bessctl_executed(self) -> bool:
-        """Check if BESSD_CONFIG_CHECK_FILE_NAME exists.
-
-        If bessctl configure is executed once this file exists.
-
-        Returns:
-            bool:   True/False
-        """
-        return path_exists(
-            container=self._bessd_container, path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}"
-        )
-
-    def _create_bessctl_executed_validation_file(self, content) -> None:
-        """Create BESSCTL_CONFIGURE_EXECUTED_FILE_NAME.
-
-        This must be created outside of the persistent storage volume so that
-        on container restart, bessd configuration will run again.
-        """
-        push_file(
-            container=self._bessd_container,
-            path=f"/{BESSCTL_CONFIGURE_EXECUTED_FILE_NAME}",
-            source=content,
-        )
-        logger.info("Pushed %s configuration check file", BESSCTL_CONFIGURE_EXECUTED_FILE_NAME)
 
     def _create_default_route(self) -> None:
         """Creates ip route towards core network."""
@@ -737,7 +776,7 @@ class UPFOperatorCharm(CharmBase):
 
     def _exec_command_in_bessd_workload(
         self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None
-    ) -> tuple:
+    ) -> tuple[str, str]:
         """Executes command in bessd container.
 
         Args:
@@ -750,10 +789,6 @@ class UPFOperatorCharm(CharmBase):
             timeout=timeout,
             environment=environment,
         )
-        for line in process.stdout:
-            logger.info(line)
-        for line in process.stderr:
-            logger.error(line)
         return process.wait_output()
 
     def _configure_pfcp_agent_workload(self) -> None:

@@ -680,6 +680,8 @@ class TestCharm(unittest.TestCase):
         timeout = 0
         environment = {}
 
+        grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
         bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
 
         def bessctl_handler(args: testing.ExecArgs) -> testing.ExecResult:
@@ -693,6 +695,8 @@ class TestCharm(unittest.TestCase):
 
         self.harness.handle_exec("bessd", ["ip"], result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
+        self.harness.handle_exec("bessd", config_check_cmd, result=1)
         self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
         patch_is_ready.return_value = True
 
@@ -706,15 +710,16 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_connects_and_bessctl_executed_file_exists_then_bessctl_configure_not_executed(
+    def test_given_connects_and_bess_configured_then_bessctl_configure_not_executed(
         self, patch_is_ready, _
     ):
         self.harness.set_can_connect("bessd", True)
         self.harness.set_can_connect("pfcp-agent", True)
-        (self.root / "bessctl_configure_executed").write_text("")
 
         bessctl_called = False
 
+        grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
         bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
 
         def bessctl_handler(_: testing.ExecArgs) -> testing.ExecResult:
@@ -724,48 +729,14 @@ class TestCharm(unittest.TestCase):
 
         self.harness.handle_exec("bessd", ["ip"], result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
+        self.harness.handle_exec("bessd", config_check_cmd, result=0)
         self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
 
         self.assertFalse(bessctl_called)
-
-    @patch("ops.model.Container.get_service")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_connects_and_bessctl_executed_file_dont_exist_then_bessctl_configure_executed(
-        self, patch_is_ready, _
-    ):
-        self.harness.set_can_connect("bessd", True)
-        self.harness.set_can_connect("pfcp-agent", True)
-        bessctl_called = False
-        timeout = 0
-        environment = {}
-
-        bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
-
-        def bessctl_handler(args: testing.ExecArgs) -> testing.ExecResult:
-            nonlocal bessctl_called
-            nonlocal timeout
-            nonlocal environment
-            bessctl_called = True
-            timeout = args.timeout
-            environment = args.environment
-            return testing.ExecResult(exit_code=0)
-
-        self.harness.handle_exec("bessd", ["ip"], result=0)
-        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
-        self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
-
-        patch_is_ready.return_value = True
-
-        self.harness.container_pebble_ready(container_name="bessd")
-
-        self.assertTrue(bessctl_called)
-        self.assertEqual(timeout, 30)
-        self.assertEqual(
-            environment, {"CONF_FILE": "/etc/bess/conf/upf.json", "PYTHONPATH": "/opt/bess"}
-        )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_storage_not_attached_when_bessd_pebble_ready_then_status_is_waiting(
@@ -830,6 +801,10 @@ class TestCharm(unittest.TestCase):
         patch_get_service.return_value = service_info_mock
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
+        grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
+        self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
+        self.harness.handle_exec("bessd", config_check_cmd, result=0)
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
         self.harness.evaluate_status()
