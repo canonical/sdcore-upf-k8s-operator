@@ -5,6 +5,15 @@ import json
 import unittest
 from unittest.mock import Mock, call, patch
 
+from charm import (
+    ACCESS_INTERFACE_NAME,
+    ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+    CORE_INTERFACE_NAME,
+    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+    DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
+    DPDK_CORE_INTERFACE_RESOURCE_NAME,
+    UPFOperatorCharm,
+)
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     NetworkAnnotation,
     NetworkAttachmentDefinition,
@@ -15,16 +24,6 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
 from ops.pebble import ConnectionError
-
-from charm import (
-    ACCESS_INTERFACE_NAME,
-    ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-    CORE_INTERFACE_NAME,
-    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-    DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
-    DPDK_CORE_INTERFACE_RESOURCE_NAME,
-    UPFOperatorCharm,
-)
 
 MULTUS_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.multus"
 HUGEPAGES_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch"
@@ -48,7 +47,7 @@ INVALID_CORE_MAC = "wrong"
 
 
 def read_file(path: str) -> str:
-    """Reads a file and returns as a string.
+    """Read a file and returns as a string.
 
     Args:
         path (str): path to the file.
@@ -62,7 +61,7 @@ def read_file(path: str) -> str:
 
 
 def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) -> None:
-    """Sets NetworkAttachmentDefinition metadata labels.
+    """Set NetworkAttachmentDefinition metadata labels.
 
     Args:
         nads: list of NetworkAttachmentDefinition

@@ -58,7 +58,7 @@ class CharmConfigInvalidError(Exception):
 
 
 def to_kebab(name: str) -> str:
-    """Converts a snake_case string to kebab-case."""
+    """Convert a snake_case string to kebab-case."""
     return name.replace("_", "-")
 
 
