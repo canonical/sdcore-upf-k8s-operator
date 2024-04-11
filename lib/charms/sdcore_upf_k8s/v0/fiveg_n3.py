@@ -93,7 +93,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 PYDEPS = ["pydantic", "pytest-interface-tester"]
 
@@ -129,7 +129,7 @@ class ProviderSchema(DataBagSchema):
 
 
 def data_matches_provider_schema(data: dict) -> bool:
-    """Returns whether data matches provider schema.
+    """Return whether data matches provider schema.
 
     Args:
         data (dict): Data to be validated.
@@ -149,18 +149,18 @@ class FiveGN3RequestEvent(EventBase):
     """Dataclass for the `fiveg_n3` request event."""
 
     def __init__(self, handle, relation_id: int):
-        """Sets relation id."""
+        """Set relation id."""
         super().__init__(handle)
         self.relation_id = relation_id
 
     def snapshot(self) -> dict:
-        """Returns event data."""
+        """Return event data."""
         return {
             "relation_id": self.relation_id,
         }
 
     def restore(self, snapshot):
-        """Restores event data."""
+        """Restore event data."""
         self.relation_id = snapshot["relation_id"]
 
 
@@ -176,7 +176,7 @@ class N3Provides(Object):
     on = N3ProviderCharmEvents()
 
     def __init__(self, charm: CharmBase, relation_name: str):
-        """Observes relation joined event.
+        """Observe relation joined event.
 
         Args:
             charm: Juju charm
@@ -188,7 +188,7 @@ class N3Provides(Object):
         self.framework.observe(charm.on[relation_name].relation_joined, self._on_relation_joined)
 
     def publish_upf_information(self, relation_id: int, upf_ip_address: str) -> None:
-        """Sets UPF's IP address in the relation data.
+        """Set UPF's IP address in the relation data.
 
         Args:
             relation_id (str): Relation ID
@@ -216,16 +216,16 @@ class N3AvailableEvent(EventBase):
     """Dataclass for the `fiveg_n3` available event."""
 
     def __init__(self, handle, upf_ip_address: str):
-        """Sets certificate."""
+        """Set certificate."""
         super().__init__(handle)
         self.upf_ip_address = upf_ip_address
 
     def snapshot(self) -> dict:
-        """Returns event data."""
+        """Return event data."""
         return {"upf_ip_address": self.upf_ip_address}
 
     def restore(self, snapshot):
-        """Restores event data."""
+        """Restore event data."""
         self.upf_ip_address = snapshot["upf_ip_address"]
 
 
@@ -241,7 +241,7 @@ class N3Requires(Object):
     on = N3RequirerCharmEvents()
 
     def __init__(self, charm: CharmBase, relation_name: str):
-        """Observes relation joined and relation changed events.
+        """Observe relation joined and relation changed events.
 
         Args:
             charm: Juju charm

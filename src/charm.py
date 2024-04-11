@@ -11,6 +11,7 @@ from pathlib import PurePath
 from subprocess import check_output
 from typing import Any, Dict, List, Optional, Union
 
+from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
 from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (  # type: ignore[import]
     HugePagesVolume,
     KubernetesHugePagesPatchCharmLib,
@@ -26,6 +27,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
 )
 from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides  # type: ignore[import]
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides  # type: ignore[import]
+from dpdk import DPDK
 from httpx import HTTPStatusError
 from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
@@ -37,9 +39,6 @@ from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.main import main
 from ops.pebble import ChangeError, ConnectionError, ExecError, Layer, PathError
-
-from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
-from dpdk import DPDK
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +200,7 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _namespace(self) -> str:
-        """Returns the k8s namespace."""
+        """Return the k8s namespace."""
         return self.model.name
 
     @property
@@ -214,9 +213,9 @@ class UPFOperatorCharm(CharmBase):
         return "-".join(self.model.unit.name.rsplit("/", 1))
 
     def _on_install(self, event: EventBase) -> None:
-        """Handler for Juju install event.
+        """Handle Juju install event.
 
-        This handler enforces usage of a CPU which supports instructions required to run this
+        Enforce usage of a CPU which supports instructions required to run this
         charm. If the CPU doesn't meet the requirements, charm goes to Blocked state.
 
         Args:
@@ -229,7 +228,7 @@ class UPFOperatorCharm(CharmBase):
         self._create_external_upf_service()
 
     def _on_fiveg_n3_request(self, event: EventBase) -> None:
-        """Handles 5G N3 requests events.
+        """Handle 5G N3 requests events.
 
         Args:
             event: Juju event
@@ -239,7 +238,7 @@ class UPFOperatorCharm(CharmBase):
         self._update_fiveg_n3_relation_data()
 
     def _on_fiveg_n4_request(self, event: EventBase) -> None:
-        """Handles 5G N4 requests events.
+        """Handle 5G N4 requests events.
 
         Args:
             event: Juju event
@@ -249,7 +248,7 @@ class UPFOperatorCharm(CharmBase):
         self._update_fiveg_n4_relation_data()
 
     def _update_fiveg_n3_relation_data(self) -> None:
-        """Publishes UPF IP address in the `fiveg_n3` relation data bag."""
+        """Publish UPF IP address in the `fiveg_n3` relation data bag."""
         upf_access_ip_address = self._get_network_ip_config(ACCESS_INTERFACE_NAME).split("/")[0]  # type: ignore[union-attr]  # noqa: E501
         fiveg_n3_relations = self.model.relations.get("fiveg_n3")
         if not fiveg_n3_relations:
@@ -262,7 +261,7 @@ class UPFOperatorCharm(CharmBase):
             )
 
     def _update_fiveg_n4_relation_data(self) -> None:
-        """Publishes UPF hostname and the N4 port in the `fiveg_n4` relation data bag."""
+        """Publish UPF hostname and the N4 port in the `fiveg_n4` relation data bag."""
         fiveg_n4_relations = self.model.relations.get("fiveg_n4")
         if not fiveg_n4_relations:
             logger.info("No `fiveg_n4` relations found.")
@@ -275,7 +274,7 @@ class UPFOperatorCharm(CharmBase):
             )
 
     def _get_n4_upf_hostname(self) -> str:
-        """Returns the UPF hostname to be exposed over the `fiveg_n4` relation.
+        """Return the UPF hostname to be exposed over the `fiveg_n4` relation.
 
         If a configuration is provided, it is returned. If that is
         not available, returns the hostname of the external LoadBalancer
@@ -292,7 +291,7 @@ class UPFOperatorCharm(CharmBase):
         return self._upf_hostname
 
     def _volumes_request_func_from_config(self) -> list[HugePagesVolume]:
-        """Returns list of HugePages to be set based on the application config.
+        """Return list of HugePages to be set based on the application config.
 
         Returns:
             list[HugePagesVolume]: list of HugePages to be set based on the application config.
@@ -302,7 +301,7 @@ class UPFOperatorCharm(CharmBase):
         return []
 
     def _generate_network_annotations(self) -> List[NetworkAnnotation]:
-        """Generates a list of NetworkAnnotations to be used by UPF's StatefulSet.
+        """Generate a list of NetworkAnnotations to be used by UPF's StatefulSet.
 
         Returns:
             List[NetworkAnnotation]: List of NetworkAnnotations
@@ -323,7 +322,7 @@ class UPFOperatorCharm(CharmBase):
         return [access_network_annotation, core_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
-        """Returns list of Multus NetworkAttachmentDefinitions to be created based on config.
+        """Return list of Multus NetworkAttachmentDefinitions to be created based on config.
 
         Returns:
             network_attachment_definitions: list[NetworkAttachmentDefinition]
@@ -338,7 +337,7 @@ class UPFOperatorCharm(CharmBase):
         return [access_nad, core_nad]
 
     def _create_nad_from_config(self, interface_name: str) -> NetworkAttachmentDefinition:
-        """Returns a NetworkAttachmentDefinition for the specified interface.
+        """Return a NetworkAttachmentDefinition for the specified interface.
 
         Args:
             interface_name (str): Interface name to create the NetworkAttachmentDefinition from
@@ -386,7 +385,7 @@ class UPFOperatorCharm(CharmBase):
         )
 
     def _create_dpdk_access_nad_from_config(self) -> NetworkAttachmentDefinition:
-        """Returns a DPDK-compatible NetworkAttachmentDefinition for the Access interface.
+        """Return a DPDK-compatible NetworkAttachmentDefinition for the Access interface.
 
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
@@ -405,7 +404,7 @@ class UPFOperatorCharm(CharmBase):
         )
 
     def _create_dpdk_core_nad_from_config(self) -> NetworkAttachmentDefinition:
-        """Returns a DPDK-compatible NetworkAttachmentDefinition for the Core interface.
+        """Return a DPDK-compatible NetworkAttachmentDefinition for the Core interface.
 
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
@@ -425,7 +424,7 @@ class UPFOperatorCharm(CharmBase):
 
     @staticmethod
     def _get_nad_base_config() -> Dict[Any, Any]:
-        """Base NetworkAttachmentDefinition config to be extended according to charm config.
+        """Get the base NetworkAttachmentDefinition config to be extended according to charm config.
 
         Returns:
             config (dict): Base NAD config
@@ -452,7 +451,7 @@ class UPFOperatorCharm(CharmBase):
         logger.info("Pushed %s config file", CONFIG_FILE_NAME)
 
     def _bessd_config_file_is_written(self) -> bool:
-        """Returns whether the bessd config file was written to the workload container.
+        """Return whether the bessd config file was written to the workload container.
 
         Returns:
             bool: Whether the bessd config file was written
@@ -463,7 +462,7 @@ class UPFOperatorCharm(CharmBase):
         )
 
     def _bessd_config_file_content_matches(self, content: str) -> bool:
-        """Returns whether the bessd config file content matches the provided content.
+        """Return whether the bessd config file content matches the provided content.
 
         Returns:
             bool: Whether the bessd config file content matches
@@ -492,7 +491,7 @@ class UPFOperatorCharm(CharmBase):
         return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
-        """Handler for collect status event."""
+        """Handle collect status event."""
         if not self.unit.is_leader():
             # NOTE: In cases where leader status is lost before the charm is
             # finished processing all teardown events, this prevents teardown
@@ -554,7 +553,7 @@ class UPFOperatorCharm(CharmBase):
         event.add_status(ActiveStatus())
 
     def _on_config_changed(self, event: EventBase):
-        """Handler for config changed events."""
+        """Handle for config changed events."""
         try:  # workaround for https://github.com/canonical/operator/issues/736
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
         except CharmConfigInvalidError:
@@ -608,7 +607,7 @@ class UPFOperatorCharm(CharmBase):
         self._configure_pfcp_agent_workload()
 
     def _configure_bessd_workload(self) -> None:
-        """Configures bessd workload.
+        """Configure bessd workload.
 
         Writes configuration file, creates routes, creates iptable rule and pebble layer.
         """
@@ -653,7 +652,7 @@ class UPFOperatorCharm(CharmBase):
         self._run_bess_configuration()
 
     def _run_bess_configuration(self) -> None:
-        """Runs bessd configuration in workload."""
+        """Run bessd configuration in workload."""
         if self._is_bessd_configured():
             return
 
@@ -676,7 +675,7 @@ class UPFOperatorCharm(CharmBase):
         except ExecError as e:
             logger.info("Failed running configuration for bess: %s", e.stderr)
         except ChangeError:
-            logger.info("Timout executing: %s", command)
+            logger.info("Timeout executing: %s", command)
 
     def _wait_for_bessd_grpc_service_to_be_ready(self, timeout: float = 60):
         initial_time = time.time()
@@ -687,9 +686,9 @@ class UPFOperatorCharm(CharmBase):
             time.sleep(2)
 
     def _is_bessd_grpc_service_ready(self) -> bool:
-        """Checks if bessd grpc service is ready.
+        """Check if bessd grpc service is ready.
 
-        Examines the output from bessctl to see if it is able to communicate
+        Examine the output from bessctl to see if it is able to communicate
         with bessd. This indicates the service is ready to accept configuration
         commands.
 
@@ -708,9 +707,9 @@ class UPFOperatorCharm(CharmBase):
             return False
 
     def _is_bessd_configured(self) -> bool:
-        """Checks if bessd has been configured.
+        """Check if bessd has been configured.
 
-        Examines the output from bessctl to show worker. If there is no
+        Examine the output from bessctl to show worker. If there is no
         active worker, bessd is assumed not to be configured.
 
         Returns:
@@ -729,7 +728,7 @@ class UPFOperatorCharm(CharmBase):
             return False
 
     def _configure_bessd_for_dpdk(self) -> None:
-        """Configures bessd container for DPDK."""
+        """Configure bessd container for DPDK."""
         dpdk = DPDK(
             statefulset_name=self.model.app.name,
             namespace=self._namespace,
@@ -740,21 +739,21 @@ class UPFOperatorCharm(CharmBase):
             dpdk.configure(container_name=self._bessd_container_name)
 
     def _create_default_route(self) -> None:
-        """Creates ip route towards core network."""
+        """Create ip route towards core network."""
         self._exec_command_in_bessd_workload(
             command=f"ip route replace default via {self._get_network_gateway_ip_config(CORE_INTERFACE_NAME)} metric 110"  # noqa: E501
         )
         logger.info("Default core network route created")
 
     def _create_ran_route(self) -> None:
-        """Creates ip route towards gnb-subnet."""
+        """Create ip route towards gnb-subnet."""
         self._exec_command_in_bessd_workload(
             command=f"ip route replace {self._charm_config.gnb_subnet} via {self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME)}"  # noqa: E501
         )
         logger.info("Route to gnb-subnet created")
 
     def _ip_tables_rule_exists(self) -> bool:
-        """Returns whether iptables rule already exists using the `--check` parameter.
+        """Return whether iptables rule already exists using the `--check` parameter.
 
         Returns:
             bool: Whether iptables rule exists
@@ -768,7 +767,7 @@ class UPFOperatorCharm(CharmBase):
             return False
 
     def _create_ip_tables_rule(self) -> None:
-        """Creates iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
+        """Create iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
         self._exec_command_in_bessd_workload(
             command="iptables-legacy -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
         )
@@ -777,7 +776,7 @@ class UPFOperatorCharm(CharmBase):
     def _exec_command_in_bessd_workload(
         self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None
     ) -> tuple[str, str]:
-        """Executes command in bessd container.
+        """Execute command in bessd container.
 
         Args:
             command: Command to execute
@@ -792,7 +791,7 @@ class UPFOperatorCharm(CharmBase):
         return process.wait_output()
 
     def _configure_pfcp_agent_workload(self) -> None:
-        """Configures pebble layer for `pfcp-agent` container."""
+        """Configure pebble layer for `pfcp-agent` container."""
         plan = self._pfcp_agent_container.get_plan()
         layer = self._pfcp_agent_pebble_layer
         if plan.services != layer.services:
@@ -863,7 +862,7 @@ class UPFOperatorCharm(CharmBase):
         }
 
     def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
-        """Retrieves the network IP address to use for the specified interface.
+        """Retrieve the network IP address to use for the specified interface.
 
         Args:
             interface_name (str): Interface name to retrieve the network IP address from
@@ -879,7 +878,7 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _get_interface_config(self, interface_name: str) -> Optional[str]:
-        """Retrieves the interface on the host to use for the specified interface.
+        """Retrieve the interface on the host to use for the specified interface.
 
         Args:
             interface_name (str): Interface name to retrieve the interface host from
@@ -895,7 +894,7 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _get_interface_mac_address(self, interface_name: str) -> Optional[str]:
-        """Retrieves the MAC address to use for the specified interface.
+        """Retrieve the MAC address to use for the specified interface.
 
         Args:
             interface_name (str): Interface name to retrieve the MAC address from
@@ -911,7 +910,7 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _get_network_gateway_ip_config(self, interface_name: str) -> Optional[str]:
-        """Retrieves the gateway IP address to use for the specified interface.
+        """Retrieve the gateway IP address to use for the specified interface.
 
         Args:
             interface_name (str): Interface name to retrieve the gateway IP address from
@@ -927,7 +926,7 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _upf_load_balancer_service_hostname(self) -> Optional[str]:
-        """Returns the hostname of UPF's LoadBalancer service.
+        """Return the hostname of UPF's LoadBalancer service.
 
         Returns:
             str/None: Hostname of UPF's LoadBalancer service if available else None
@@ -948,7 +947,7 @@ class UPFOperatorCharm(CharmBase):
 
     @property
     def _upf_hostname(self) -> str:
-        """Builds and returns the UPF hostname in the cluster.
+        """Build and returns the UPF hostname in the cluster.
 
         Returns:
             str: The UPF hostname.
@@ -956,7 +955,7 @@ class UPFOperatorCharm(CharmBase):
         return f"{self.model.app.name}-external.{self.model.name}.svc.cluster.local"
 
     def _is_cpu_compatible(self) -> bool:
-        """Returns whether the CPU meets requirements to run this charm.
+        """Return whether the CPU meets requirements to run this charm.
 
         Returns:
             bool: Whether the CPU meets requirements to run this charm
@@ -984,7 +983,7 @@ class UPFOperatorCharm(CharmBase):
 
     @staticmethod
     def _get_cpu_extensions() -> list[str]:
-        """Returns a list of extensions (instructions) supported by the CPU.
+        """Return a list of extensions (instructions) supported by the CPU.
 
         Returns:
             list: List of extensions (instructions) supported by the CPU.
@@ -1004,7 +1003,7 @@ class UPFOperatorCharm(CharmBase):
         )
 
     def _hugepages_are_available(self) -> bool:
-        """Checks whether HugePages are available in the K8S nodes.
+        """Check whether HugePages are available in the K8S nodes.
 
         Returns:
             bool: Whether HugePages are available in the K8S nodes
@@ -1018,7 +1017,7 @@ class UPFOperatorCharm(CharmBase):
         return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
 
     def _get_interface_mtu_config(self, interface_name) -> Optional[int]:
-        """Retrieves the MTU to use for the specified interface.
+        """Retrieve the MTU to use for the specified interface.
 
         Args:
             interface_name (str): Interface name to retrieve the MTU from
@@ -1034,7 +1033,7 @@ class UPFOperatorCharm(CharmBase):
             return None
 
     def _hugepages_is_enabled(self) -> bool:
-        """Returns whether HugePages are enabled.
+        """Return whether HugePages are enabled.
 
         Returns:
             bool: Whether HugePages are enabled
@@ -1042,7 +1041,7 @@ class UPFOperatorCharm(CharmBase):
         return self._charm_config.upf_mode == UpfMode.dpdk
 
     def _generate_bessd_startup_command(self) -> str:
-        """Returns bessd startup command.
+        """Return bessd startup command.
 
         Returns:
             str: bessd startup command
@@ -1063,7 +1062,7 @@ def render_bessd_config_file(
     pod_share_path: str,
     enable_hw_checksum: bool,
 ) -> str:
-    """Renders the configuration file for the 5G UPF service.
+    """Render the configuration file for the 5G UPF service.
 
     Args:
         upf_hostname: UPF hostname
@@ -1091,7 +1090,7 @@ def render_bessd_config_file(
 
 
 def service_is_running_on_container(container: Container, service_name: str) -> bool:
-    """Returns whether a Pebble service is running in a container.
+    """Return whether a Pebble service is running in a container.
 
     Args:
         container: Container object
@@ -1116,7 +1115,7 @@ def push_file(
     path: Union[str, PurePath],
     source: str,
 ) -> None:
-    """Pushes source content to path in container.
+    """Push source content to path in container.
 
     Args:
         container: Container object
@@ -1133,7 +1132,7 @@ def path_exists(
     container: Container,
     path: Union[str, PurePath],
 ) -> bool:
-    """Returns existence of path in container.
+    """Return existence of path in container.
 
     Args:
         container: Container object
