@@ -27,11 +27,11 @@ extend-ignore = [
     "D409",
     "D413",
 ]
-ignore = ["E501", "D107"]
-per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
+ignore = ["D107"]
+per-file-ignores = {"tests/*" = ["E501", "D100","D101","D102","D103","D104"]}
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
 [tool.codespell]
-skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"
+skip = "build,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"

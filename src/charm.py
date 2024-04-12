@@ -424,7 +424,9 @@ class UPFOperatorCharm(CharmBase):
 
     @staticmethod
     def _get_nad_base_config() -> Dict[Any, Any]:
-        """Get the base NetworkAttachmentDefinition config to be extended according to charm config.
+        """Get the base NetworkAttachmentDefinition config.
+
+        This config is extended according to charm config.
 
         Returns:
             config (dict): Base NAD config

@@ -151,7 +151,7 @@ class TestCharmInitialisation(unittest.TestCase):
     )
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
-    def test_given_upf_mode_set_to_dpdk_but_other_required_configs_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
+    def test_given_upf_mode_set_to_dpdk_but_other_required_configs_not_set_when_config_changed_then_status_is_blocked(
         self, patched_list, patched_check_output
     ):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
@@ -166,7 +166,7 @@ class TestCharmInitialisation(unittest.TestCase):
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
+                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']",
             ),
         )
 
@@ -176,7 +176,7 @@ class TestCharmInitialisation(unittest.TestCase):
     )
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
-    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
+    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_config_changed_then_status_is_blocked(
         self, patched_list, patched_check_output
     ):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
@@ -191,7 +191,7 @@ class TestCharmInitialisation(unittest.TestCase):
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
+                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']",
             ),
         )
 
@@ -201,7 +201,7 @@ class TestCharmInitialisation(unittest.TestCase):
     )
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
-    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_access_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
+    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_access_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(
         self, patched_list, patched_check_output
     ):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
@@ -233,7 +233,7 @@ class TestCharmInitialisation(unittest.TestCase):
     )
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
-    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_core_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
+    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_core_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(
         self, patched_list, patched_check_output
     ):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
@@ -262,7 +262,7 @@ class TestCharmInitialisation(unittest.TestCase):
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
+    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(
         self, patch_hugepages_is_patched, patched_check_output
     ):
         patch_hugepages_is_patched.return_value = False
@@ -288,7 +288,7 @@ class TestCharmInitialisation(unittest.TestCase):
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
     )
-    def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
+    def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(
         self,
     ):
         self.harness.update_config(
@@ -301,7 +301,7 @@ class TestCharmInitialisation(unittest.TestCase):
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']"  # noqa: E501, W505
+                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']",
             ),
         )
 
@@ -314,7 +314,7 @@ class TestCharmInitialisation(unittest.TestCase):
         f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
         Mock(return_value=True),
     )
-    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(
         self,
         patch_delete_pod,
         patch_multus_is_ready,
@@ -338,7 +338,7 @@ class TestCharmInitialisation(unittest.TestCase):
         Mock(return_value=True),
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_hardware_checksum_is_enabled_when_bessd_pebble_ready_then_config_file_has_hwcksum_enabled(  # noqa: E501
+    def test_given_hardware_checksum_is_enabled_when_bessd_pebble_ready_then_config_file_has_hwcksum_enabled(
         self,
         _,
         __,
@@ -354,7 +354,7 @@ class TestCharmInitialisation(unittest.TestCase):
         self.assertIn("hwcksum", config)
         self.assertFalse(config["hwcksum"])
 
-    def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
+    def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(
         self,
     ):
         self.harness.disable_hooks()
@@ -396,7 +396,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
+    def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(
         self,
         _,
         __,
@@ -413,7 +413,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_bessd_config_file_not_yet_written_when_config_storage_attached_then_config_file_is_written(  # noqa: E501
+    def test_given_bessd_config_file_not_yet_written_when_config_storage_attached_then_config_file_is_written(
         self, _, __
     ):
         self.harness.handle_exec("bessd", [], result=0)
@@ -430,7 +430,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_bessd_config_file_matches_when_bessd_pebble_ready_then_config_file_is_not_changed(  # noqa: E501
+    def test_given_bessd_config_file_matches_when_bessd_pebble_ready_then_config_file_is_not_changed(
         self,
         patch_is_ready,
     ):
@@ -445,7 +445,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
+    def test_given_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(
         self,
         patch_is_ready,
         _,
@@ -771,7 +771,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_config_file_is_written_and_all_services_are_running_when_bessd_pebble_ready_then_status_is_active(  # noqa: E501
+    def test_given_config_file_is_written_and_all_services_are_running_when_bessd_pebble_ready_then_status_is_active(
         self,
         patch_is_ready,
         patch_get_service,
@@ -790,7 +790,7 @@ class TestCharm(unittest.TestCase):
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch("ops.model.Container.get_service")
-    def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(  # noqa: E501
+    def test_given_bessd_service_is_running_when_pfcp_agent_pebble_ready_then_pebble_plan_is_applied(
         self,
         patch_get_service,
         patch_multus_is_ready,
@@ -823,7 +823,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(expected_plan, updated_plan)
 
-    def test_given_cant_connect_to_bessd_container_when_pfcp_agent_pebble_ready_then_status_is_waiting(  # noqa: E501
+    def test_given_cant_connect_to_bessd_container_when_pfcp_agent_pebble_ready_then_status_is_waiting(
         self,
     ):
         self.harness.set_can_connect(container="bessd", val=False)
@@ -838,7 +838,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_pebble_connection_error_when_bessd_pebble_ready_then_status_is_waiting(  # noqa: E501
+    def test_given_pebble_connection_error_when_bessd_pebble_ready_then_status_is_waiting(
         self, patch_is_ready, patch_get_service
     ):
         self.harness.handle_exec("bessd", [], result=0)
@@ -855,7 +855,7 @@ class TestCharm(unittest.TestCase):
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
-    def test_given_fiveg_n3_relation_created_when_fiveg_n3_request_then_upf_ip_address_is_published(  # noqa: E501
+    def test_given_fiveg_n3_relation_created_when_fiveg_n3_request_then_upf_ip_address_is_published(
         self,
         patched_publish_upf_information,
         patch_hugepages_is_patched,
@@ -889,7 +889,7 @@ class TestCharm(unittest.TestCase):
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_then_new_upf_ip_address_is_published(  # noqa: E501
+    def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_then_new_upf_ip_address_is_published(
         self,
         patch_multus_is_ready,
         patch_hugepages_is_patched,
@@ -915,7 +915,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3Provides.publish_upf_information")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_to_invalid_cidr_then_new_upf_ip_address_is_not_published(  # noqa: E501
+    def test_given_fiveg_n3_relation_exists_when_access_ip_config_changed_to_invalid_cidr_then_new_upf_ip_address_is_not_published(
         self, patch_multus_is_ready, patched_publish_upf_information
     ):
         self.harness.handle_exec("bessd", [], result=0)
@@ -950,7 +950,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
-    def test_given_external_upf_hostname_config_set_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+    def test_given_external_upf_hostname_config_set_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(
         self,
         patched_publish_upf_n4_information,
         patch_hugepages_is_patched,
@@ -973,7 +973,7 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
-    def test_given_external_upf_hostname_config_not_set_but_external_upf_service_hostname_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+    def test_given_external_upf_hostname_config_not_set_but_external_upf_service_hostname_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
     ):
         test_external_upf_service_hostname = "test-upf.external.service.hostname.com"
@@ -998,7 +998,7 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
-    def test_given_external_upf_hostname_config_not_set_and_external_upf_service_hostname_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+    def test_given_external_upf_hostname_config_not_set_and_external_upf_service_hostname_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
     ):
         service = Mock(status=Mock(loadBalancer=Mock(ingress=[Mock(ip="1.1.1.1", spec=["ip"])])))
@@ -1017,7 +1017,7 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.get")
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4Provides.publish_upf_n4_information")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
-    def test_given_external_upf_hostname_config_not_set_and_metallb_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
+    def test_given_external_upf_hostname_config_not_set_and_metallb_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(
         self, patched_publish_upf_n4_information, patched_lightkube_client_get
     ):
         service = Mock(status=Mock(loadBalancer=Mock(ingress=None)))
@@ -1038,7 +1038,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("charm.PFCP_PORT", TEST_PFCP_PORT)
-    def test_given_fiveg_n4_relation_exists_when_external_upf_hostname_config_changed_then_new_upf_hostname_is_published(  # noqa: E501
+    def test_given_fiveg_n4_relation_exists_when_external_upf_hostname_config_changed_then_new_upf_hostname_is_published(
         self,
         patch_multus_is_ready,
         patch_hugepages_is_ready,
@@ -1072,7 +1072,7 @@ class TestCharm(unittest.TestCase):
         patched_publish_upf_n4_information.assert_has_calls(expected_calls)
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_specified_in_nad(  # noqa: E501
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_specified_in_nad(
         self,
         patch_hugepages_is_patched,
     ):
@@ -1102,7 +1102,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_2_nads_are_returned(  # noqa: E501
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_2_nads_are_returned(
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1138,7 +1138,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_nad_type_is_vfioveth(  # noqa: E501
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_nad_type_is_vfioveth(
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1178,7 +1178,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_access_nad_has_valid_dpdk_access_resource_specified_in_annotations(  # noqa: E501
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_access_nad_has_valid_dpdk_access_resource_specified_in_annotations(
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1237,7 +1237,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(  # noqa: E501
+    def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(
         self, patched_list, patch_get_service, kubernetes_create_object
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1294,7 +1294,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(
         self, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1330,7 +1330,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(
         self, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1376,7 +1376,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created_without_dpdk_specific_data(
         self, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1422,7 +1422,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(
         self, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1468,7 +1468,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created_without_dpdk_specific_data(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_default_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created_without_dpdk_specific_data(
         self, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1515,7 +1515,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_patch_statefulset_then_2_network_annotations_are_created(
         self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1566,7 +1566,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_access_network_annotation_created(
         self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1630,7 +1630,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
+    def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(
         self, patched_list, patch_get_service, kubernetes_statefulset_patch
     ):
         self.harness.set_can_connect("bessd", True)
@@ -1687,7 +1687,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
-    def test_given_cpu_not_supporting_required_instructions_when_install_then_charm_goes_to_blocked_status(  # noqa: E501
+    def test_given_cpu_not_supporting_required_instructions_when_install_then_charm_goes_to_blocked_status(
         self, patched_check_output
     ):
         patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
@@ -1701,7 +1701,7 @@ class TestCharm(unittest.TestCase):
 
     @patch("charm.check_output")
     @patch("charm.Client", new=Mock)
-    def test_given_cpu_supporting_required_instructions_when_install_then_charm_goes_to_maintenance_status(  # noqa: E501
+    def test_given_cpu_supporting_required_instructions_when_install_then_charm_goes_to_maintenance_status(
         self, patched_check_output
     ):
         patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
@@ -1774,7 +1774,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_default_config_when_create_network_attachment_definitions_then_interface_mtu_not_set_in_the_network_attachment_definitions(  # noqa: E501
+    def test_given_default_config_when_create_network_attachment_definitions_then_interface_mtu_not_set_in_the_network_attachment_definitions(
         self, patch_get_service, kubernetes_create_object
     ):
         service_info_mock = Mock()
@@ -1802,7 +1802,7 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("dpdk.DPDK.is_configured")
-    def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_waiting_status(  # noqa: E501
+    def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_waiting_status(
         self,
         patch_dpdk_is_configured,
         patch_hugepages_is_patched,
@@ -1839,7 +1839,7 @@ class TestCharm(unittest.TestCase):
     @patch("charm.check_output")
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_cpu_supporting_required_hugepages_instructions_and_not_available_hugepages_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
+    def test_given_cpu_supporting_required_hugepages_instructions_and_not_available_hugepages_when_hugepages_enabled_then_charm_goes_to_blocked_status(
         self, patch_hugepages_is_patched, patch_list, patched_check_output
     ):
         patch_hugepages_is_patched.return_value = False
@@ -1865,7 +1865,7 @@ class TestCharm(unittest.TestCase):
     @patch("lightkube.core.client.Client.list")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
     @patch("dpdk.DPDK.is_configured")
-    def test_given_hugepages_not_available_then_hugepages_available_when_update_status_then_charm_goes_to_waiting_status(  # noqa: E501
+    def test_given_hugepages_not_available_then_hugepages_available_when_update_status_then_charm_goes_to_waiting_status(
         self,
         patch_dpdk_is_configured,
         patch_hugepages_is_patched,
@@ -1930,7 +1930,7 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(  # noqa: E501
+    def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(
         self,
         patch_hugepages_is_patched,
     ):
@@ -1957,7 +1957,7 @@ class TestCharm(unittest.TestCase):
     )
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready", Mock(return_value=True))
     @patch("charm.DPDK.is_configured", Mock(return_value=True))
-    def test_given_default_config_with_interfaces_mtu_sizes_when_create_network_attachment_definitions_then_interface_mtu_set_in_the_network_attachment_definitions(  # noqa: E501
+    def test_given_default_config_with_interfaces_mtu_sizes_when_create_network_attachment_definitions_then_interface_mtu_set_in_the_network_attachment_definitions(
         self, patch_get_service, kubernetes_create_object
     ):
         service_info_mock = Mock()
@@ -1983,7 +1983,7 @@ class TestCharm(unittest.TestCase):
             nad_config = json.loads(create_nad_call_args.get("obj").spec.get("config"))
             self.assertEqual(nad_config["mtu"], VALID_MTU_SIZE_1)
 
-    def test_given_default_config_with_interfaces_too_small_and_too_big_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
+    def test_given_default_config_with_interfaces_too_small_and_too_big_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(
         self,
     ):
         self.harness.update_config(
@@ -1996,7 +1996,7 @@ class TestCharm(unittest.TestCase):
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']"  # noqa: E501, W505
+                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']",
             ),
         )
 
@@ -2006,7 +2006,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_a_different_valid_value_then_delete_pod_is_called(  # noqa: E501
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_a_different_valid_value_then_delete_pod_is_called(
         self,
         patch_hugepages_is_patched,
         patch_delete_pod,
@@ -2031,7 +2031,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_different_valid_values_then_delete_pod_called_twice(  # noqa: E501
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_different_valid_values_then_delete_pod_called_twice(
         self,
         patch_hugepages_is_patched,
         patch_delete_pod,
@@ -2060,7 +2060,7 @@ class TestCharm(unittest.TestCase):
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.delete_pod")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_same_valid_value_multiple_times_then_delete_pod_called_once(  # noqa: E501
+    def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_same_valid_value_multiple_times_then_delete_pod_called_once(
         self,
         patch_hugepages_is_patched,
         patch_delete_pod,
@@ -2069,7 +2069,7 @@ class TestCharm(unittest.TestCase):
         _,
     ):
         self.harness.handle_exec("bessd", [], result=0)
-        """Delete pod is called for the first config change, setting the same config value does not trigger pod restarts."""  # noqa: E501, W505
+        """Delete pod is called for the first config change, setting the same config value does not trigger pod restarts.""",
         patch_hugepages_is_patched.return_value = True
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
@@ -2100,7 +2100,7 @@ class TestCharm(unittest.TestCase):
     @patch("charm.UPFOperatorCharm.delete_pod")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_hardware_checksum_is_enabled_when_value_changes_then_delete_pod_is_called_once(  # noqa: E501
+    def test_given_hardware_checksum_is_enabled_when_value_changes_then_delete_pod_is_called_once(
         self,
         patch_hugepages_is_patched,
         patch_multus_is_ready,
