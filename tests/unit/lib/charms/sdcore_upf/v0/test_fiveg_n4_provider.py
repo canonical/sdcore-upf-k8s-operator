@@ -19,7 +19,7 @@ class TestN4Provides(unittest.TestCase):
 
     @patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
     @patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
-    def test_given_fiveg_n4_relation_when_relation_created_then_upf_hostname_and_upf_port_is_published_in_the_relation_data(  # noqa: E501
+    def test_given_fiveg_n4_relation_when_relation_created_then_upf_hostname_and_upf_port_is_published_in_the_relation_data(
         self, patched_test_upf_port, patched_test_upf_hostname
     ):
         self.harness.set_leader(is_leader=True)

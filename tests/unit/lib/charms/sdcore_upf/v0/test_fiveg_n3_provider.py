@@ -18,7 +18,7 @@ class TestN3Provides(unittest.TestCase):
         self.relation_name = "fiveg_n3"
 
     @patch(f"{TEST_CHARM_PATH}.TEST_UPF_IP_ADDRESS", new_callable=PropertyMock)
-    def test_given_fiveg_n3_relation_when_relation_created_then_upf_ip_address_is_published_in_the_relation_data(  # noqa: E501
+    def test_given_fiveg_n3_relation_when_relation_created_then_upf_ip_address_is_published_in_the_relation_data(
         self, patched_test_upf_ip
     ):
         self.harness.set_leader(is_leader=True)

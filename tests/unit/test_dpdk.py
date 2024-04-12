@@ -37,7 +37,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         )
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_lightkube_client_returns_api_error_on_get_when_container_configured_for_dpdk_called_then_dpdk_statefulset_updater_error_is_raised(  # noqa: E501
+    def test_given_lightkube_client_returns_api_error_on_get_when_container_configured_for_dpdk_called_then_dpdk_statefulset_updater_error_is_raised(
         self, patched_lightkube_client_get
     ):
         patched_lightkube_client_get.side_effect = ApiError(response=MagicMock())
@@ -46,7 +46,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
             self.dpdk_statefulset_updater.is_configured("justatest")
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_container_not_is_statefulset_when_container_configured_for_dpdk_called_then_dpdk_statefulset_updater_error_is_raised(  # noqa: E501
+    def test_given_container_not_is_statefulset_when_container_configured_for_dpdk_called_then_dpdk_statefulset_updater_error_is_raised(
         self, patched_lightkube_client_get
     ):
         test_statefulset = StatefulSet(
@@ -62,7 +62,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
             self.dpdk_statefulset_updater.is_configured("justatest")
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_container_is_not_privileged_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
+    def test_given_container_is_not_privileged_when_container_configured_for_dpdk_called_then_false_is_returned(
         self, patched_lightkube_client_get
     ):
         test_statefulset = StatefulSet(
@@ -86,7 +86,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_resource_requirements_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
+    def test_given_resource_requirements_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(
         self, patched_lightkube_client_get
     ):
         test_statefulset = StatefulSet(
@@ -111,7 +111,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_resource_requests_applied_but_limits_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
+    def test_given_resource_requests_applied_but_limits_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(
         self, patched_lightkube_client_get
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
@@ -140,7 +140,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_resource_limits_applied_but_requests_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(  # noqa: E501
+    def test_given_resource_limits_applied_but_requests_not_applied_to_the_container_when_container_configured_for_dpdk_called_then_false_is_returned(
         self, patched_lightkube_client_get
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
@@ -169,7 +169,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         self.assertFalse(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_container_is_privileged_and_has_resource_requirements_applied_when_container_configured_for_dpdk_called_then_true_is_returned(  # noqa: E501
+    def test_given_container_is_privileged_and_has_resource_requirements_applied_when_container_configured_for_dpdk_called_then_true_is_returned(
         self, patched_lightkube_client_get
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
@@ -198,7 +198,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
         self.assertTrue(self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME))
 
     @patch("lightkube.core.client.Client.get")
-    def test_given_container_exists_and_requires_configuration_when_configure_container_for_dpdk_then_container_is_configured(  # noqa: E501
+    def test_given_container_exists_and_requires_configuration_when_configure_container_for_dpdk_then_container_is_configured(
         self, patched_lightkube_client_get
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
@@ -239,7 +239,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.get")
     @patch("lightkube.core.client.Client.replace")
-    def test_given_client_when_configure_container_for_dpdk_then_statefulset_is_replaced(  # noqa: E501
+    def test_given_client_when_configure_container_for_dpdk_then_statefulset_is_replaced(
         self, patched_lightkube_client_replace, patched_lightkube_client_get
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
@@ -272,7 +272,7 @@ class TestDPDKStatefulSetUpdater(unittest.TestCase):
 
     @patch("lightkube.core.client.Client.get")
     @patch("lightkube.core.client.Client.replace")
-    def test_given_lightkube_client_returns_api_error_on_replace_when_configure_container_for_dpdk_then_dpdk_statefulset_updater_error_is_raised(  # noqa: E501
+    def test_given_lightkube_client_returns_api_error_on_replace_when_configure_container_for_dpdk_then_dpdk_statefulset_updater_error_is_raised(
         self, patched_lightkube_client_replace, patched_lightkube_client_get
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS

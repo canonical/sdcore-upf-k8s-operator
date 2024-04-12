@@ -16,7 +16,7 @@ class TestN4Requires(unittest.TestCase):
         self.relation_name = "fiveg_n4"
 
     @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4RequirerCharmEvents.fiveg_n4_available")
-    def test_given_relation_with_n4_provider_when_fiveg_n4_available_event_then_n4_information_is_provided(  # noqa: E501
+    def test_given_relation_with_n4_provider_when_fiveg_n4_available_event_then_n4_information_is_provided(
         self, patched_fiveg_n4_available_event
     ):
         test_upf_hostname = "upf.edge-cloud.test.com"
