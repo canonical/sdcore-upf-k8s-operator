@@ -254,7 +254,7 @@ class N3Requires(Object):
         self.framework.observe(charm.on[relation_name].relation_changed, self._on_relation_changed)
 
     def _on_relation_changed(self, event: RelationChangedEvent) -> None:
-        """Triggered everytime there's a change in relation data.
+        """Triggered every time there's a change in relation data.
 
         Args:
             event (RelationChangedEvent): Juju event
