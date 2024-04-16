@@ -48,7 +48,7 @@ class DPDK:
         }
 
     def is_configured(self, container_name: str) -> bool:
-        """Checks whether the container config required for DPDK has been applied or not.
+        """Check whether the container config required for DPDK has been applied or not.
 
         Args:
             container_name (str): Name of the container to update
@@ -72,7 +72,7 @@ class DPDK:
         return True
 
     def configure(self, container_name: str) -> None:
-        """Applies config required by DPDK to a given container.
+        """Apply config required by DPDK to a given container.
 
         Args:
             container_name (str): Name of the container to update
@@ -96,7 +96,7 @@ class DPDK:
         logger.info("Container %s configured for DPDK", container_name)
 
     def _get_statefulset(self, statefulset_name: str, namespace: str) -> Optional[StatefulSet]:
-        """Returns StatefulSet object with given name from given namespace.
+        """Return StatefulSet object with given name from given namespace.
 
         Args:
             statefulset_name (str): Name of the StatefulSet to get
@@ -114,7 +114,7 @@ class DPDK:
     def _get_container(
         containers: Iterable[Container], container_name: str
     ) -> Optional[Container]:
-        """Returns Container object with given name.
+        """Return Container object with given name.
 
         Args:
             containers (Iterable[Container]): Containers to search among
@@ -130,7 +130,7 @@ class DPDK:
 
     @staticmethod
     def _apply_resource_requirements(container: Container, resource_requirements: dict) -> None:
-        """Applies given resource requests and limits to a given container.
+        """Apply given resource requests and limits to a given container.
 
         Args:
             container (Container): Container to update
@@ -148,7 +148,7 @@ class DPDK:
 
     @staticmethod
     def _resource_requirements_applied(container: Container, resource_requirements: dict) -> bool:
-        """Checks whether the container ResourceRequirements have been applied or not.
+        """Check whether the container ResourceRequirements have been applied or not.
 
         Args:
             container (Container): Container to check
@@ -166,7 +166,7 @@ class DPDK:
         return True
 
     def _replace_statefulset(self, statefulset: StatefulSet) -> None:
-        """Replaces StatefulSet.
+        """Replace StatefulSet.
 
         Args:
             statefulset (StatefulSet): StatefulSet object to replace

@@ -17,7 +17,7 @@ class WhateverCharm(CharmBase):
     TEST_UPF_PORT = 0
 
     def __init__(self, *args):
-        """Creates a new instance of this object for each event."""
+        """Create a new instance of this object for each event."""
         super().__init__(*args)
         self.fiveg_n3_provider = N3Provides(self, "fiveg_n3")
         self.fiveg_n4_provider = N4Provides(self, "fiveg_n4")

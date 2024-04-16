@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class WhateverCharm(CharmBase):
     def __init__(self, *args):
-        """Creates a new instance of this object for each event."""
+        """Create a new instance of this object for each event."""
         super().__init__(*args)
         self.fiveg_n3 = N3Requires(self, "fiveg_n3")
         self.fiveg_n4 = N4Requires(self, "fiveg_n4")
