@@ -52,3 +52,15 @@ jobs:
             most likely don't want to push any commits to this branch.
           branch: "chore/auto-libs"
           delete-branch: true
+
+      - name: Auto approve the PR
+        if: github.actor == 'telcobot'
+        uses: hmarr/auto-approve-action@v4
+        with:
+          review-message: "Auto approved automated PR"
+
+      - name: Automerge
+        if: github.actor == 'telcobot'
+        uses: pascalgn/automerge-action@v0.16.3
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
