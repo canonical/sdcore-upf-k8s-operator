@@ -6,7 +6,7 @@ mypy
 pytest
 pytest-asyncio==0.21.1
 pytest-interface-tester
-pydantic==2.6.4
+pydantic==2.7.1
 pytest-operator
 ruff
 types-PyYAML
