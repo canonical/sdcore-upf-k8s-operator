@@ -99,6 +99,7 @@ class TestCharmInitialisation(unittest.TestCase):
         ]
         self.harness.update_config(key_values={"dnn": ""})
         self.harness.begin()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -118,6 +119,7 @@ class TestCharmInitialisation(unittest.TestCase):
         ]
         self.harness.update_config(key_values={"upf-mode": ""})
         self.harness.begin()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -139,6 +141,7 @@ class TestCharmInitialisation(unittest.TestCase):
         ]
         self.harness.update_config(key_values={"upf-mode": "unsupported"})
         self.harness.begin()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -162,6 +165,7 @@ class TestCharmInitialisation(unittest.TestCase):
         ]
         self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
         self.harness.begin()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -187,6 +191,7 @@ class TestCharmInitialisation(unittest.TestCase):
         ]
         self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
         self.harness.begin()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -219,6 +224,7 @@ class TestCharmInitialisation(unittest.TestCase):
             }
         )
         self.harness.begin()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -251,6 +257,7 @@ class TestCharmInitialisation(unittest.TestCase):
             }
         )
         self.harness.begin()
+        self.harness.evaluate_status()
 
         self.assertEqual(
             self.harness.model.unit.status,
@@ -298,6 +305,8 @@ class TestCharmInitialisation(unittest.TestCase):
             }
         )
         self.harness.begin()
+        self.harness.evaluate_status()
+
         self.assertEqual(
             self.harness.model.unit.status,
             BlockedStatus(

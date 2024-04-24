@@ -106,8 +106,7 @@ class UPFOperatorCharm(CharmBase):
         self.unit.set_ports(PROMETHEUS_PORT)
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
-        except CharmConfigInvalidError as exc:
-            self.model.unit.status = BlockedStatus(exc.msg)
+        except CharmConfigInvalidError:
             return
         self._kubernetes_multus = KubernetesMultusCharmLib(
             charm=self,
