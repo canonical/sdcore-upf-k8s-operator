@@ -27,7 +27,7 @@ juju add-model user-plane
 Deploy the UPF:
 
 ```bash
-juju deploy sdcore-upf-k8s --trust --channel=1.4/edge
+juju deploy sdcore-upf-k8s --trust --channel=1.5/edge
 ```
 
 ### Exposing the UPF externally
