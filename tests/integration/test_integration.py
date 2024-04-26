@@ -29,9 +29,10 @@ async def _deploy_grafana_agent(ops_test: OpsTest):
 
 
 @pytest.fixture(scope="module")
-async def build_and_deploy(ops_test):
-    """Build the charm-under-test and deploy it."""
-    charm = await ops_test.build_charm(".")
+async def deploy(ops_test: OpsTest, request):
+    """Deploy required components."""
+    assert ops_test.model
+    charm = Path(request.config.getoption("--charm_path")).resolve()
     resources = {
         "bessd-image": METADATA["resources"]["bessd-image"]["upstream-source"],
         "pfcp-agent-image": METADATA["resources"]["pfcp-agent-image"]["upstream-source"],
@@ -46,10 +47,8 @@ async def build_and_deploy(ops_test):
 
 
 @pytest.mark.abort_on_fail
-async def test_given_charm_is_built_when_deployed_then_status_is_active(
-    ops_test,
-    build_and_deploy,
-):
+async def test_given_charm_is_built_when_deployed_then_status_is_active(ops_test: OpsTest, deploy):
+    assert ops_test.model
     await ops_test.model.integrate(
         relation1=f"{APP_NAME}:logging", relation2=GRAFANA_AGENT_APP_NAME
     )
