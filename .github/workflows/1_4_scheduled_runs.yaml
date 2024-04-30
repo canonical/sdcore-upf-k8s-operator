@@ -35,7 +35,7 @@ jobs:
     uses: canonical/sdcore-github-workflows/.github/workflows/integration-test.yaml@v0.0.1
     with:
       branch-name: "v1.4"
-      charm-file-name: "sdcore-ausf-k8s_ubuntu-22.04-amd64.charm"
+      charm-file-name: "sdcore-upf-k8s_ubuntu-22.04-amd64.charm"
 
   update-libs:
     name: Update libs
