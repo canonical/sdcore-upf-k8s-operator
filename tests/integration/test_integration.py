@@ -12,7 +12,7 @@ from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
-METADATA = yaml.safe_load(Path("./metadata.yaml").read_text())
+METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APP_NAME = METADATA["name"]
 GRAFANA_AGENT_APP_NAME = "grafana-agent-k8s"
 GRAFANA_AGENT_APP_CHANNEL = "latest/stable"
