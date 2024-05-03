@@ -115,6 +115,7 @@ class UPFOperatorCharm(CharmBase):
             network_annotations_func=self._generate_network_annotations,
             network_attachment_definitions_func=self._network_attachment_definitions_from_config,
             refresh_event=self.on.nad_config_changed,
+            privileged=self._get_privilege_required(),
         )
         self._kubernetes_volumes_patch = KubernetesHugePagesPatchCharmLib(
             charm=self,
@@ -135,6 +136,9 @@ class UPFOperatorCharm(CharmBase):
         )
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
+
+    def _get_privilege_required(self) -> bool:
+        return self._charm_config.upf_mode == UpfMode.dpdk
 
     def _create_external_upf_service(self) -> None:
         client = Client()
