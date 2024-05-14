@@ -493,7 +493,7 @@ class UPFOperatorCharm(CharmBase):
             existing_content = {}
         except ConnectionError:
             existing_content = {}
-        return existing_content.get("hwcksum") != self._charm_config.enable_hw_checksum
+        return existing_content.get("hwcksum") == self._charm_config.enable_hw_checksum
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
         """Handle collect status event."""
@@ -614,8 +614,22 @@ class UPFOperatorCharm(CharmBase):
     def _configure_bessd_workload(self) -> None:
         """Configure bessd workload.
 
-        Writes configuration file, creates routes, creates iptable rule and pebble layer.
+        Writes configuration file, creates routes, creates iptable rule and pebble layers.
         """
+        recreate_pod, restart = self._create_bessd_configuration_file()
+        self._create_default_route()
+        self._create_ran_route()
+        if not self._ip_tables_rule_exists():
+            self._create_ip_tables_rule()
+
+        self._create_and_configure_bessd_service(restart_service=restart)
+        self._create_route_control_service(restart_service=restart)
+
+        if recreate_pod:
+            logger.warning("Recreating POD after changing hardware checksum offloading config")
+            self.delete_pod()
+
+    def _create_bessd_configuration_file(self) -> tuple[bool, bool]:
         restart = False
         recreate_pod = False
         core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
@@ -630,31 +644,33 @@ class UPFOperatorCharm(CharmBase):
             enable_hw_checksum=self._charm_config.enable_hw_checksum,
         )
         if not self._bessd_config_file_is_written() or not self._bessd_config_file_content_matches(
-            content=content
+                content=content
         ):
-            if self._hwcksum_config_matches_pod_config():
+            if not self._hwcksum_config_matches_pod_config():
                 recreate_pod = True
             self._write_bessd_config_file(content=content)
             restart = True
-        self._create_default_route()
-        self._create_ran_route()
-        if not self._ip_tables_rule_exists():
-            self._create_ip_tables_rule()
+        return recreate_pod, restart
+
+    def _create_and_configure_bessd_service(self, restart_service: bool):
         plan = self._bessd_container.get_plan()
-        layer = self._bessd_pebble_layer
-        if plan.services != layer.services:
+        if not all(service in plan.services for service in self._bessd_pebble_layer.services):
             self._bessd_container.add_layer("bessd", self._bessd_pebble_layer, combine=True)
-            restart = True
-        if recreate_pod:
-            logger.warning("Recreating POD after changing hardware checksum offloading config")
-            self.delete_pod()
-        elif restart:
-            self._bessd_container.restart(self._routectl_service_name)
-            logger.info("Service `routectl` restarted")
+            restart_service = True
+        if restart_service:
             self._bessd_container.restart(self._bessd_service_name)
             logger.info("Service `bessd` restarted")
         self._wait_for_bessd_grpc_service_to_be_ready(timeout=60)
         self._run_bess_configuration()
+
+    def _create_route_control_service(self, restart_service: bool):
+        plan = self._bessd_container.get_plan()
+        if not all(service in plan.services for service in self._routectl_pebble_layer.services):
+            self._bessd_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
+            restart_service = True
+        if restart_service:
+            self._bessd_container.restart(self._routectl_service_name)
+            logger.info("Service `routectl` restarted")
 
     def _run_bess_configuration(self) -> None:
         """Run bessd configuration in workload."""
@@ -807,11 +823,11 @@ class UPFOperatorCharm(CharmBase):
             logger.info("Service `pfcp` restarted")
 
     @property
-    def _bessd_pebble_layer(self) -> Layer:
+    def _routectl_pebble_layer(self) -> Layer:
         return Layer(
             {
-                "summary": "bessd layer",
-                "description": "pebble config layer for bessd",
+                "summary": "route_control layer",
+                "description": "pebble config layer for route_control",
                 "services": {
                     self._routectl_service_name: {
                         "override": "replace",
@@ -819,6 +835,17 @@ class UPFOperatorCharm(CharmBase):
                         "command": f"/opt/bess/bessctl/conf/route_control.py -i {ACCESS_INTERFACE_NAME} {CORE_INTERFACE_NAME}",  # noqa: E501
                         "environment": self._routectl_environment_variables,
                     },
+                },
+            }
+        )
+
+    @property
+    def _bessd_pebble_layer(self) -> Layer:
+        return Layer(
+            {
+                "summary": "bessd layer",
+                "description": "pebble config layer for bessd",
+                "services": {
                     self._bessd_service_name: {
                         "override": "replace",
                         "startup": "enabled",
