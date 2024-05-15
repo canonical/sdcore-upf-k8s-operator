@@ -3,6 +3,7 @@
 
 import json
 import unittest
+from parameterized import parameterized
 from unittest.mock import Mock, call, patch
 
 from charm import (
@@ -677,10 +678,17 @@ class TestCharm(unittest.TestCase):
 
         self.assertFalse(iptables_drop_called)
 
+    @parameterized.expand(
+        [
+            [1, 0, "RUNNING"],
+            [0, 1, "RUNNING"],
+            [0, 0, 1],
+        ]
+    )
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
-        self, patch_is_ready, _
+        self, accessRoutes_check_out, coreRoutes_check_out, config_check_out, patch_is_ready, _
     ):
         self.harness.set_can_connect("bessd", True)
         self.harness.set_can_connect("pfcp-agent", True)
@@ -689,6 +697,8 @@ class TestCharm(unittest.TestCase):
         environment = {}
 
         grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        accessRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module accessRoutes".split()  # noqa: N806
+        coreRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module coreRoutes".split()  # noqa: N806
         config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
         bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
 
@@ -704,7 +714,9 @@ class TestCharm(unittest.TestCase):
         self.harness.handle_exec("bessd", ["ip"], result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
         self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
-        self.harness.handle_exec("bessd", config_check_cmd, result=1)
+        self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=accessRoutes_check_out)
+        self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=coreRoutes_check_out)
+        self.harness.handle_exec("bessd", config_check_cmd, result=config_check_out)
         self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
         patch_is_ready.return_value = True
 
@@ -727,6 +739,8 @@ class TestCharm(unittest.TestCase):
         bessctl_called = False
 
         grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        accessRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module accessRoutes".split()  # noqa: N806
+        coreRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module coreRoutes".split()  # noqa: N806
         config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
         bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
 
@@ -738,7 +752,9 @@ class TestCharm(unittest.TestCase):
         self.harness.handle_exec("bessd", ["ip"], result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
         self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
-        self.harness.handle_exec("bessd", config_check_cmd, result=0)
+        self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=0)
+        self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=0)
+        self.harness.handle_exec("bessd", config_check_cmd, result="RUNNING")
         self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
         patch_is_ready.return_value = True
 
@@ -785,7 +801,7 @@ class TestCharm(unittest.TestCase):
         patch_is_ready,
         patch_get_service,
     ):
-        self.harness.handle_exec("bessd", [], result=0)
+        self.harness.handle_exec("bessd", [], result="RUNNING")
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
         patch_get_service.return_value = service_info_mock
@@ -810,9 +826,13 @@ class TestCharm(unittest.TestCase):
         patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        accessRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module accessRoutes".split()  # noqa: N806
+        coreRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module coreRoutes".split()  # noqa: N806
         config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
         self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
-        self.harness.handle_exec("bessd", config_check_cmd, result=0)
+        self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=0)
+        self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=0)
+        self.harness.handle_exec("bessd", config_check_cmd, result="RUNNING")
 
         self.harness.container_pebble_ready(container_name="pfcp-agent")
         self.harness.evaluate_status()
