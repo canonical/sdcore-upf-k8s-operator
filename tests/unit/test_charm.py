@@ -3,7 +3,6 @@
 
 import json
 import unittest
-from parameterized import parameterized
 from unittest.mock import Mock, call, patch
 
 from charm import (
@@ -25,6 +24,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
 from ops.pebble import ConnectionError
+from parameterized import parameterized  # type: ignore[import-untyped]
 
 MULTUS_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.multus"
 HUGEPAGES_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch"
@@ -688,7 +688,7 @@ class TestCharm(unittest.TestCase):
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
-        self, accessRoutes_check_out, coreRoutes_check_out, config_check_out, patch_is_ready, _
+        self, accessRoutes_check_out, coreRoutes_check_out, config_check_out, patch_is_ready, _  # noqa: N803
     ):
         self.harness.set_can_connect("bessd", True)
         self.harness.set_can_connect("pfcp-agent", True)
