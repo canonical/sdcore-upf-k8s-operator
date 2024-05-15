@@ -72,7 +72,7 @@ iniconfig==2.0.0
     #   pytest
 ipdb==0.13.13
     # via pytest-operator
-ipython==8.22.1
+ipython==8.24.0
     # via ipdb
 jedi==0.19.1
     # via ipython
@@ -98,7 +98,7 @@ markupsafe==2.1.5
     # via
     #   -c requirements.txt
     #   jinja2
-matplotlib-inline==0.1.6
+matplotlib-inline==0.1.7
     # via ipython
 mypy==1.10.0
     # via -r test-requirements.in
@@ -131,7 +131,7 @@ paramiko==3.4.0
     # via
     #   -c requirements.txt
     #   juju
-parso==0.8.3
+parso==0.8.4
     # via jedi
 pexpect==4.9.0
     # via ipython
@@ -172,7 +172,7 @@ pydantic-core==2.16.3
     # via
     #   -c requirements.txt
     #   pydantic
-pygments==2.17.2
+pygments==2.18.0
     # via ipython
 pymacaroons==0.13.0
     # via
@@ -237,7 +237,7 @@ rsa==4.9
     # via
     #   -c requirements.txt
     #   google-auth
-ruff==0.4.3
+ruff==0.4.4
     # via -r test-requirements.in
 six==1.16.0
     # via
@@ -259,7 +259,7 @@ toposort==1.10
     # via
     #   -c requirements.txt
     #   juju
-traitlets==5.14.1
+traitlets==5.14.3
     # via
     #   ipython
     #   matplotlib-inline
@@ -269,13 +269,14 @@ typer==0.7.0
     #   pytest-interface-tester
 types-pyyaml==6.0.12.20240311
     # via -r test-requirements.in
-types-setuptools==69.5.0.20240423
+types-setuptools==69.5.0.20240513
     # via -r test-requirements.in
 types-toml==0.10.8.20240310
     # via -r test-requirements.in
 typing-extensions==4.10.0
     # via
     #   -c requirements.txt
+    #   ipython
     #   mypy
     #   pydantic
     #   pydantic-core
