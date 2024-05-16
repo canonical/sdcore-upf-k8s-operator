@@ -778,7 +778,7 @@ class UPFOperatorCharm(CharmBase):
             logger.debug("bessd configured workers: %s", show_worker_stdout)
             return True
         except ExecError as e:
-            logger.info("Configuration check: %s", e)
+            logger.error("Configuration check failed: %s", e)
             return False
 
     def _configure_bessd_for_dpdk(self) -> None:
