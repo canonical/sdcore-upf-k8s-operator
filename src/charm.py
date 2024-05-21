@@ -761,6 +761,13 @@ class UPFOperatorCharm(CharmBase):
         show_coreRoutes_module_cmd = "/opt/bess/bessctl/bessctl show module coreRoutes"  # noqa: N806
         show_worker_cmd = "/opt/bess/bessctl/bessctl show worker"
         try:
+            (show_worker_stdout, _) = self._exec_command_in_bessd_workload(
+                command=show_worker_cmd,
+                timeout=10,
+            )
+            if "RUNNING" not in show_worker_stdout:
+                return False
+            logger.debug("bessd configured workers: %s", show_worker_stdout)
             (show_accessRoutes_module_stdout, _) = self._exec_command_in_bessd_workload(  # noqa: N806
                 command=show_accessRoutes_module_cmd,
                 timeout=10,
@@ -773,13 +780,6 @@ class UPFOperatorCharm(CharmBase):
                 timeout=10,
             )
             logger.debug("bessd configured coreRoutes module: %s", show_coreRoutes_module_stdout)
-            (show_worker_stdout, _) = self._exec_command_in_bessd_workload(
-                command=show_worker_cmd,
-                timeout=10,
-            )
-            if "RUNNING" not in show_worker_stdout:
-                return False
-            logger.debug("bessd configured workers: %s", show_worker_stdout)
             return True
         except ExecError as e:
             logger.error("Configuration check failed: %s", e)
