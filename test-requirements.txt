@@ -36,9 +36,9 @@ click==8.1.7
     # via
     #   -c requirements.txt
     #   typer
-codespell==2.2.6
+codespell==2.3.0
     # via -r test-requirements.in
-coverage[toml]==7.5.1
+coverage[toml]==7.5.2
     # via -r test-requirements.in
 cryptography==42.0.5
     # via
@@ -189,7 +189,7 @@ pyrfc3339==1.1
     #   -c requirements.txt
     #   juju
     #   macaroonbakery
-pytest==8.2.0
+pytest==8.2.1
     # via
     #   -c requirements.txt
     #   -r test-requirements.in
@@ -237,7 +237,7 @@ rsa==4.9
     # via
     #   -c requirements.txt
     #   google-auth
-ruff==0.4.4
+ruff==0.4.5
     # via -r test-requirements.in
 six==1.16.0
     # via
@@ -269,7 +269,7 @@ typer==0.7.0
     #   pytest-interface-tester
 types-pyyaml==6.0.12.20240311
     # via -r test-requirements.in
-types-setuptools==69.5.0.20240513
+types-setuptools==70.0.0.20240524
     # via -r test-requirements.in
 types-toml==0.10.8.20240310
     # via -r test-requirements.in
