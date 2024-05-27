@@ -361,7 +361,7 @@ class TestCharmInitialisation(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="bessd")
 
         config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
-        self.assertIn("hwcksum", config)
+        self.assertIn("hwcksum", config)  # codespell:ignore
         self.assertFalse(config["hwcksum"])
 
     def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
@@ -1120,7 +1120,7 @@ class TestCharm(unittest.TestCase):
             config = json.loads(nad.spec["config"])
             self.assertNotIn("master", config)
             self.assertEqual("bridge", config["type"])
-            self.assertIn(config["bridge"], ("core-br", "access-br"))
+            self.assertIn(config["bridge"], ("core-br", "access-br"))  # codespell:ignore
 
     @patch("lightkube.core.client.Client.create")
     @patch("ops.model.Container.get_service")
