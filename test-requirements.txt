@@ -234,10 +234,8 @@ requests-oauthlib==1.3.1
     #   -c requirements.txt
     #   kubernetes
 rsa==4.9
-    # via
-    #   -c requirements.txt
-    #   google-auth
-ruff==0.4.4
+    # via google-auth
+ruff==0.4.5
     # via -r test-requirements.in
 six==1.16.0
     # via
@@ -269,7 +267,7 @@ typer==0.7.0
     #   pytest-interface-tester
 types-pyyaml==6.0.12.20240311
     # via -r test-requirements.in
-types-setuptools==69.5.0.20240519
+types-setuptools==70.0.0.20240524
     # via -r test-requirements.in
 types-toml==0.10.8.20240310
     # via -r test-requirements.in
