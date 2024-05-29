@@ -166,7 +166,7 @@ class UPFOperatorCharm(CharmBase):
         client.apply(service, field_manager=self.model.app.name)
         logger.info("Created/asserted existence of the external UPF service")
 
-    def _on_remove(self, event: RemoveEvent) -> None:
+    def _on_remove(self, _: RemoveEvent) -> None:
         self._delete_external_upf_service()
 
     def _delete_external_upf_service(self) -> None:
@@ -215,14 +215,14 @@ class UPFOperatorCharm(CharmBase):
         """
         return "-".join(self.model.unit.name.rsplit("/", 1))
 
-    def _on_install(self, event: EventBase) -> None:
+    def _on_install(self, _: EventBase) -> None:
         """Handle Juju install event.
 
         Enforce usage of a CPU which supports instructions required to run this
         charm. If the CPU doesn't meet the requirements, charm goes to Blocked state.
 
         Args:
-            event: Juju event
+            _: Juju event
         """
         if not self._is_cpu_compatible():
             return
@@ -230,21 +230,21 @@ class UPFOperatorCharm(CharmBase):
             return
         self._create_external_upf_service()
 
-    def _on_fiveg_n3_request(self, event: EventBase) -> None:
+    def _on_fiveg_n3_request(self, _: EventBase) -> None:
         """Handle 5G N3 requests events.
 
         Args:
-            event: Juju event
+            _: Juju event
         """
         if not self.unit.is_leader():
             return
         self._update_fiveg_n3_relation_data()
 
-    def _on_fiveg_n4_request(self, event: EventBase) -> None:
+    def _on_fiveg_n4_request(self, _: EventBase) -> None:
         """Handle 5G N4 requests events.
 
         Args:
-            event: Juju event
+            _: Juju event
         """
         if not self.unit.is_leader():
             return
@@ -515,6 +515,9 @@ class UPFOperatorCharm(CharmBase):
         if not self._is_cpu_compatible():
             event.add_status(BlockedStatus("CPU is not compatible, see logs for more details"))
             return
+        if not self._hugepages_are_available():
+            event.add_status(BlockedStatus("Not enough HugePages available"))
+            return
         if not self._kubernetes_multus.multus_is_available():
             event.add_status(BlockedStatus("Multus is not installed or enabled"))
             logger.info("Multus is not installed or enabled")
@@ -581,7 +584,7 @@ class UPFOperatorCharm(CharmBase):
         self._update_fiveg_n3_relation_data()
         self._update_fiveg_n4_relation_data()
 
-    def _on_bessd_pebble_ready(self, event: EventBase) -> None:
+    def _on_bessd_pebble_ready(self, _: EventBase) -> None:
         """Handle Pebble ready event."""
         try:
             self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
@@ -599,7 +602,7 @@ class UPFOperatorCharm(CharmBase):
             return
         self._configure_bessd_workload()
 
-    def _on_pfcp_agent_pebble_ready(self, event: EventBase) -> None:
+    def _on_pfcp_agent_pebble_ready(self, _: EventBase) -> None:
         """Handle pfcp agent Pebble ready event."""
         if not self.unit.is_leader():
             return
@@ -980,9 +983,6 @@ class UPFOperatorCharm(CharmBase):
                     "Please use a CPU that has the following capabilities: %s",
                     ", ".join(REQUIRED_CPU_EXTENSIONS + REQUIRED_CPU_EXTENSIONS_HUGEPAGES),
                 )
-                return False
-            if not self._hugepages_are_available():
-                logger.warning("Not enough HugePages available")
                 return False
         return True
 
