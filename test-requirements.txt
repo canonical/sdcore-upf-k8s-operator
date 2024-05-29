@@ -76,7 +76,7 @@ oauthlib==3.2.2
     # via
     #   kubernetes
     #   requests-oauthlib
-ops==2.13.0
+ops==2.14.0
     # via ops-scenario
 ops-scenario==6.0.1
     # via pytest-interface-tester
