@@ -1824,7 +1824,6 @@ class TestCharm(unittest.TestCase):
         patch_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
-            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
@@ -1867,7 +1866,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("CPU is not compatible, see logs for more details"),
+            BlockedStatus("Not enough HugePages available"),
         )
 
     @patch("charm.check_output")
@@ -1905,7 +1904,7 @@ class TestCharm(unittest.TestCase):
 
         self.assertEqual(
             self.harness.model.unit.status,
-            BlockedStatus("CPU is not compatible, see logs for more details"),
+            BlockedStatus("Not enough HugePages available"),
         )
 
         self.harness.charm.on.update_status.emit()
