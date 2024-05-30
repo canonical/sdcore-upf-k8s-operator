@@ -531,11 +531,13 @@ class TestCharm(unittest.TestCase):
             "metric",
             "110",
         ]
+        ip_route_show_cmd = ["ip", "route", "show"]
 
         self.harness.handle_exec("bessd", replace_default_route_cmd, handler=ip_handler)
         self.harness.handle_exec("bessd", replace_gnb_subnet_route_cmd, result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
         self.harness.handle_exec("bessd", ["/opt/bess/bessctl/bessctl"], result=0)
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result="")
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -575,11 +577,13 @@ class TestCharm(unittest.TestCase):
             return testing.ExecResult(exit_code=0)
 
         replace_gnb_subnet_route_cmd = ["ip", "route", "replace", GNB_SUBNET, "via", ACCESS_GW_IP]
+        ip_route_show_cmd = ["ip", "route", "show"]
 
         self.harness.handle_exec("bessd", replace_gnb_subnet_route_cmd, handler=ip_handler)
         self.harness.handle_exec("bessd", replace_default_route_cmd, result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
         self.harness.handle_exec("bessd", ["/opt/bess/bessctl/bessctl"], result=0)
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result="")
         patch_is_ready.return_value = True
 
         self.harness.container_pebble_ready(container_name="bessd")
@@ -768,12 +772,9 @@ class TestCharm(unittest.TestCase):
         patch_is_ready,
     ):
         ip_route_show_cmd = ["ip", "route", "show"]
+        ip_route_show_result = f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}"
 
-        def ip_route_show_handler(_: testing.ExecArgs) -> testing.ExecResult:
-            return testing.ExecResult(
-                stdout=f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}")
-
-        self.harness.handle_exec("bessd", ip_route_show_cmd, handler=ip_route_show_handler)
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result=ip_route_show_result)
         self.harness.handle_exec("bessd", [], result=0)
         patch_is_ready.return_value = True
         (self.root / "etc/bess/conf").rmdir()
@@ -809,12 +810,9 @@ class TestCharm(unittest.TestCase):
         patch_get_service,
     ):
         ip_route_show_cmd = ["ip", "route", "show"]
+        ip_route_show_result = f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}"
 
-        def ip_route_show_handler(_: testing.ExecArgs) -> testing.ExecResult:
-            return testing.ExecResult(
-                stdout=f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}")
-
-        self.harness.handle_exec("bessd", ip_route_show_cmd, handler=ip_route_show_handler)
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result=ip_route_show_result)
         self.harness.handle_exec("bessd", [], result="RUNNING")
         service_info_mock = Mock()
         service_info_mock.is_running.return_value = True
@@ -844,13 +842,9 @@ class TestCharm(unittest.TestCase):
         coreRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module coreRoutes".split()  # noqa: N806
         config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
         ip_route_show_cmd = ["ip", "route", "show"]
+        ip_route_show_result = f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}"
 
-        def ip_route_show_handler(_: testing.ExecArgs) -> testing.ExecResult:
-            return testing.ExecResult(
-                stdout=f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}"
-            )
-
-        self.harness.handle_exec("bessd", ip_route_show_cmd, handler=ip_route_show_handler)
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result=ip_route_show_result)
         self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
         self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=0)
         self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=0)
@@ -893,12 +887,9 @@ class TestCharm(unittest.TestCase):
         self, patch_is_ready, patch_get_service
     ):
         ip_route_show_cmd = ["ip", "route", "show"]
+        ip_route_show_result = f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}"
 
-        def ip_route_show_handler(_: testing.ExecArgs) -> testing.ExecResult:
-            return testing.ExecResult(
-                stdout=f"{GNB_SUBNET} via {ACCESS_GW_IP}\ndefault via {CORE_GW_IP}")
-
-        self.harness.handle_exec("bessd", ip_route_show_cmd, handler=ip_route_show_handler)
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result=ip_route_show_result)
         self.harness.handle_exec("bessd", [], result=0)
         patch_get_service.side_effect = ConnectionError()
         patch_is_ready.return_value = True
@@ -912,15 +903,12 @@ class TestCharm(unittest.TestCase):
         )
 
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_routes_not_created_when_bessd_pebble_ready_then_status_is_waiting(
+    def test_given_default_route_not_created_when_bessd_pebble_ready_then_status_is_waiting(
         self, patch_is_ready
     ):
         ip_route_show_cmd = ["ip", "route", "show"]
 
-        def ip_route_show_handler(_: testing.ExecArgs) -> testing.ExecResult:
-            return testing.ExecResult(stdout="")
-
-        self.harness.handle_exec("bessd", ip_route_show_cmd, handler=ip_route_show_handler)
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result="")
         self.harness.handle_exec("bessd", [], result=0)
         patch_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
@@ -929,7 +917,25 @@ class TestCharm(unittest.TestCase):
         self.harness.evaluate_status()
 
         self.assertEqual(
-            self.harness.model.unit.status, WaitingStatus("Waiting for network routes")
+            self.harness.model.unit.status, WaitingStatus("Waiting for default route creation")
+        )
+
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    def test_given_ran_route_not_created_when_bessd_pebble_ready_then_status_is_waiting(
+        self, patch_is_ready
+    ):
+        ip_route_show_cmd = ["ip", "route", "show"]
+
+        self.harness.handle_exec("bessd", ip_route_show_cmd, result=f"default via {CORE_GW_IP}")
+        self.harness.handle_exec("bessd", [], result=0)
+        patch_is_ready.return_value = True
+        self.harness.set_can_connect(container="bessd", val=True)
+
+        self.harness.container_pebble_ready(container_name="bessd")
+        self.harness.evaluate_status()
+
+        self.assertEqual(
+            self.harness.model.unit.status, WaitingStatus("Waiting for RAN route creation")
         )
 
     @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")

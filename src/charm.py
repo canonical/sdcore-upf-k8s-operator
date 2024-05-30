@@ -515,9 +515,19 @@ class UPFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for Multus to be ready"))
             logger.info("Waiting for Multus to be ready")
             return
-        if not self._are_routes_created():
-            event.add_status(WaitingStatus("Waiting for network routes"))
-            logger.info("Waiting for network routes")
+        if not self._route_exists(
+                dst="default",
+                via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+        ):
+            event.add_status(WaitingStatus("Waiting for default route creation"))
+            logger.info("Waiting for default route creation")
+            return
+        if not self._route_exists(
+                dst=str(self._charm_config.gnb_subnet),
+                via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+        ):
+            event.add_status(WaitingStatus("Waiting for RAN route creation"))
+            logger.info("Waiting for RAN route creation")
             return
         if not path_exists(container=self._bessd_container, path=BESSD_CONTAINER_CONFIG_PATH):
             event.add_status(WaitingStatus("Waiting for storage to be attached"))
@@ -614,8 +624,16 @@ class UPFOperatorCharm(CharmBase):
         services are created, started and configured.
         """
         recreate_pod, restart = self._create_upf_configuration_file()
-        self._create_default_route()
-        self._create_ran_route()
+        if not self._route_exists(
+                dst="default",
+                via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+        ):
+            self._create_default_route()
+        if not self._route_exists(
+                dst=str(self._charm_config.gnb_subnet),
+                via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+        ):
+            self._create_ran_route()
         if not self._ip_tables_rule_exists():
             self._create_ip_tables_rule()
 
@@ -803,21 +821,17 @@ class UPFOperatorCharm(CharmBase):
         if not dpdk.is_configured(container_name=self._bessd_container_name):
             dpdk.configure(container_name=self._bessd_container_name)
 
-    def _are_routes_created(self) -> bool:
-        """Return whether the default and gNB subnet routes are present."""
+    def _route_exists(self, dst: str, via: str | None) -> bool:
+        """Return whether the specified route exist."""
         try:
             stdout, stderr = self._exec_command_in_bessd_workload(command="ip route show")
         except ExecError as e:
             logger.error("Failed retrieving routes: %s", e.stderr)
             return False
-        default_found = False
-        gnb_found = False
         for line in stdout.splitlines():
-            if f"{self._charm_config.gnb_subnet} via {self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME)}" in line:  # noqa: E501
-                gnb_found = True
-            elif f"default via {self._get_network_gateway_ip_config(CORE_INTERFACE_NAME)}":
-                default_found = True
-        return default_found and gnb_found
+            if f"{dst} via {via}" in line:  # noqa: E501
+                return True
+        return False
 
     def _create_default_route(self) -> None:
         """Create ip route towards core network."""
