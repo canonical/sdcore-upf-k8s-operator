@@ -829,7 +829,7 @@ class UPFOperatorCharm(CharmBase):
             logger.error("Failed retrieving routes: %s", e.stderr)
             return False
         for line in stdout.splitlines():
-            if f"{dst} via {via}" in line:  # noqa: E501
+            if f"{dst} via {via}" in line:
                 return True
         return False
 
