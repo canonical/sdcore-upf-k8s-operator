@@ -515,6 +515,20 @@ class UPFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for Multus to be ready"))
             logger.info("Waiting for Multus to be ready")
             return
+        if not self._route_exists(
+                dst="default",
+                via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+        ):
+            event.add_status(WaitingStatus("Waiting for default route creation"))
+            logger.info("Waiting for default route creation")
+            return
+        if not self._route_exists(
+                dst=str(self._charm_config.gnb_subnet),
+                via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+        ):
+            event.add_status(WaitingStatus("Waiting for RAN route creation"))
+            logger.info("Waiting for RAN route creation")
+            return
         if not path_exists(container=self._bessd_container, path=BESSD_CONTAINER_CONFIG_PATH):
             event.add_status(WaitingStatus("Waiting for storage to be attached"))
             logger.info("Waiting for storage to be attached")
@@ -610,8 +624,16 @@ class UPFOperatorCharm(CharmBase):
         services are created, started and configured.
         """
         recreate_pod, restart = self._create_upf_configuration_file()
-        self._create_default_route()
-        self._create_ran_route()
+        if not self._route_exists(
+                dst="default",
+                via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+        ):
+            self._create_default_route()
+        if not self._route_exists(
+                dst=str(self._charm_config.gnb_subnet),
+                via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+        ):
+            self._create_ran_route()
         if not self._ip_tables_rule_exists():
             self._create_ip_tables_rule()
 
@@ -799,18 +821,38 @@ class UPFOperatorCharm(CharmBase):
         if not dpdk.is_configured(container_name=self._bessd_container_name):
             dpdk.configure(container_name=self._bessd_container_name)
 
+    def _route_exists(self, dst: str, via: str | None) -> bool:
+        """Return whether the specified route exist."""
+        try:
+            stdout, stderr = self._exec_command_in_bessd_workload(command="ip route show")
+        except ExecError as e:
+            logger.error("Failed retrieving routes: %s", e.stderr)
+            return False
+        for line in stdout.splitlines():
+            if f"{dst} via {via}" in line:
+                return True
+        return False
+
     def _create_default_route(self) -> None:
         """Create ip route towards core network."""
-        self._exec_command_in_bessd_workload(
+        try:
+            self._exec_command_in_bessd_workload(
             command=f"ip route replace default via {self._get_network_gateway_ip_config(CORE_INTERFACE_NAME)} metric 110"  # noqa: E501
-        )
+            )
+        except ExecError as e:
+            logger.error("Failed to create core network route: %s", e.stderr)
+            return
         logger.info("Default core network route created")
 
     def _create_ran_route(self) -> None:
         """Create ip route towards gnb-subnet."""
-        self._exec_command_in_bessd_workload(
-            command=f"ip route replace {self._charm_config.gnb_subnet} via {self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME)}"  # noqa: E501
-        )
+        try:
+            self._exec_command_in_bessd_workload(
+                command=f"ip route replace {self._charm_config.gnb_subnet} via {self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME)}"  # noqa: E501
+            )
+        except ExecError as e:
+            logger.error("Failed to create route to gnb-subnet: %s", e.stderr)
+            return
         logger.info("Route to gnb-subnet created")
 
     def _ip_tables_rule_exists(self) -> bool:
@@ -829,9 +871,13 @@ class UPFOperatorCharm(CharmBase):
 
     def _create_ip_tables_rule(self) -> None:
         """Create iptable rule in the OUTPUT chain to block ICMP port-unreachable packets."""
-        self._exec_command_in_bessd_workload(
-            command="iptables-legacy -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
-        )
+        try:
+            self._exec_command_in_bessd_workload(
+                command="iptables-legacy -I OUTPUT -p icmp --icmp-type port-unreachable -j DROP"
+            )
+        except ExecError as e:
+            logger.error("Failed to create iptables rule for ICMP: %s", e.stderr)
+            return
         logger.info("Iptables rule for ICMP created")
 
     def _exec_command_in_bessd_workload(
