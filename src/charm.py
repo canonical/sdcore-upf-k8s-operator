@@ -677,9 +677,11 @@ class UPFOperatorCharm(CharmBase):
         This function adds the Pebble layer defining the `routectl` service. The Pebble layer will
         only be added if it doesn't already exist.
         Through the `restart_service` argument, the function also allows to restart
-        the `bessd` service (even if there was no change in the Pebble layer) if it is required
+        the `routectl` service (even if there was no change in the Pebble layer) if it is required
         (e.g. when the UPF configuration file has changed).
         """
+        if not self._is_bessd_configured():
+            return
         plan = self._bessd_container.get_plan()
         if not all(service in plan.services for service in self._routectl_pebble_layer.services):
             self._bessd_container.add_layer("routectl", self._routectl_pebble_layer, combine=True)
