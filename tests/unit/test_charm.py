@@ -455,12 +455,24 @@ class TestCharm(unittest.TestCase):
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    def test_given_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
+    def test_given_bess_configured_when_bessd_pebble_ready_then_expected_pebble_plan_is_applied(  # noqa: E501
         self,
         patch_is_ready,
         _,
     ):
-        self.harness.handle_exec("bessd", [], result=0)
+        grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        accessRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module accessRoutes".split()  # noqa: N806
+        coreRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module coreRoutes".split()  # noqa: N806
+        config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
+        bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
+
+        self.harness.handle_exec("bessd", ["ip"], result=0)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
+        self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=0)
+        self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=0)
+        self.harness.handle_exec("bessd", config_check_cmd, result="RUNNING")
+        self.harness.handle_exec("bessd", bessctl_cmd, result=0)
         self.harness.set_can_connect("bessd", True)
         self.harness.set_can_connect("pfcp-agent", True)
         patch_is_ready.return_value = True
@@ -499,6 +511,34 @@ class TestCharm(unittest.TestCase):
         updated_plan = self.harness.get_container_pebble_plan("bessd").to_dict()
 
         self.assertEqual(expected_plan, updated_plan)
+
+    @patch("ops.model.Container.get_service")
+    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+    def test_given_bess_not_configured_when_bessd_pebble_ready_then_routectl_service_not_started(  # noqa: E501
+        self,
+        patch_is_ready,
+        _,
+    ):
+        grpc_check_cmd = "/opt/bess/bessctl/bessctl show version".split()
+        accessRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module accessRoutes".split()  # noqa: N806
+        coreRoutes_check_cmd = "/opt/bess/bessctl/bessctl show module coreRoutes".split()  # noqa: N806
+        config_check_cmd = "/opt/bess/bessctl/bessctl show worker".split()
+        bessctl_cmd = ["/opt/bess/bessctl/bessctl", "run", "/opt/bess/bessctl/conf/up4"]
+
+        self.harness.handle_exec("bessd", ["ip"], result=0)
+        self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
+        self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
+        self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=1)
+        self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=0)
+        self.harness.handle_exec("bessd", config_check_cmd, result="RUNNING")
+        self.harness.handle_exec("bessd", bessctl_cmd, result=0)
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
+        patch_is_ready.return_value = True
+
+        self.harness.container_pebble_ready(container_name="bessd")
+
+        self.assertNotIn("routectl", self.harness.get_container_pebble_plan("bessd").services)
 
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
