@@ -1,9 +1,9 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import pytest
 from unittest.mock import PropertyMock, patch
 
+import pytest
 from ops import testing
 from test_charms.test_provider_charm.src.charm import WhateverCharm  # type: ignore[import]
 
@@ -12,9 +12,9 @@ REMOVE_APP = "whatever-app"
 TEST_CHARM_PATH = "test_charms.test_provider_charm.src.charm.WhateverCharm"
 
 class TestN3Provides:
-    
-    patcher_upf_ip_address = patch(f"{TEST_CHARM_PATH}.TEST_UPF_IP_ADDRESS", new_callable=PropertyMock)
-    
+
+    patcher_upf_ip_address = patch(f"{TEST_CHARM_PATH}.TEST_UPF_IP_ADDRESS", new_callable=PropertyMock)   # noqa E501
+
     @pytest.fixture()
     def setUp(self) -> None:
         self.mock_upf_ip_address = TestN3Provides.patcher_upf_ip_address.start()
@@ -22,7 +22,7 @@ class TestN3Provides:
     @staticmethod
     def tearDown() -> None:
         patch.stopall()
-        
+
     @pytest.fixture(autouse=True)
     def harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)

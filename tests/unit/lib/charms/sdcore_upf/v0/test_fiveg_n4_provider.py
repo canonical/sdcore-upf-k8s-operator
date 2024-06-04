@@ -1,9 +1,9 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import pytest
 from unittest.mock import PropertyMock, patch
 
+import pytest
 from ops import testing
 from test_charms.test_provider_charm.src.charm import WhateverCharm  # type: ignore[import]
 
@@ -12,21 +12,21 @@ VALID_HOSTNAME = "upf.edge-cloud.test.com"
 VALID_PORT = 1234
 
 class TestN4Provides:
-    
+
     patcher_upf_hostname = patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
     patcher_upf_port = patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
-    
+
     @pytest.fixture()
     def setUp(self) -> None:
         self.mock_upf_hostname = TestN4Provides.patcher_upf_hostname.start()
         self.mock_upf_port = TestN4Provides.patcher_upf_port.start()
         self.mock_upf_hostname.return_value = VALID_HOSTNAME
         self.mock_upf_port.return_value = VALID_PORT
-    
+
     @staticmethod
     def tearDown() -> None:
         patch.stopall()
-        
+
     @pytest.fixture(autouse=True)
     def harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)
@@ -36,7 +36,7 @@ class TestN4Provides:
         yield self.harness
         self.harness.cleanup()
         request.addfinalizer(self.tearDown)
-        
+
     def add_fiveg_n4_relation(self) -> int:
         relation_id = self.harness.add_relation(
             relation_name="fiveg_n4", remote_app="whatever-app"
