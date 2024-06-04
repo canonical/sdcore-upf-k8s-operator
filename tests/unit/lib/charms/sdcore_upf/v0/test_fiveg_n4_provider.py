@@ -1,73 +1,71 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import unittest
 from unittest.mock import PropertyMock, patch
 
+import pytest
 from ops import testing
 from test_charms.test_provider_charm.src.charm import WhateverCharm  # type: ignore[import]
 
 TEST_CHARM_PATH = "test_charms.test_provider_charm.src.charm.WhateverCharm"
+VALID_HOSTNAME = "upf.edge-cloud.test.com"
+VALID_PORT = 1234
 
+class TestN4Provides:
 
-class TestN4Provides(unittest.TestCase):
+    patcher_upf_hostname = patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
+    patcher_upf_port = patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
+
+    @pytest.fixture()
     def setUp(self) -> None:
-        self.harness = testing.Harness(WhateverCharm)
-        self.addCleanup(self.harness.cleanup)
-        self.harness.begin()
-        self.relation_name = "fiveg_n4"
+        self.mock_upf_hostname = TestN4Provides.patcher_upf_hostname.start()
+        self.mock_upf_port = TestN4Provides.patcher_upf_port.start()
+        self.mock_upf_hostname.return_value = VALID_HOSTNAME
+        self.mock_upf_port.return_value = VALID_PORT
 
-    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
-    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
-    def test_given_fiveg_n4_relation_when_relation_created_then_upf_hostname_and_upf_port_is_published_in_the_relation_data(  # noqa: E501
-        self, patched_test_upf_port, patched_test_upf_hostname
-    ):
+    @staticmethod
+    def tearDown() -> None:
+        patch.stopall()
+
+    @pytest.fixture(autouse=True)
+    def harness(self, setUp, request):
+        self.harness = testing.Harness(WhateverCharm)
+        self.harness.set_model_name(name="whatever")
         self.harness.set_leader(is_leader=True)
-        test_upf_hostname = "upf.edge-cloud.test.com"
-        test_upf_port = 1234
-        patched_test_upf_hostname.return_value = test_upf_hostname
-        patched_test_upf_port.return_value = test_upf_port
+        self.harness.begin()
+        yield self.harness
+        self.harness.cleanup()
+        request.addfinalizer(self.tearDown)
+
+    def add_fiveg_n4_relation(self) -> int:
         relation_id = self.harness.add_relation(
-            relation_name=self.relation_name, remote_app="whatever-app"
+            relation_name="fiveg_n4", remote_app="whatever-app"
         )
         self.harness.add_relation_unit(relation_id, "whatever-app/0")
+        return relation_id
 
+    def test_given_fiveg_n4_relation_when_relation_created_then_upf_hostname_and_upf_port_is_published_in_the_relation_data(  # noqa: E501
+        self,
+    ):
+        relation_id = self.add_fiveg_n4_relation()
         relation_data = self.harness.get_relation_data(
             relation_id=relation_id, app_or_unit=self.harness.charm.app
         )
-        self.assertEqual(test_upf_hostname, relation_data["upf_hostname"])
-        self.assertEqual(str(test_upf_port), relation_data["upf_port"])
+        assert VALID_HOSTNAME == relation_data["upf_hostname"]
+        assert str(VALID_PORT) == relation_data["upf_port"]
 
-    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
-    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
     def test_given_invalid_upf_hostname_when_relation_created_then_value_error_is_raised(
-        self, patched_test_upf_port, patched_test_upf_hostname
+        self,
     ):
-        self.harness.set_leader(is_leader=True)
         test_invalid_upf_hostname = None
-        test_upf_port = 1234
-        patched_test_upf_hostname.return_value = test_invalid_upf_hostname
-        patched_test_upf_port.return_value = test_upf_port
+        self.mock_upf_hostname.return_value = test_invalid_upf_hostname
+        with pytest.raises(ValueError):
+            self.add_fiveg_n4_relation()
 
-        with self.assertRaises(ValueError):
-            relation_id = self.harness.add_relation(
-                relation_name=self.relation_name, remote_app="whatever-app"
-            )
-            self.harness.add_relation_unit(relation_id, "whatever-app/0")
-
-    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
-    @patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
     def test_given_invalid_upf_port_when_relation_created_then_value_error_is_raised(
-        self, patched_test_upf_port, patched_test_upf_hostname
+        self,
     ):
-        self.harness.set_leader(is_leader=True)
-        test_upf_hostname = "upf.edge-cloud.test.com"
         test_invalid_upf_port = "not_an_int"
-        patched_test_upf_hostname.return_value = test_upf_hostname
-        patched_test_upf_port.return_value = test_invalid_upf_port
-
-        with self.assertRaises(ValueError):
-            relation_id = self.harness.add_relation(
-                relation_name=self.relation_name, remote_app="whatever-app"
-            )
-            self.harness.add_relation_unit(relation_id, "whatever-app/0")
+        self.mock_upf_port.return_value = test_invalid_upf_port
+        with pytest.raises(ValueError):
+            self.add_fiveg_n4_relation()
