@@ -1,25 +1,26 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import pytest
 from unittest.mock import call, patch
 
-from ops import testing
+import pytest
+from ops import BoundEvent, testing
 from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
 
 
 class TestN4Requires:
-    
-    patch_n4_available = patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4RequirerCharmEvents.fiveg_n4_available")
-    
+
+    patch_n4_available = patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4RequirerCharmEvents.fiveg_n4_available")   # noqa E501
+
     @pytest.fixture()
     def setUp(self) -> None:
         self.mock_n4_available = TestN4Requires.patch_n4_available.start()
-        
+        self.mock_n4_available.__class__ = BoundEvent
+
     @staticmethod
     def tearDown() -> None:
         patch.stopall()
-        
+
     @pytest.fixture(autouse=True)
     def harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)

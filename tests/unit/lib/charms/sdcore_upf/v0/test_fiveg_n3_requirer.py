@@ -1,25 +1,26 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import pytest
 from unittest.mock import call, patch
 
-from ops import testing
+import pytest
+from ops import BoundEvent, testing
 from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
 
 
 class TestN3Requires:
-    
-    patcher_n3_available = patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3RequirerCharmEvents.fiveg_n3_available")
-    
+
+    patcher_n3_available = patch("charms.sdcore_upf_k8s.v0.fiveg_n3.N3RequirerCharmEvents.fiveg_n3_available")   # noqa E501
+
     @pytest.fixture()
     def setUp(self) -> None:
         self.mock_n3_available = TestN3Requires.patcher_n3_available.start()
-        
+        self.mock_n3_available.__class__ = BoundEvent
+
     @staticmethod
     def tearDown() -> None:
         patch.stopall()
-        
+
     @pytest.fixture(autouse=True)
     def harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)
@@ -30,7 +31,7 @@ class TestN3Requires:
         request.addfinalizer(self.tearDown)
 
     def test_given_relation_with_n3_provider_when_fiveg_n3_available_event_then_n3_information_is_provided(  # noqa: E501
-        self, 
+        self,
     ):
         test_upf_ip = "1.2.3.4"
         relation_id = self.harness.add_relation(
