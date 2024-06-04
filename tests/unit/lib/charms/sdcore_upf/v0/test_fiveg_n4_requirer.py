@@ -1,31 +1,43 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-import unittest
+import pytest
 from unittest.mock import call, patch
 
 from ops import testing
 from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
 
 
-class TestN4Requires(unittest.TestCase):
+class TestN4Requires:
+    
+    patch_n4_available = patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4RequirerCharmEvents.fiveg_n4_available")
+    
+    @pytest.fixture()
     def setUp(self) -> None:
+        self.mock_n4_available = TestN4Requires.patch_n4_available.start()
+        
+    @staticmethod
+    def tearDown() -> None:
+        patch.stopall()
+        
+    @pytest.fixture(autouse=True)
+    def harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)
-        self.addCleanup(self.harness.cleanup)
+        self.harness.set_model_name(name="whatever")
         self.harness.begin()
-        self.relation_name = "fiveg_n4"
+        yield self.harness
+        self.harness.cleanup()
+        request.addfinalizer(self.tearDown)
 
-    @patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4RequirerCharmEvents.fiveg_n4_available")
     def test_given_relation_with_n4_provider_when_fiveg_n4_available_event_then_n4_information_is_provided(  # noqa: E501
-        self, patched_fiveg_n4_available_event
+        self,
     ):
         test_upf_hostname = "upf.edge-cloud.test.com"
         test_upf_port = 1234
         relation_id = self.harness.add_relation(
-            relation_name=self.relation_name, remote_app="whatever-app"
+            relation_name="fiveg_n4", remote_app="whatever-app"
         )
         self.harness.add_relation_unit(relation_id, "whatever-app/0")
-
         self.harness.update_relation_data(
             relation_id=relation_id,
             app_or_unit="whatever-app",
@@ -35,4 +47,4 @@ class TestN4Requires(unittest.TestCase):
         calls = [
             call.emit(upf_hostname=test_upf_hostname, upf_port=str(test_upf_port)),
         ]
-        patched_fiveg_n4_available_event.assert_has_calls(calls)
+        self.mock_n4_available.assert_has_calls(calls)
