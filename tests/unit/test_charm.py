@@ -101,7 +101,7 @@ class TestCharmInitialisation:
         request.addfinalizer(self.tearDown)
 
     def add_storage(self) -> None:
-        self.root = self.harness.get_filesystem_root("bessd")
+        self.root = self.harness.get_filesystem_root("bessd")  # type:ignore
         (self.root / "etc/bess/conf").mkdir(parents=True)
 
     @pytest.mark.parametrize(
