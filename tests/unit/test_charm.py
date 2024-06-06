@@ -5,6 +5,7 @@ import json
 import unittest
 from unittest.mock import Mock, call, patch
 
+import pytest
 from charm import (
     ACCESS_INTERFACE_NAME,
     ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
@@ -45,147 +46,93 @@ VALID_ACCESS_MAC = "00-b0-d0-63-c2-26"
 INVALID_ACCESS_MAC = "something"
 VALID_CORE_MAC = "00-b0-d0-63-c2-36"
 INVALID_CORE_MAC = "wrong"
+NAMESPACE = "whatever"
 
 
 def read_file(path: str) -> str:
-    """Read a file and returns as a string.
-
-    Args:
-        path (str): path to the file.
-
-    Returns:
-        str: content of the file.
-    """
+    """Read a file and return its content as a string."""
     with open(path, "r") as f:
         content = f.read()
     return content
 
 
 def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) -> None:
-    """Set NetworkAttachmentDefinition metadata labels.
-
-    Args:
-        nads: list of NetworkAttachmentDefinition
-        app_name: application name
-    """
+    """Set NetworkAttachmentDefinition metadata labels."""
     for nad in nads:
         nad.metadata.labels = {"app.juju.is/created-by": app_name}
 
 
-class TestCharmInitialisation(unittest.TestCase):
+class TestCharmInitialisation:
 
+    patcher_k8s_client = patch("lightkube.core.client.GenericSyncClient")
+    patcher_check_output = patch("charm.check_output")
+    patcher_client_list = patch("lightkube.core.client.Client.list")
+    patcher_delete_pod = patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
+    patcher_huge_pages_is_patched = patch(
+        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
+    )
+    patcher_list_na_definitions = patch(
+        f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions"
+    )
+    patcher_multus_is_ready = patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+
+    @pytest.fixture()
     def setUp(self):
-        self.patch_k8s_client = patch("lightkube.core.client.GenericSyncClient")
-        self.patch_k8s_client.start()
-        self.namespace = "whatever"
+        TestCharmInitialisation.patcher_k8s_client.start()
+        self.mock_client_list = TestCharmInitialisation.patcher_client_list.start()
+        self.mock_cpu_info = TestCharmInitialisation.patcher_check_output.start()
+        self.mock_delete_pod = TestCharmInitialisation.patcher_delete_pod.start()
+        self.mock_huge_pages_is_enabled = TestCharmInitialisation.patcher_huge_pages_is_patched.start()  # noqa E501
+        self.mock_list_na_definitions = TestCharmInitialisation.patcher_list_na_definitions.start()
+        self.mock_multus_is_ready = TestCharmInitialisation.patcher_multus_is_ready.start()
+
+    @staticmethod
+    def tearDown() -> None:
+        patch.stopall()
+
+    @pytest.fixture(autouse=True)
+    def harness(self, setUp, request):
         self.harness = testing.Harness(UPFOperatorCharm)
-        self.harness.set_model_name(name=self.namespace)
+        self.harness.set_model_name(name=NAMESPACE)
         self.harness.set_leader(is_leader=True)
+        self.add_storage()
+        yield self.harness
+        self.harness.cleanup()
+        request.addfinalizer(self.tearDown)
 
-        self.maxDiff = None
-        self.root = self.harness.get_filesystem_root("bessd")
+    def add_storage(self) -> None:
+        self.root = self.harness.get_filesystem_root("bessd")  # type:ignore
         (self.root / "etc/bess/conf").mkdir(parents=True)
-        self.addCleanup(self.harness.cleanup)
 
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    @patch("lightkube.core.client.Client.list")
-    def test_given_bad_config_when_config_changed_then_status_is_blocked(self, patched_list):
-        patched_list.side_effect = [
-            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
-            [],
-            [],
+    @pytest.mark.parametrize(
+        "config_param,invalid_value",
+        [
+            pytest.param("dnn", "", id="empty_dnn"),
+            pytest.param("upf-mode", "", id="empty_upf_mode"),
+            pytest.param("upf-mode", "unsupported", id="unsupported_upf_mode"),
         ]
-        self.harness.update_config(key_values={"dnn": ""})
-        self.harness.begin()
-        self.harness.evaluate_status()
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("The following configurations are not valid: ['dnn']"),
-        )
-
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
     )
-    @patch("lightkube.core.client.Client.list")
-    def test_given_empty_upf_mode_when_config_changed_then_status_is_blocked(self, patched_list):
-        patched_list.side_effect = [
-            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
-            [],
-            [],
-        ]
-        self.harness.update_config(key_values={"upf-mode": ""})
-        self.harness.begin()
-        self.harness.evaluate_status()
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("The following configurations are not valid: ['upf-mode']"),
-        )
-
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    @patch("lightkube.core.client.Client.list")
-    def test_given_unsupported_upf_mode_when_config_changed_then_status_is_blocked(
-        self, patched_list
+    def test_given_bad_config_when_config_changed_then_status_is_blocked(
+        self, config_param, invalid_value
     ):
-        patched_list.side_effect = [
+        self.mock_huge_pages_is_enabled.return_value = True
+        self.mock_client_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
-            [],
-            [],
         ]
-        self.harness.update_config(key_values={"upf-mode": "unsupported"})
+        self.harness.update_config(key_values={config_param: invalid_value})
         self.harness.begin()
         self.harness.evaluate_status()
 
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("The following configurations are not valid: ['upf-mode']"),
+        assert self.harness.model.unit.status == BlockedStatus(
+            f"The following configurations are not valid: ['{config_param}']"
         )
 
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    @patch("charm.check_output")
-    @patch("lightkube.core.client.Client.list")
-    def test_given_upf_mode_set_to_dpdk_but_other_required_configs_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self, patched_list, patched_check_output
-    ):
-        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patched_list.side_effect = [
-            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
-            [],
-            [],
-        ]
-        self.harness.update_config(key_values={"cni-type": "vfioveth", "upf-mode": "dpdk"})
-        self.harness.begin()
-        self.harness.evaluate_status()
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
-            ),
-        )
-
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    @patch("charm.check_output")
-    @patch("lightkube.core.client.Client.list")
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self, patched_list, patched_check_output
+        self
     ):
-        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patched_list.side_effect = [
+        self.mock_huge_pages_is_enabled.return_value = True
+        self.mock_cpu_info.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        self.mock_client_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
@@ -194,24 +141,30 @@ class TestCharmInitialisation(unittest.TestCase):
         self.harness.begin()
         self.harness.evaluate_status()
 
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus(
+        assert self.harness.model.unit.status == BlockedStatus(
                 "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
-            ),
         )
 
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
+    @pytest.mark.parametrize(
+        "access_mac_address, core_mac_address, invalid_param_name",
+        [
+            pytest.param(
+                INVALID_ACCESS_MAC, VALID_CORE_MAC, "access-interface-mac-address", id="invalid_access_mac"  # noqa: E501
+            ),
+            pytest.param(
+                VALID_ACCESS_MAC, INVALID_CORE_MAC, "core-interface-mac-address", id="invalid_core_mac"  # noqa: E501
+            ),
+            pytest.param(
+                INVALID_ACCESS_MAC, INVALID_CORE_MAC, "access-interface-mac-address', 'core-interface-mac-address", id="invalid_access_and_core_mac"  # noqa: E501
+            )
+        ]
     )
-    @patch("charm.check_output")
-    @patch("lightkube.core.client.Client.list")
-    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_access_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self, patched_list, patched_check_output
+    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_address_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
+        self, access_mac_address, core_mac_address, invalid_param_name
     ):
-        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patched_list.side_effect = [
+        self.mock_huge_pages_is_enabled.return_value = True
+        self.mock_cpu_info.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        self.mock_client_list.side_effect = [
             [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
             [],
             [],
@@ -220,139 +173,97 @@ class TestCharmInitialisation(unittest.TestCase):
             key_values={
                 "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
-                "access-interface-mac-address": INVALID_ACCESS_MAC,
+                "access-interface-mac-address": access_mac_address,
+                "core-interface-mac-address": core_mac_address,
+            }
+        )
+        self.harness.begin()
+        self.harness.evaluate_status()
+
+        assert self.harness.model.unit.status == BlockedStatus(
+                f"The following configurations are not valid: ['{invalid_param_name}']"
+        )
+
+    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
+        self
+    ):
+        self.mock_huge_pages_is_enabled.return_value = False
+        self.mock_cpu_info.return_value = b"Flags: ssse3 fma cx16 rdrand"
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": VALID_ACCESS_MAC,
                 "core-interface-mac-address": VALID_CORE_MAC,
             }
         )
         self.harness.begin()
         self.harness.evaluate_status()
 
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mac-address']"
-            ),
+        assert self.harness.model.unit.status == BlockedStatus(
+            "CPU is not compatible, see logs for more details"
         )
 
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    @patch("charm.check_output")
-    @patch("lightkube.core.client.Client.list")
-    def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_core_interface_mac_addresses_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self, patched_list, patched_check_output
-    ):
-        patched_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        patched_list.side_effect = [
-            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
-            [],
-            [],
+    @pytest.mark.parametrize(
+        "access_mtu_size, core_mtu_size, invalid_param_name",
+            [
+            pytest.param(
+                ZERO_MTU_SIZE, VALID_MTU_SIZE_2, "access-interface-mtu-size", id="zero_mtu_size_access_interface"  # noqa: E501
+            ),
+            pytest.param(
+                TOO_SMALL_MTU_SIZE, VALID_MTU_SIZE_2, "access-interface-mtu-size", id="too_small_mtu_size_access_interface"  # noqa: E501
+            ),
+            pytest.param(
+                VALID_MTU_SIZE_1, ZERO_MTU_SIZE, "core-interface-mtu-size", id="zero_mtu_size_core_interface"  # noqa: E501
+            ),
+            pytest.param(
+                VALID_MTU_SIZE_1, TOO_BIG_MTU_SIZE, "core-interface-mtu-size", id="too_big_mtu_size_core_interface"  # noqa: E501
+            ),
+            pytest.param(
+                ZERO_MTU_SIZE, ZERO_MTU_SIZE, "access-interface-mtu-size', 'core-interface-mtu-size", id="zero_mtu_size_access_and_core_interface"  # noqa: E501
+            )
         ]
-        self.harness.update_config(
-            key_values={
-                "cni-type": "vfioveth",
-                "upf-mode": "dpdk",
-                "access-interface-mac-address": VALID_ACCESS_MAC,
-                "core-interface-mac-address": INVALID_CORE_MAC,
-            }
-        )
-        self.harness.begin()
-        self.harness.evaluate_status()
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus(
-                "The following configurations are not valid: ['core-interface-mac-address']"
-            ),
-        )
-
-    @patch("charm.check_output")
-    @patch("charm.Client", new=Mock)
-    @patch(f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched")
-    def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
-        self, patch_hugepages_is_patched, patched_check_output
-    ):
-        patch_hugepages_is_patched.return_value = False
-        patched_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
-
-        self.harness.update_config(
-            key_values={
-                "cni-type": "vfioveth",
-                "upf-mode": "dpdk",
-                "access-interface-mac-address": "00-B0-D0-63-C2-26",
-                "core-interface-mac-address": "00-B0-D0-63-C2-26",
-            }
-        )
-        self.harness.begin()
-        self.harness.evaluate_status()
-
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus("CPU is not compatible, see logs for more details"),
-        )
-
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
     )
-    def test_given_default_config_with_interfaces_zero_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
-        self,
+    def test_given_default_config_with_interfaces_invalid_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
+        self, access_mtu_size, core_mtu_size, invalid_param_name
     ):
+        self.mock_huge_pages_is_enabled.return_value = True
         self.harness.update_config(
             key_values={
-                "access-interface-mtu-size": ZERO_MTU_SIZE,
-                "core-interface-mtu-size": ZERO_MTU_SIZE,
+                "access-interface-mtu-size": access_mtu_size,
+                "core-interface-mtu-size": core_mtu_size,
             }
         )
         self.harness.begin()
         self.harness.evaluate_status()
 
-        self.assertEqual(
-            self.harness.model.unit.status,
-            BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mtu-size', 'core-interface-mtu-size']"  # noqa: E501, W505
-            ),
+        assert self.harness.model.unit.status == BlockedStatus(
+                f"The following configurations are not valid: ['{invalid_param_name}']"
         )
 
-    @patch("ops.model.Container.get_service")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient", new=Mock)
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesClient.list_network_attachment_definitions")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.delete_pod")
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
     def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
-        self,
-        patch_delete_pod,
-        patch_multus_is_ready,
-        patch_list_na_definitions,
-        _,
+        self
     ):
+        self.mock_huge_pages_is_enabled.return_value = True
+        self.mock_multus_is_ready.return_value = True
         self.harness.handle_exec("bessd", [], result=0)
-        patch_multus_is_ready.return_value = True
         self.harness.set_can_connect(container="bessd", val=True)
         self.harness.set_can_connect(container="pfcp-agent", val=True)
         self.harness.begin()
         original_nads = self.harness.charm._network_attachment_definitions_from_config()
         update_nad_labels(original_nads, self.harness.charm.app.name)
-        patch_list_na_definitions.return_value = original_nads
-        self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
-        patch_delete_pod.assert_not_called()
+        self.mock_list_na_definitions.return_value = original_nads
 
-    @patch("ops.model.Container.get_service")
-    @patch(
-        f"{HUGEPAGES_LIBRARY_PATH}.KubernetesHugePagesPatchCharmLib.is_patched",
-        Mock(return_value=True),
-    )
-    @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
+        self.harness.update_config(key_values={"core-interface-mtu-size": TOO_BIG_MTU_SIZE})
+
+        self.mock_delete_pod.assert_not_called()
+
     def test_given_hardware_checksum_is_enabled_when_bessd_pebble_ready_then_config_file_has_hwcksum_enabled(  # noqa: E501
         self,
-        _,
-        __,
     ):
+        self.mock_cpu_info.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        self.mock_multus_is_ready.return_value = True
+        self.mock_huge_pages_is_enabled.return_value = True
         self.harness.handle_exec("bessd", [], result=0)
         self.harness.set_can_connect("bessd", True)
         self.harness.set_can_connect("pfcp-agent", True)
@@ -361,8 +272,8 @@ class TestCharmInitialisation(unittest.TestCase):
         self.harness.container_pebble_ready(container_name="bessd")
 
         config = json.loads((self.root / "etc/bess/conf/upf.json").read_text())
-        self.assertIn("hwcksum", config)
-        self.assertFalse(config["hwcksum"])
+        assert "hwcksum" in config
+        assert config["hwcksum"] is False
 
     def test_given_default_config_with_interfaces_when_network_attachment_definitions_from_config_is_called_then_interfaces_specified_in_nad(  # noqa: E501
         self,
@@ -384,9 +295,8 @@ class TestCharmInitialisation(unittest.TestCase):
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
             config = json.loads(nad.spec["config"])
-            self.assertTrue(ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"])
-            self.assertEqual(config["type"], "macvlan")
-
+            assert (ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"])
+            assert config["type"] == "macvlan"
 
 class TestCharm(unittest.TestCase):
 
