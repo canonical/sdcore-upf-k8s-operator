@@ -112,7 +112,7 @@ pydantic==2.6.4
     #   pytest-interface-tester
 pydantic-core==2.16.3
     # via pydantic
-pydantic-extra-types==2.8.0
+pydantic-extra-types==2.8.2
     # via -r requirements.in
 pymacaroons==0.13.0
     # via macaroonbakery
