@@ -27,7 +27,9 @@ from ops.pebble import ConnectionError
 
 MULTUS_LIBRARY = "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib"
 K8S_CLIENT = "charms.kubernetes_charm_libraries.v0.multus.KubernetesClient"
-HUGEPAGES_LIBRARY = "charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch.KubernetesHugePagesPatchCharmLib"  # noqa E501
+HUGEPAGES_LIBRARY = (
+    "charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch.KubernetesHugePagesPatchCharmLib"  # noqa E501
+)
 TOO_BIG_MTU_SIZE = 65536  # Out of range
 TOO_SMALL_MTU_SIZE = 1199  # Out of range
 ZERO_MTU_SIZE = 0  # Out of range
@@ -46,6 +48,7 @@ VALID_CORE_MAC = "00-b0-d0-63-c2-36"
 INVALID_CORE_MAC = "wrong"
 NAMESPACE = "whatever"
 
+
 def read_file(path: str) -> str:
     """Read a file and return its content as a string."""
     with open(path, "r") as f:
@@ -57,13 +60,15 @@ def set_nad_metadata_labels(nads: list[NetworkAttachmentDefinition], app_name: s
     for nad in nads:
         nad.metadata.labels = {"app.juju.is/created-by": app_name}
 
-class TestCharmInitialisation:
 
+class TestCharmInitialisation:
     patcher_k8s_client = patch("lightkube.core.client.GenericSyncClient")
     patcher_check_output = patch("charm.check_output")
     patcher_client_list = patch("lightkube.core.client.Client.list")
     patcher_delete_pod = patch(f"{MULTUS_LIBRARY}.delete_pod")
-    patcher_huge_pages_is_patched = patch(f"{HUGEPAGES_LIBRARY}.is_patched",)
+    patcher_huge_pages_is_patched = patch(
+        f"{HUGEPAGES_LIBRARY}.is_patched",
+    )
     patcher_list_na_definitions = patch(f"{K8S_CLIENT}.list_network_attachment_definitions")
     patcher_multus_is_ready = patch(f"{MULTUS_LIBRARY}.is_ready")
 
@@ -73,7 +78,9 @@ class TestCharmInitialisation:
         self.mock_client_list = TestCharmInitialisation.patcher_client_list.start()
         self.mock_cpu_info = TestCharmInitialisation.patcher_check_output.start()
         self.mock_delete_pod = TestCharmInitialisation.patcher_delete_pod.start()
-        self.mock_huge_pages_is_enabled = TestCharmInitialisation.patcher_huge_pages_is_patched.start()  # noqa E501
+        self.mock_huge_pages_is_enabled = (
+            TestCharmInitialisation.patcher_huge_pages_is_patched.start()
+        )  # noqa E501
         self.mock_list_na_definitions = TestCharmInitialisation.patcher_list_na_definitions.start()
         self.mock_multus_is_ready = TestCharmInitialisation.patcher_multus_is_ready.start()
 
@@ -101,7 +108,7 @@ class TestCharmInitialisation:
             pytest.param("dnn", "", id="empty_dnn"),
             pytest.param("upf-mode", "", id="empty_upf_mode"),
             pytest.param("upf-mode", "unsupported", id="unsupported_upf_mode"),
-        ]
+        ],
     )
     def test_given_bad_config_when_config_changed_then_status_is_blocked(
         self, config_param, invalid_value
@@ -119,7 +126,7 @@ class TestCharmInitialisation:
         )
 
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_config_changed_then_status_is_blocked(  # noqa: E501
-        self
+        self,
     ):
         self.mock_huge_pages_is_enabled.return_value = True
         self.mock_cpu_info.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
@@ -133,22 +140,31 @@ class TestCharmInitialisation:
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == BlockedStatus(
-                "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
+            "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501, W505
         )
 
     @pytest.mark.parametrize(
         "access_mac_address, core_mac_address, invalid_param_name",
         [
             pytest.param(
-                INVALID_ACCESS_MAC, VALID_CORE_MAC, "access-interface-mac-address", id="invalid_access_mac"  # noqa: E501
+                INVALID_ACCESS_MAC,
+                VALID_CORE_MAC,
+                "access-interface-mac-address",
+                id="invalid_access_mac",  # noqa: E501
             ),
             pytest.param(
-                VALID_ACCESS_MAC, INVALID_CORE_MAC, "core-interface-mac-address", id="invalid_core_mac"  # noqa: E501
+                VALID_ACCESS_MAC,
+                INVALID_CORE_MAC,
+                "core-interface-mac-address",
+                id="invalid_core_mac",  # noqa: E501
             ),
             pytest.param(
-                INVALID_ACCESS_MAC, INVALID_CORE_MAC, "access-interface-mac-address', 'core-interface-mac-address", id="invalid_access_and_core_mac"  # noqa: E501
-            )
-        ]
+                INVALID_ACCESS_MAC,
+                INVALID_CORE_MAC,
+                "access-interface-mac-address', 'core-interface-mac-address",
+                id="invalid_access_and_core_mac",  # noqa: E501
+            ),
+        ],
     )
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_address_is_invalid_when_config_changed_then_status_is_blocked(  # noqa: E501
         self, access_mac_address, core_mac_address, invalid_param_name
@@ -172,11 +188,11 @@ class TestCharmInitialisation:
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == BlockedStatus(
-                f"The following configurations are not valid: ['{invalid_param_name}']"
+            f"The following configurations are not valid: ['{invalid_param_name}']"
         )
 
     def test_given_cpu_not_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
-        self
+        self,
     ):
         self.mock_huge_pages_is_enabled.return_value = False
         self.mock_cpu_info.return_value = b"Flags: ssse3 fma cx16 rdrand"
@@ -197,23 +213,38 @@ class TestCharmInitialisation:
 
     @pytest.mark.parametrize(
         "access_mtu_size, core_mtu_size, invalid_param_name",
-            [
+        [
             pytest.param(
-                ZERO_MTU_SIZE, VALID_MTU_SIZE_2, "access-interface-mtu-size", id="zero_mtu_size_access_interface"  # noqa: E501
+                ZERO_MTU_SIZE,
+                VALID_MTU_SIZE_2,
+                "access-interface-mtu-size",
+                id="zero_mtu_size_access_interface",  # noqa: E501
             ),
             pytest.param(
-                TOO_SMALL_MTU_SIZE, VALID_MTU_SIZE_2, "access-interface-mtu-size", id="too_small_mtu_size_access_interface"  # noqa: E501
+                TOO_SMALL_MTU_SIZE,
+                VALID_MTU_SIZE_2,
+                "access-interface-mtu-size",
+                id="too_small_mtu_size_access_interface",  # noqa: E501
             ),
             pytest.param(
-                VALID_MTU_SIZE_1, ZERO_MTU_SIZE, "core-interface-mtu-size", id="zero_mtu_size_core_interface"  # noqa: E501
+                VALID_MTU_SIZE_1,
+                ZERO_MTU_SIZE,
+                "core-interface-mtu-size",
+                id="zero_mtu_size_core_interface",  # noqa: E501
             ),
             pytest.param(
-                VALID_MTU_SIZE_1, TOO_BIG_MTU_SIZE, "core-interface-mtu-size", id="too_big_mtu_size_core_interface"  # noqa: E501
+                VALID_MTU_SIZE_1,
+                TOO_BIG_MTU_SIZE,
+                "core-interface-mtu-size",
+                id="too_big_mtu_size_core_interface",  # noqa: E501
             ),
             pytest.param(
-                ZERO_MTU_SIZE, ZERO_MTU_SIZE, "access-interface-mtu-size', 'core-interface-mtu-size", id="zero_mtu_size_access_and_core_interface"  # noqa: E501
-            )
-        ]
+                ZERO_MTU_SIZE,
+                ZERO_MTU_SIZE,
+                "access-interface-mtu-size', 'core-interface-mtu-size",
+                id="zero_mtu_size_access_and_core_interface",  # noqa: E501
+            ),
+        ],
     )
     def test_given_default_config_with_interfaces_invalid_mtu_sizes_when_network_attachment_definitions_from_config_is_called_then_status_is_blocked(  # noqa: E501
         self, access_mtu_size, core_mtu_size, invalid_param_name
@@ -229,11 +260,11 @@ class TestCharmInitialisation:
         self.harness.evaluate_status()
 
         assert self.harness.model.unit.status == BlockedStatus(
-                f"The following configurations are not valid: ['{invalid_param_name}']"
+            f"The following configurations are not valid: ['{invalid_param_name}']"
         )
 
     def test_given_container_can_connect_bessd_pebble_ready_when_core_net_mtu_config_changed_to_an_invalid_value_then_delete_pod_is_not_called(  # noqa: E501
-        self
+        self,
     ):
         self.mock_huge_pages_is_enabled.return_value = True
         self.mock_multus_is_ready.return_value = True
@@ -286,11 +317,11 @@ class TestCharmInitialisation:
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
             config = json.loads(nad.spec["config"])
-            assert (ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"])
+            assert ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"]
             assert config["type"] == "macvlan"
 
-class TestCharm:
 
+class TestCharm:
     patcher_check_output = patch("charm.check_output")
     patcher_client_apply = patch("lightkube.core.client.Client.apply")
     patcher_client_create = patch("lightkube.core.client.Client.create")
@@ -397,7 +428,7 @@ class TestCharm:
         assert (self.root / "etc/bess/conf/upf.json").read_text() == expected_config_file_content
 
     def test_given_bessd_config_file_matches_when_bessd_pebble_ready_then_config_file_is_not_changed(  # noqa: E501
-        self
+        self,
     ):
         self.harness.handle_exec("bessd", [], result=0)
         self.mock_multus_is_ready.return_value = True
@@ -654,14 +685,14 @@ class TestCharm:
             (1, 0, "RUNNING"),
             (0, 1, "RUNNING"),
             (0, 0, 1),
-        ]
+        ],
     )
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
         self,
         access_routes_check_out,
         core_routes_check_out,
         config_check_out,
-        set_can_connect_containers
+        set_can_connect_containers,
     ):
         bessctl_called = False
         timeout = 0
@@ -802,7 +833,7 @@ class TestCharm:
         assert expected_plan == updated_plan
 
     def test_given_cant_connect_to_bessd_container_when_collect_status_then_status_is_waiting(  # noqa: E501
-        self
+        self,
     ):
         self.harness.set_can_connect(container="bessd", val=False)
 
@@ -853,7 +884,7 @@ class TestCharm:
         assert self.harness.model.unit.status == WaitingStatus("Waiting for RAN route creation")
 
     def test_given_fiveg_n3_relation_created_when_fiveg_n3_request_then_upf_ip_address_is_published(  # noqa: E501
-        self
+        self,
     ):
         test_upf_access_ip_cidr = "1.2.3.4/21"
         self.harness.update_config(key_values={"access-ip": test_upf_access_ip_cidr})
@@ -865,7 +896,7 @@ class TestCharm:
         )
 
     def test_given_unit_is_not_leader_when_fiveg_n3_request_then_upf_ip_address_is_not_published(
-        self
+        self,
     ):
         self.harness.set_leader(is_leader=False)
         test_upf_access_ip_cidr = "1.2.3.4/21"
@@ -907,7 +938,7 @@ class TestCharm:
         )
 
     def test_given_unit_is_not_leader_when_fiveg_n4_request_then_upf_hostname_is_not_published(
-        self
+        self,
     ):
         self.harness.set_leader(is_leader=False)
         test_external_upf_hostname = "test-upf.external.hostname.com"
@@ -920,7 +951,7 @@ class TestCharm:
         self.mock_publish_upf_n4_information.assert_not_called()
 
     def test_given_external_upf_hostname_config_set_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
-        self
+        self,
     ):
         test_external_upf_hostname = "test-upf.external.hostname.com"
         self.harness.update_config(
@@ -936,7 +967,7 @@ class TestCharm:
         )
 
     def test_given_external_upf_hostname_config_not_set_but_external_upf_service_hostname_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
-        self
+        self,
     ):
         test_external_upf_service_hostname = "test-upf.external.service.hostname.com"
         service = Mock(
@@ -972,7 +1003,7 @@ class TestCharm:
         )
 
     def test_given_external_upf_hostname_config_not_set_and_metallb_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
-        self
+        self,
     ):
         service = Mock(status=Mock(loadBalancer=Mock(ingress=None)))
         self.mock_client_get.return_value = service
@@ -1123,7 +1154,10 @@ class TestCharm:
         ]
         assert len(create_access_nad_calls) == 1
         nad_annotations = create_access_nad_calls[0].get("obj").metadata.annotations
-        assert DPDK_ACCESS_INTERFACE_RESOURCE_NAME in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]  # noqa: E501
+        assert (
+            DPDK_ACCESS_INTERFACE_RESOURCE_NAME
+            in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
+        )  # noqa: E501
 
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(  # noqa: E501
         self, set_can_connect_containers, enable_huge_pages_multus_and_dpdk
@@ -1166,7 +1200,9 @@ class TestCharm:
         ]
         assert len(create_core_nad_calls) == 1
         nad_annotations = create_core_nad_calls[0].get("obj").metadata.annotations
-        assert DPDK_CORE_INTERFACE_RESOURCE_NAME in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]  # noqa: E501
+        assert (
+            DPDK_CORE_INTERFACE_RESOURCE_NAME in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
+        )  # noqa: E501
 
     def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
         self, set_can_connect_containers, enable_huge_pages_multus_and_dpdk
@@ -1417,7 +1453,6 @@ class TestCharm:
         assert access_network_annotation.get("mac") == VALID_ACCESS_MAC
         assert access_network_annotation.get("ips") == [VALID_ACCESS_IP]
 
-
     def test_given_upf_charm_configured_to_run_in_dpdk_mode_when_generate_network_annotations_is_called_then_core_network_annotation_created(  # noqa: E501
         self, set_can_connect_containers, enable_huge_pages_multus_and_dpdk
     ):
@@ -1565,7 +1600,7 @@ class TestCharm:
             assert "mtu" not in nad_config
 
     def test_given_cpu_supporting_required_hugepages_instructions_when_hugepages_enabled_then_charm_goes_to_waiting_status(  # noqa: E501
-        self
+        self,
     ):
         self.mock_dpdk_is_configured.return_value = True
         self.mock_huge_pages_is_enabled.return_value = True
@@ -1594,7 +1629,7 @@ class TestCharm:
         )
 
     def test_given_cpu_supporting_required_hugepages_instructions_and_not_available_hugepages_when_hugepages_enabled_then_charm_goes_to_blocked_status(  # noqa: E501
-        self
+        self,
     ):
         self.mock_huge_pages_is_enabled.return_value = False
         self.mock_cpu_info = TestCharm.patcher_check_output.start()
@@ -1616,7 +1651,7 @@ class TestCharm:
         assert self.harness.model.unit.status == BlockedStatus("Not enough HugePages available")
 
     def test_given_hugepages_not_available_then_hugepages_available_when_update_status_then_charm_goes_to_waiting_status(  # noqa: E501
-        self
+        self,
     ):
         self.mock_dpdk_is_configured.return_value = True
         self.mock_huge_pages_is_enabled.return_value = True
@@ -1664,7 +1699,7 @@ class TestCharm:
         )
 
     def test_given_default_config_when_network_attachment_definitions_from_config_is_called_then_no_interface_mtu_specified_in_nad(  # noqa: E501
-        self
+        self,
     ):
         self.mock_huge_pages_is_enabled.return_value = True
         self.harness.update_config(
@@ -1778,3 +1813,24 @@ class TestCharm:
         self.mock_multus_is_ready.return_value = True
         self.harness.update_config(key_values={"enable-hw-checksum": False})
         self.mock_client_delete.assert_called_once()
+
+    def test_given_no_workload_version_file_when_container_can_connect_then_workload_version_not_set(  # noqa: E501
+        self, set_can_connect_containers
+    ):
+        self.harness.handle_exec("bessd", [], result=0)
+        self.harness.container_pebble_ready(container_name="bessd")
+        self.harness.evaluate_status()
+        version = self.harness.get_workload_version()
+        assert version == ""
+
+    def test_given_workload_version_file_when_container_can_connect_then_workload_version_set(
+        self, set_can_connect_containers
+    ):
+        self.harness.handle_exec("bessd", [], result=0)
+        expected_version = "1.2.3"
+        root = self.harness.get_filesystem_root("bessd")
+        (root / "etc/workload-version").write_text(expected_version)
+        self.harness.container_pebble_ready(container_name="bessd")
+        self.harness.evaluate_status()
+        version = self.harness.get_workload_version()
+        assert version == expected_version
