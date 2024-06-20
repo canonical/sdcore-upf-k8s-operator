@@ -642,8 +642,8 @@ class UPFOperatorCharm(CharmBase):
             enable_hw_checksum=self._charm_config.enable_hw_checksum,
         )
         if (
-                not self._upf_config_file_is_written_to_bessd_container()
-                or not self._existing_upf_config_file_content_matches(content=content)
+            not self._upf_config_file_is_written_to_bessd_container()
+            or not self._existing_upf_config_file_content_matches(content=content)
         ):
             if not self._hwcksum_config_matches_pod_config():
                 recreate_pod = True
@@ -1003,7 +1003,7 @@ class UPFOperatorCharm(CharmBase):
             Service, name=f"{self.model.app.name}-external", namespace=self.model.name
         )
         try:
-            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[attr-defined]
+            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[union-attr, index]
         except (AttributeError, TypeError):
             logger.error(
                 "Service '%s-external' does not have a hostname:\n%s",
@@ -1081,7 +1081,7 @@ class UPFOperatorCharm(CharmBase):
             return True
         if not nodes:
             return False
-        return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
+        return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr, index]  # noqa E501
 
     def _get_interface_mtu_config(self, interface_name) -> Optional[int]:
         """Retrieve the MTU to use for the specified interface.
