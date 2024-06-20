@@ -516,15 +516,15 @@ class UPFOperatorCharm(CharmBase):
             logger.info("Waiting for Multus to be ready")
             return
         if not self._route_exists(
-                dst="default",
-                via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+            dst="default",
+            via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
         ):
             event.add_status(WaitingStatus("Waiting for default route creation"))
             logger.info("Waiting for default route creation")
             return
         if not self._route_exists(
-                dst=str(self._charm_config.gnb_subnet),
-                via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+            dst=str(self._charm_config.gnb_subnet),
+            via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
         ):
             event.add_status(WaitingStatus("Waiting for RAN route creation"))
             logger.info("Waiting for RAN route creation")
@@ -625,13 +625,13 @@ class UPFOperatorCharm(CharmBase):
         """
         recreate_pod, restart = self._create_upf_configuration_file()
         if not self._route_exists(
-                dst="default",
-                via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+            dst="default",
+            via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
         ):
             self._create_default_route()
         if not self._route_exists(
-                dst=str(self._charm_config.gnb_subnet),
-                via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+            dst=str(self._charm_config.gnb_subnet),
+            via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
         ):
             self._create_ran_route()
         if not self._ip_tables_rule_exists():
@@ -671,8 +671,8 @@ class UPFOperatorCharm(CharmBase):
             enable_hw_checksum=self._charm_config.enable_hw_checksum,
         )
         if (
-                not self._upf_config_file_is_written_to_bessd_container()
-                or not self._existing_upf_config_file_content_matches(content=content)
+            not self._upf_config_file_is_written_to_bessd_container()
+            or not self._existing_upf_config_file_content_matches(content=content)
         ):
             if not self._hwcksum_config_matches_pod_config():
                 recreate_pod = True
@@ -839,7 +839,7 @@ class UPFOperatorCharm(CharmBase):
         """Create ip route towards core network."""
         try:
             self._exec_command_in_bessd_workload(
-            command=f"ip route replace default via {self._get_network_gateway_ip_config(CORE_INTERFACE_NAME)} metric 110"  # noqa: E501
+                command=f"ip route replace default via {self._get_network_gateway_ip_config(CORE_INTERFACE_NAME)} metric 110"  # noqa: E501
             )
         except ExecError as e:
             logger.error("Failed to create core network route: %s", e.stderr)
@@ -1056,7 +1056,7 @@ class UPFOperatorCharm(CharmBase):
             Service, name=f"{self.model.app.name}-external", namespace=self.model.name
         )
         try:
-            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[attr-defined]
+            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[union-attr, index]
         except (AttributeError, TypeError):
             logger.error(
                 "Service '%s-external' does not have a hostname:\n%s",
