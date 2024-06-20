@@ -60,6 +60,7 @@ PFCP_PORT = 8805
 REQUIRED_CPU_EXTENSIONS = ["avx2", "rdrand"]
 REQUIRED_CPU_EXTENSIONS_HUGEPAGES = ["pdpe1gb"]
 LOGGING_RELATION_NAME = "logging"
+WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 
 
 class NadConfigChangedEvent(EventBase):
@@ -481,7 +482,10 @@ class UPFOperatorCharm(CharmBase):
         return existing_content.get("hwcksum") == self._charm_config.enable_hw_checksum
 
     def _on_collect_unit_status(self, event: CollectStatusEvent):  # noqa C901
-        """Handle collect status event."""
+        """Handle collect status event.
+
+        Update workload version if present in container.
+        """
         if not self.unit.is_leader():
             # NOTE: In cases where leader status is lost before the charm is
             # finished processing all teardown events, this prevents teardown
@@ -511,6 +515,8 @@ class UPFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for bessd container to be ready"))
             logger.info("Waiting for bessd container to be ready")
             return
+        self.unit.set_workload_version(self._get_workload_version())
+
         if not self._kubernetes_multus.is_ready():
             event.add_status(WaitingStatus("Waiting for Multus to be ready"))
             logger.info("Waiting for Multus to be ready")
@@ -582,6 +588,24 @@ class UPFOperatorCharm(CharmBase):
         self._on_bessd_pebble_ready(event)
         self._update_fiveg_n3_relation_data()
         self._update_fiveg_n4_relation_data()
+
+    def _get_workload_version(self) -> str:
+        """Return the workload version.
+
+        Checks for the presence of /etc/workload-version file
+        and if present, returns the contents of that file. If
+        the file is not present, an empty string is returned.
+
+        Returns:
+            string: A human readable string representing the
+            version of the workload
+        """
+        if self._bessd_container.exists(path=f"{WORKLOAD_VERSION_FILE_NAME}"):
+            version_file_content = self._bessd_container.pull(
+                path=f"{WORKLOAD_VERSION_FILE_NAME}"
+            ).read()
+            return version_file_content
+        return ""
 
     def _on_bessd_pebble_ready(self, _: EventBase) -> None:
         """Handle Pebble ready event."""
