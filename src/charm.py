@@ -1080,7 +1080,7 @@ class UPFOperatorCharm(CharmBase):
             Service, name=f"{self.model.app.name}-external", namespace=self.model.name
         )
         try:
-            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[attr-defined]
+            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[union-attr, index]
         except (AttributeError, TypeError):
             logger.error(
                 "Service '%s-external' does not have a hostname:\n%s",
