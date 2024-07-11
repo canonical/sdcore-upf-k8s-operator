@@ -70,7 +70,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     cni_type: CNIType = CNIType.bridge
     upf_mode: UpfMode = UpfMode.af_packet
     dnn: StrictStr = Field(default="internet", min_length=1)
-    gnb_subnet: IPvAnyNetwork = IPvAnyNetwork("192.168.251.0/24")
+    gnb_subnet: IPvAnyNetwork = Field(default="192.168.252.3/24")
     access_interface: Optional[StrictStr] = Field(default="")
     access_interface_mac_address: Optional[StrictStr] = Field(default="")
     access_ip: str = Field(default="192.168.252.3/24")
