@@ -26,7 +26,7 @@ charset-normalizer==3.3.2
     # via requests
 click==8.1.7
     # via typer
-cosl==0.0.12
+cosl==0.0.14
     # via -r requirements.in
 cryptography==42.0.7
     # via paramiko
@@ -108,6 +108,7 @@ pycparser==2.22
 pydantic==2.6.4
     # via
     #   -r requirements.in
+    #   cosl
     #   pydantic-extra-types
     #   pytest-interface-tester
 pydantic-core==2.16.3
