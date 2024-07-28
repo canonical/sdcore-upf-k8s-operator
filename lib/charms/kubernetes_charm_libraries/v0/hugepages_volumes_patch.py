@@ -75,7 +75,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 3
+LIBPATCH = 4
 
 logger = logging.getLogger(__name__)
 
@@ -156,11 +156,11 @@ class KubernetesClient:
             return False
         pod_has_volumemounts = self._pod_contains_requested_volumemounts(
             requested_volumemounts=requested_volumemounts,
-            containers=pod.spec.containers,  # type: ignore[attr-defined]
+            containers=pod.spec.containers,  # type: ignore[union-attr]
             container_name=container_name,
         )
         pod_has_resources = self._pod_resources_are_set(
-            containers=pod.spec.containers,  # type: ignore[attr-defined]
+            containers=pod.spec.containers,  # type: ignore[union-attr]
             container_name=container_name,
             requested_resources=requested_resources,
         )
@@ -197,7 +197,7 @@ class KubernetesClient:
                 )
             return False
         return self._statefulset_contains_requested_volumes(
-            statefulset_spec=statefulset.spec,  # type: ignore[attr-defined]
+            statefulset_spec=statefulset.spec,  # type: ignore[arg-type]
             requested_volumes=requested_volumes,
         )
 
@@ -308,11 +308,11 @@ class KubernetesClient:
             raise KubernetesHugePagesVolumesPatchError(
                 f"Could not get statefulset `{statefulset_name}`"
             )
-        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
+        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[union-attr]  # noqa: E501
         container = self._get_container(container_name=container_name, containers=containers)
         container.volumeMounts = requested_volumemounts  # type: ignore[assignment]
         container.resources = requested_resources
-        statefulset.spec.template.spec.volumes = requested_volumes  # type: ignore[attr-defined]
+        statefulset.spec.template.spec.volumes = requested_volumes  # type: ignore[union-attr]
         try:
             self.client.replace(obj=statefulset)
         except ApiError:
@@ -342,7 +342,7 @@ class KubernetesClient:
             raise KubernetesHugePagesVolumesPatchError(
                 f"Could not get statefulset `{statefulset_name}`"
             )
-        return statefulset.spec.template.spec.volumes  # type: ignore[attr-defined]
+        return statefulset.spec.template.spec.volumes  # type: ignore[union-attr,return-value]
 
     def list_volumemounts(self, statefulset_name: str, container_name: str) -> list[VolumeMount]:
         """Lists current volume mounts in the given container.
@@ -366,7 +366,7 @@ class KubernetesClient:
             raise KubernetesHugePagesVolumesPatchError(
                 f"Could not get statefulset `{statefulset_name}`"
             )
-        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
+        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[union-attr]  # noqa: E501
         container = self._get_container(container_name=container_name, containers=containers)
         return container.volumeMounts  # type: ignore[return-value]
 
@@ -396,7 +396,7 @@ class KubernetesClient:
             )
         containers: Iterable[
             Container
-        ] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
+        ] = statefulset.spec.template.spec.containers  # type: ignore[union-attr]  # noqa: E501
         container = self._get_container(container_name=container_name, containers=containers)
         return container.resources  # type: ignore[return-value]
 
