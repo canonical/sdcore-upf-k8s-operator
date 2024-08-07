@@ -6,7 +6,7 @@
 import dataclasses
 import logging
 from enum import Enum
-from ipaddress import ip_network
+from ipaddress import IPv4Address, ip_network
 from typing import Optional
 
 import ops
@@ -19,7 +19,7 @@ from pydantic import (  # pylint: disable=no-name-in-module,import-error
     ValidationInfo,
 )
 from pydantic.functional_validators import field_validator, model_validator
-from pydantic.networks import IPvAnyAddress, IPvAnyNetwork
+from pydantic.networks import IPvAnyNetwork
 from pydantic_extra_types.mac_address import MacAddress
 from typing_extensions import TypeAlias
 
@@ -74,14 +74,14 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     access_interface: Optional[StrictStr] = Field(default="")
     access_interface_mac_address: Optional[StrictStr] = Field(default="")
     access_ip: str = Field(default="192.168.252.3/24")
-    access_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.252.1")
+    access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
     access_interface_mtu_size: Optional[int] = Field(
         default=None, ge=1200, le=65535, validate_default=True
     )
     core_interface: Optional[StrictStr] = Field(default="")
     core_interface_mac_address: Optional[StrictStr] = Field(default="")
     core_ip: str = Field(default="192.168.250.3/24")
-    core_gateway_ip: IPvAnyAddress = IPvAnyAddress("192.168.250.1")
+    core_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     core_interface_mtu_size: Optional[int] = Field(default=None, ge=1200, le=65535)
     external_upf_hostname: Optional[StrictStr] = Field(default="")
     enable_hw_checksum: bool = True
@@ -144,12 +144,12 @@ class CharmConfig:
     access_interface: Optional[StrictStr]
     access_interface_mac_address: Optional[StrictStr]
     access_ip: str
-    access_gateway_ip: IPvAnyAddress
+    access_gateway_ip: IPv4Address
     access_interface_mtu_size: Optional[int]
     core_interface: Optional[StrictStr]
     core_interface_mac_address: Optional[StrictStr]
     core_ip: str
-    core_gateway_ip: IPvAnyAddress
+    core_gateway_ip: IPv4Address
     core_interface_mtu_size: Optional[int]
     external_upf_hostname: Optional[StrictStr]
     enable_hw_checksum: bool
@@ -193,7 +193,7 @@ class CharmConfig:
                 if param := error["loc"]:
                     error_fields.extend(param)
                 else:
-                    value_error_msg: ValueError = error["ctx"]["error"]
+                    value_error_msg: ValueError = error["ctx"]["error"]  # type: ignore
                     error_fields.extend(str(value_error_msg).split())
             error_fields.sort()
             error_field_str = ", ".join(f"'{f}'" for f in error_fields)

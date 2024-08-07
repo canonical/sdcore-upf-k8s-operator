@@ -5,14 +5,19 @@ from unittest.mock import PropertyMock, patch
 
 import pytest
 from ops import testing
-from test_charms.test_provider_charm.src.charm import WhateverCharm  # type: ignore[import]
 
-TEST_CHARM_PATH = "test_charms.test_provider_charm.src.charm.WhateverCharm"
+from tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_provider_charm.src.charm import (
+    WhateverCharm,
+)
+
+TEST_CHARM_PATH = (
+    "tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_provider_charm.src.charm.WhateverCharm"
+)
 VALID_HOSTNAME = "upf.edge-cloud.test.com"
 VALID_PORT = 1234
 
-class TestN4Provides:
 
+class TestN4Provides:
     patcher_upf_hostname = patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
     patcher_upf_port = patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
 
@@ -28,7 +33,7 @@ class TestN4Provides:
         patch.stopall()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request):
+    def setup_harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)
         self.harness.set_model_name(name="whatever")
         self.harness.set_leader(is_leader=True)

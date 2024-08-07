@@ -9,24 +9,24 @@ import logging
 import time
 from pathlib import PurePath
 from subprocess import check_output
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
-from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (  # type: ignore[import]
+from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (
     HugePagesVolume,
     KubernetesHugePagesPatchCharmLib,
 )
-from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
+from charms.kubernetes_charm_libraries.v0.multus import (
     KubernetesMultusCharmLib,
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
-from charms.loki_k8s.v1.loki_push_api import LogForwarder  # type: ignore[import]
-from charms.prometheus_k8s.v0.prometheus_scrape import (  # type: ignore[import]
+from charms.loki_k8s.v1.loki_push_api import LogForwarder
+from charms.prometheus_k8s.v0.prometheus_scrape import (
     MetricsEndpointProvider,
 )
-from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides  # type: ignore[import]
-from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides  # type: ignore[import]
+from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
+from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from dpdk import DPDK
 from httpx import HTTPStatusError
 from jinja2 import Environment, FileSystemLoader
@@ -81,7 +81,7 @@ class UpfOperatorCharmEvents(CharmEvents):
 class UPFOperatorCharm(CharmBase):
     """Main class to describe juju event handling for the 5G UPF operator for K8s."""
 
-    on = UpfOperatorCharmEvents()
+    on = UpfOperatorCharmEvents()  # type: ignore
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -253,7 +253,11 @@ class UPFOperatorCharm(CharmBase):
 
     def _update_fiveg_n3_relation_data(self) -> None:
         """Publish UPF IP address in the `fiveg_n3` relation data bag."""
-        upf_access_ip_address = self._get_network_ip_config(ACCESS_INTERFACE_NAME).split("/")[0]  # type: ignore[union-attr]  # noqa: E501
+        cidr = self._get_network_ip_config(ACCESS_INTERFACE_NAME)
+        if not cidr:
+            logger.info("No IP address found for the access interface.")
+            return
+        upf_access_ip_address = cidr.split("/")[0]
         fiveg_n3_relations = self.model.relations.get("fiveg_n3")
         if not fiveg_n3_relations:
             logger.info("No `fiveg_n3` relations found.")
@@ -319,10 +323,12 @@ class UPFOperatorCharm(CharmBase):
             interface=CORE_INTERFACE_NAME,
         )
         if self._charm_config.upf_mode == UpfMode.dpdk:
+            access_ip = self._get_network_ip_config(ACCESS_INTERFACE_NAME)
+            core_ip = self._get_network_ip_config(CORE_INTERFACE_NAME)
             access_network_annotation.mac = self._get_interface_mac_address(ACCESS_INTERFACE_NAME)
-            access_network_annotation.ips = [self._get_network_ip_config(ACCESS_INTERFACE_NAME)]
+            access_network_annotation.ips = [access_ip] if access_ip else []
             core_network_annotation.mac = self._get_interface_mac_address(CORE_INTERFACE_NAME)
-            core_network_annotation.ips = [self._get_network_ip_config(CORE_INTERFACE_NAME)]
+            core_network_annotation.ips = [core_ip] if core_ip else []
         return [access_network_annotation, core_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
@@ -496,7 +502,7 @@ class UPFOperatorCharm(CharmBase):
             logger.info("Scaling is not implemented for this charm")
             return
         try:  # workaround for https://github.com/canonical/operator/issues/736
-            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError as exc:
             event.add_status(BlockedStatus(exc.msg))
             logger.info(exc.msg)
@@ -568,7 +574,7 @@ class UPFOperatorCharm(CharmBase):
     def _on_config_changed(self, event: EventBase):
         """Handle for config changed events."""
         try:  # workaround for https://github.com/canonical/operator/issues/736
-            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
         if not self.unit.is_leader():
@@ -610,7 +616,7 @@ class UPFOperatorCharm(CharmBase):
     def _on_bessd_pebble_ready(self, _: EventBase) -> None:
         """Handle Pebble ready event."""
         try:
-            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)  # type: ignore[no-redef]  # noqa: E501
+            self._charm_config: CharmConfig = CharmConfig.from_charm(charm=self)
         except CharmConfigInvalidError:
             return
         if not self.unit.is_leader():
@@ -686,11 +692,11 @@ class UPFOperatorCharm(CharmBase):
         core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
-            upf_mode=self._charm_config.upf_mode,  # type: ignore[arg-type]
+            upf_mode=self._charm_config.upf_mode,
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
             core_ip_address=core_ip_address.split("/")[0] if core_ip_address else "",
-            dnn=self._charm_config.dnn,  # type: ignore[arg-type]
+            dnn=self._charm_config.dnn,
             pod_share_path=POD_SHARE_PATH,
             enable_hw_checksum=self._charm_config.enable_hw_checksum,
         )
@@ -908,7 +914,7 @@ class UPFOperatorCharm(CharmBase):
 
     def _exec_command_in_bessd_workload(
         self, command: str, timeout: Optional[int] = 30, environment: Optional[dict] = None
-    ) -> tuple[str, str]:
+    ) -> Tuple[str, str | None]:
         """Execute command in bessd container.
 
         Args:
@@ -1079,15 +1085,13 @@ class UPFOperatorCharm(CharmBase):
         service = client.get(
             Service, name=f"{self.model.app.name}-external", namespace=self.model.name
         )
-        try:
-            return service.status.loadBalancer.ingress[0].hostname  # type: ignore[union-attr, index]
-        except (AttributeError, TypeError):
-            logger.error(
-                "Service '%s-external' does not have a hostname:\n%s",
-                self.model.app.name,
-                service,
-            )
+        if not service.status:
             return None
+        if not service.status.loadBalancer:
+            return None
+        if not service.status.loadBalancer.ingress:
+            return None
+        return service.status.loadBalancer.ingress[0].hostname
 
     @property
     def _upf_hostname(self) -> str:
@@ -1155,7 +1159,7 @@ class UPFOperatorCharm(CharmBase):
             return True
         if not nodes:
             return False
-        return all([node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes])  # type: ignore[union-attr]  # noqa E501
+        return all(node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes)  # type: ignore
 
     def _get_interface_mtu_config(self, interface_name) -> Optional[int]:
         """Retrieve the MTU to use for the specified interface.
