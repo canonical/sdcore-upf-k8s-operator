@@ -18,10 +18,7 @@ from charms.kubernetes_charm_libraries.v0.multus import (
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
-from httpx import HTTPStatusError, Request, Response
-from lightkube.models.core_v1 import Node, NodeStatus, ServicePort, ServiceSpec
-from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.resources.core_v1 import Service
+from lightkube.models.core_v1 import Node, NodeStatus
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
 from ops.pebble import ConnectionError
 
@@ -324,8 +321,11 @@ class TestCharmInitialisation:
 
 
 class TestCharm:
+    patcher_k8s_service_is_created = patch("charm.K8sService.is_created")
+    patcher_k8s_service_create = patch("charm.K8sService.create")
+    patcher_k8s_service_delete = patch("charm.K8sService.delete")
+    patcher_k8s_service_get_hostname = patch("charm.K8sService.get_hostname")
     patcher_check_output = patch("charm.check_output")
-    patcher_client_apply = patch("lightkube.core.client.Client.apply")
     patcher_client_create = patch("lightkube.core.client.Client.create")
     patcher_client_delete = patch("lightkube.core.client.Client.delete")
     patcher_client_get = patch("lightkube.core.client.Client.get")
@@ -348,11 +348,13 @@ class TestCharm:
 
     @pytest.fixture()
     def setUp(self):
+        self.mock_k8s_service_is_created = TestCharm.patcher_k8s_service_is_created.start()
+        self.mock_k8s_service_create = TestCharm.patcher_k8s_service_create.start()
+        self.mock_k8s_service_delete = TestCharm.patcher_k8s_service_delete.start()
+        self.mock_k8s_service_get_hostname = TestCharm.patcher_k8s_service_get_hostname.start()
         TestCharm.patcher_k8s_client.start()
         TestCharm.patcher_pfcp_port.start()
-        self.mock_client_apply = TestCharm.patcher_client_apply.start()
         self.mock_client_create = TestCharm.patcher_client_create.start()
-        self.mock_client_get = TestCharm.patcher_client_get.start()
         self.mock_client_list = TestCharm.patcher_client_list.start()
         self.mock_client_delete = TestCharm.patcher_client_delete.start()
         self.mock_dpdk_is_configured = TestCharm.patcher_dpdk_is_configured.start()
@@ -972,14 +974,7 @@ class TestCharm:
         self,
     ):
         test_external_upf_service_hostname = "test-upf.external.service.hostname.com"
-        service = Mock(
-            status=Mock(
-                loadBalancer=Mock(
-                    ingress=[Mock(ip="1.1.1.1", hostname=test_external_upf_service_hostname)]
-                )
-            )
-        )
-        self.mock_client_get.return_value = service
+        self.mock_k8s_service_get_hostname.return_value = test_external_upf_service_hostname
 
         n4_relation_id = self.add_fiveg_n4_relation()
 
@@ -992,27 +987,7 @@ class TestCharm:
     def test_given_external_upf_hostname_config_not_set_and_external_upf_service_hostname_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self,
     ):
-        service = Mock(
-            status=Mock(
-                loadBalancer=Mock(ingress=[Mock(ip="1.1.1.1", spec=["ip"], hostname=None)])
-            )
-        )
-        self.mock_client_get.return_value = service
-
-        n4_relation_id = self.add_fiveg_n4_relation()
-
-        self.mock_publish_upf_n4_information.assert_called_once_with(
-            relation_id=n4_relation_id,
-            upf_hostname=f"{self.harness.charm.app.name}-external.{NAMESPACE}"
-            ".svc.cluster.local",
-            upf_n4_port=TEST_PFCP_PORT,
-        )
-
-    def test_given_external_upf_hostname_config_not_set_and_metallb_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
-        self,
-    ):
-        service = Mock(status=Mock(loadBalancer=Mock(ingress=None)))
-        self.mock_client_get.return_value = service
+        self.mock_k8s_service_get_hostname.return_value = None
 
         n4_relation_id = self.add_fiveg_n4_relation()
 
@@ -1535,58 +1510,23 @@ class TestCharm:
 
         assert self.harness.model.unit.status == MaintenanceStatus()
 
-    def test_when_install_then_external_service_is_created(self):
-        self.harness.charm.on.install.emit()
+    def test_given_external_k8s_service_not_created_when_config_changed_then_is_created(self):
+        self.mock_k8s_service_is_created.return_value = False
+        self.harness.update_config()
 
-        expected_service = Service(
-            apiVersion="v1",
-            kind="Service",
-            metadata=ObjectMeta(
-                namespace=NAMESPACE,
-                name=f"{self.harness.charm.app.name}-external",
-                labels={
-                    "app.kubernetes.io/name": self.harness.charm.app.name,
-                },
-            ),
-            spec=ServiceSpec(
-                selector={
-                    "app.kubernetes.io/name": self.harness.charm.app.name,
-                },
-                ports=[
-                    ServicePort(name="pfcp", port=TEST_PFCP_PORT, protocol="UDP"),
-                ],
-                type="LoadBalancer",
-            ),
-        )
-
-        self.mock_client_apply.assert_called_once_with(
-            expected_service, field_manager="sdcore-upf-k8s"
-        )
+        self.mock_k8s_service_create.assert_called_once()
 
     def test_given_service_exists_on_remove_then_external_service_is_deleted(self):
+        self.mock_k8s_service_is_created.return_value = True
         self.harness.charm.on.remove.emit()
 
-        self.mock_client_delete.assert_called_once_with(
-            Service,
-            name=f"{self.harness.charm.app.name}-external",
-            namespace=NAMESPACE,
-        )
+        self.mock_k8s_service_delete.assert_called_once()
 
-    def test_given_service_does_not_exist_on_remove_then_no_exception_is_thrown(self):
-        self.mock_client_delete.side_effect = HTTPStatusError(
-            message='services "upf-external" not found',
-            request=Request(method="DELETE", url="http://whatever"),
-            response=Response(
-                status_code=404,
-            ),
-        )
+    def test_given_service_does_not_exist_on_remove_then_service_not_deleted(self):
+        self.mock_k8s_service_is_created.return_value = False
         self.harness.charm.on.remove.emit()
 
-        self.mock_client_delete.assert_called_once_with(
-            Service,
-            name=f"{self.harness.charm.app.name}-external",
-            namespace=NAMESPACE,
-        )
+        self.mock_k8s_service_delete.assert_not_called()
 
     def test_given_default_config_when_create_network_attachment_definitions_then_interface_mtu_not_set_in_the_network_attachment_definitions(  # noqa: E501
         self, enable_huge_pages_multus_and_dpdk

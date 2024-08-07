@@ -28,12 +28,11 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (
 from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from dpdk import DPDK
-from httpx import HTTPStatusError
 from jinja2 import Environment, FileSystemLoader
+from k8s_service import K8sService
 from lightkube.core.client import Client
-from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.resources.core_v1 import Node, Pod, Service
+from lightkube.resources.core_v1 import Node, Pod
 from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent, WaitingStatus
 from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
@@ -124,6 +123,12 @@ class UPFOperatorCharm(CharmBase):
             hugepages_volumes_func=self._volumes_request_func_from_config,
             refresh_event=self.on.hugepages_volumes_config_changed,
         )
+        self.k8s_service = K8sService(
+            namespace=self._namespace,
+            service_name=f"{self.app.name}-external",
+            app_name=self.app.name,
+            pfcp_port=PFCP_PORT,
+        )
         self.framework.observe(self.on.update_status, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.bessd_pebble_ready, self._on_bessd_pebble_ready)
@@ -135,42 +140,12 @@ class UPFOperatorCharm(CharmBase):
         self.framework.observe(
             self.fiveg_n4_provider.on.fiveg_n4_request, self._on_fiveg_n4_request
         )
-        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.remove, self._on_remove)
 
     def _get_privilege_required(self) -> bool:
         return self._charm_config.upf_mode == UpfMode.dpdk
 
-    def _create_external_upf_service(self) -> None:
-        client = Client()
-        service = Service(
-            apiVersion="v1",
-            kind="Service",
-            metadata=ObjectMeta(
-                namespace=self._namespace,
-                name=f"{self.app.name}-external",
-                labels={
-                    "app.kubernetes.io/name": self.app.name,
-                },
-            ),
-            spec=ServiceSpec(
-                selector={
-                    "app.kubernetes.io/name": self.app.name,
-                },
-                ports=[
-                    ServicePort(name="pfcp", port=PFCP_PORT, protocol="UDP"),
-                ],
-                type="LoadBalancer",
-            ),
-        )
-
-        client.apply(service, field_manager=self.model.app.name)
-        logger.info("Created/asserted existence of the external UPF service")
-
     def _on_remove(self, _: RemoveEvent) -> None:
-        self._delete_external_upf_service()
-
-    def _delete_external_upf_service(self) -> None:
         # NOTE: We want to perform this removal only if the last remaining unit
         # is removed. This charm does not support scaling, so it *should* be
         # the only unit.
@@ -186,16 +161,8 @@ class UPFOperatorCharm(CharmBase):
         # hooks are finished running. In this case, we will leave behind a
         # dirty state in k8s, but it will be cleaned up when the juju model is
         # destroyed. It will be re-used if the charm is re-deployed.
-        client = Client()
-        try:
-            client.delete(
-                Service,
-                name=f"{self.app.name}-external",
-                namespace=self._namespace,
-            )
-            logger.info("Deleted external UPF service")
-        except HTTPStatusError as status:
-            logger.info(f"Could not delete {self.app.name}-external due to: {status}")
+        if self.k8s_service.is_created():
+            self.k8s_service.delete()
 
     def delete_pod(self):
         """Delete the pod."""
@@ -215,21 +182,6 @@ class UPFOperatorCharm(CharmBase):
             str: A string containing the name of the current unit's pod.
         """
         return "-".join(self.model.unit.name.rsplit("/", 1))
-
-    def _on_install(self, _: EventBase) -> None:
-        """Handle Juju install event.
-
-        Enforce usage of a CPU which supports instructions required to run this
-        charm. If the CPU doesn't meet the requirements, charm goes to Blocked state.
-
-        Args:
-            _: Juju event
-        """
-        if not self._is_cpu_compatible():
-            return
-        if not self._hugepages_are_available():
-            return
-        self._create_external_upf_service()
 
     def _on_fiveg_n3_request(self, _: EventBase) -> None:
         """Handle 5G N3 requests events.
@@ -294,7 +246,7 @@ class UPFOperatorCharm(CharmBase):
         """
         if configured_hostname := self._charm_config.external_upf_hostname:
             return configured_hostname
-        elif lb_hostname := self._upf_load_balancer_service_hostname():
+        elif lb_hostname := self.k8s_service.get_hostname():
             return lb_hostname
         return self._upf_hostname
 
@@ -583,6 +535,8 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._hugepages_are_available():
             return
+        if not self.k8s_service.is_created():
+            self.k8s_service.create()
         if not self._kubernetes_multus.multus_is_available():
             return
         self.on.nad_config_changed.emit()
@@ -1074,24 +1028,6 @@ class UPFOperatorCharm(CharmBase):
             return str(self._charm_config.core_gateway_ip)
         else:
             return None
-
-    def _upf_load_balancer_service_hostname(self) -> Optional[str]:
-        """Return the hostname of UPF's LoadBalancer service.
-
-        Returns:
-            str/None: Hostname of UPF's LoadBalancer service if available else None
-        """
-        client = Client()
-        service = client.get(
-            Service, name=f"{self.model.app.name}-external", namespace=self.model.name
-        )
-        if not service.status:
-            return None
-        if not service.status.loadBalancer:
-            return None
-        if not service.status.loadBalancer.ingress:
-            return None
-        return service.status.loadBalancer.ingress[0].hostname
 
     @property
     def _upf_hostname(self) -> str:
