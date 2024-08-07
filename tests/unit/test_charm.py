@@ -14,11 +14,11 @@ from charm import (
     DPDK_CORE_INTERFACE_RESOURCE_NAME,
     UPFOperatorCharm,
 )
-from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
+from charms.kubernetes_charm_libraries.v0.multus import (
     NetworkAnnotation,
     NetworkAttachmentDefinition,
 )
-from httpx import HTTPStatusError
+from httpx import HTTPStatusError, Request, Response
 from lightkube.models.core_v1 import Node, NodeStatus, ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
@@ -58,6 +58,7 @@ def read_file(path: str) -> str:
 
 def set_nad_metadata_labels(nads: list[NetworkAttachmentDefinition], app_name: str) -> None:
     for nad in nads:
+        assert nad.metadata
         nad.metadata.labels = {"app.juju.is/created-by": app_name}
 
 
@@ -89,7 +90,7 @@ class TestCharmInitialisation:
         patch.stopall()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request):
+    def setup_harness(self, setUp, request):
         self.harness = testing.Harness(UPFOperatorCharm)
         self.harness.set_model_name(name=NAMESPACE)
         self.harness.set_leader(is_leader=True)
@@ -99,7 +100,7 @@ class TestCharmInitialisation:
         request.addfinalizer(self.tearDown)
 
     def add_storage(self) -> None:
-        self.root = self.harness.get_filesystem_root("bessd")  # type:ignore
+        self.root = self.harness.get_filesystem_root("bessd")
         (self.root / "etc/bess/conf").mkdir(parents=True)
 
     @pytest.mark.parametrize(
@@ -316,6 +317,7 @@ class TestCharmInitialisation:
         self.harness.begin()
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
+            assert nad.spec
             config = json.loads(nad.spec["config"])
             assert ACCESS_INTERFACE_NAME or CORE_INTERFACE_NAME in config["master"]
             assert config["type"] == "macvlan"
@@ -366,7 +368,7 @@ class TestCharm:
         patch.stopall()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request):
+    def setup_harness(self, setUp, request):
         self.harness = testing.Harness(UPFOperatorCharm)
         self.harness.set_model_name(name=NAMESPACE)
         self.harness.set_leader(is_leader=True)
@@ -378,8 +380,8 @@ class TestCharm:
 
     @pytest.fixture()
     def set_can_connect_containers(self) -> None:
-        self.harness.set_can_connect("bessd", True)  # type:ignore
-        self.harness.set_can_connect("pfcp-agent", True)  # type:ignore
+        self.harness.set_can_connect("bessd", True)
+        self.harness.set_can_connect("pfcp-agent", True)
 
     @pytest.fixture()
     def enable_huge_pages_multus_and_dpdk(self) -> None:
@@ -388,7 +390,7 @@ class TestCharm:
         self.mock_dpdk_is_configured.return_value = True
 
     def set_up_storage(self) -> None:
-        self.root = self.harness.get_filesystem_root("bessd")  # type:ignore
+        self.root = self.harness.get_filesystem_root("bessd")
         (self.root / "etc/bess/conf").mkdir(parents=True)
 
     def mock_running_service(self) -> None:
@@ -397,13 +399,13 @@ class TestCharm:
         self.mock_get_service.return_value = service_info_mock
 
     def add_fiveg_n3_relation(self) -> int:
-        relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")  # type:ignore
-        self.harness.add_relation_unit(relation_id, "n3_requirer_app/0")  # type:ignore
+        relation_id = self.harness.add_relation("fiveg_n3", "n3_requirer_app")
+        self.harness.add_relation_unit(relation_id, "n3_requirer_app/0")
         return relation_id
 
     def add_fiveg_n4_relation(self) -> int:
-        relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")  # type:ignore
-        self.harness.add_relation_unit(relation_id, "n4_requirer_app/0")  # type:ignore
+        relation_id = self.harness.add_relation("fiveg_n4", "n4_requirer_app")
+        self.harness.add_relation_unit(relation_id, "n4_requirer_app/0")
         return relation_id
 
     def test_given_bessd_config_file_not_yet_written_when_bessd_pebble_ready_then_config_file_is_written(  # noqa: E501
@@ -990,7 +992,11 @@ class TestCharm:
     def test_given_external_upf_hostname_config_not_set_and_external_upf_service_hostname_not_available_and_fiveg_n4_relation_created_when_fiveg_n4_request_then_upf_hostname_and_n4_port_is_published(  # noqa: E501
         self,
     ):
-        service = Mock(status=Mock(loadBalancer=Mock(ingress=[Mock(ip="1.1.1.1", spec=["ip"])])))
+        service = Mock(
+            status=Mock(
+                loadBalancer=Mock(ingress=[Mock(ip="1.1.1.1", spec=["ip"], hostname=None)])
+            )
+        )
         self.mock_client_get.return_value = service
 
         n4_relation_id = self.add_fiveg_n4_relation()
@@ -1058,6 +1064,7 @@ class TestCharm:
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
+            assert nad.spec
             config = json.loads(nad.spec["config"])
             assert "master" not in config
             assert "bridge" == config["type"]
@@ -1138,8 +1145,8 @@ class TestCharm:
                 iter(
                     filter(
                         lambda call_item: isinstance(call_item, dict)
-                        and call_item.get("obj").metadata.name  # noqa: W503
-                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        and call_item.get("obj").metadata.name  # type: ignore
+                        == ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
                         mock_call,
                     )
                 ),
@@ -1153,11 +1160,12 @@ class TestCharm:
             if _get_create_access_nad_call(create_nad_call)
         ]
         assert len(create_access_nad_calls) == 1
+        assert create_access_nad_calls[0]
         nad_annotations = create_access_nad_calls[0].get("obj").metadata.annotations
         assert (
             DPDK_ACCESS_INTERFACE_RESOURCE_NAME
             in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
-        )  # noqa: E501
+        )
 
     def test_given_upf_configured_to_run_in_dpdk_mode_when_create_network_attachment_definitions_then_core_nad_has_valid_dpdk_core_resource_specified_in_annotations(  # noqa: E501
         self, set_can_connect_containers, enable_huge_pages_multus_and_dpdk
@@ -1184,8 +1192,8 @@ class TestCharm:
                 iter(
                     filter(
                         lambda call_item: isinstance(call_item, dict)
-                        and call_item.get("obj").metadata.name  # noqa: W503
-                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,  # noqa: W503
+                        and call_item.get("obj").metadata.name  # type: ignore
+                        == CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
                         mock_call,
                     )
                 ),
@@ -1199,10 +1207,11 @@ class TestCharm:
             if _get_create_core_nad_call(create_nad_call)
         ]
         assert len(create_core_nad_calls) == 1
+        assert create_core_nad_calls[0]
         nad_annotations = create_core_nad_calls[0].get("obj").metadata.annotations
         assert (
             DPDK_CORE_INTERFACE_RESOURCE_NAME in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
-        )  # noqa: E501
+        )
 
     def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
         self, set_can_connect_containers, enable_huge_pages_multus_and_dpdk
@@ -1566,8 +1575,10 @@ class TestCharm:
     def test_given_service_does_not_exist_on_remove_then_no_exception_is_thrown(self):
         self.mock_client_delete.side_effect = HTTPStatusError(
             message='services "upf-external" not found',
-            request=None,
-            response=None,
+            request=Request(method="DELETE", url="http://whatever"),
+            response=Response(
+                status_code=404,
+            ),
         )
         self.harness.charm.on.remove.emit()
 
@@ -1713,6 +1724,7 @@ class TestCharm:
         )
         nads = self.harness.charm._network_attachment_definitions_from_config()
         for nad in nads:
+            assert nad.spec
             config = json.loads(nad.spec["config"])
             assert "mtu" not in config
 
@@ -1800,6 +1812,7 @@ class TestCharm:
         )
         set_nad_metadata_labels(nads_after_second_config_change, self.harness.charm.app.name)
         for nad in nads_after_second_config_change:
+            assert nad.metadata
             nad.metadata.labels = {"app.juju.is/created-by": self.harness.charm.app.name}
         mock_list_na_definitions.return_value = nads_after_second_config_change
         self.harness.update_config(key_values={"core-interface-mtu-size": VALID_MTU_SIZE_2})

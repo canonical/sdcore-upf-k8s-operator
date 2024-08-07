@@ -5,12 +5,16 @@ from unittest.mock import call, patch
 
 import pytest
 from ops import BoundEvent, testing
-from test_charms.test_requirer_charm.src.charm import WhateverCharm  # type: ignore[import]
+
+from tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_requirer_charm.src.charm import (
+    WhateverCharm,
+)
 
 
 class TestN4Requires:
-
-    patch_n4_available = patch("charms.sdcore_upf_k8s.v0.fiveg_n4.N4RequirerCharmEvents.fiveg_n4_available")   # noqa E501
+    patch_n4_available = patch(
+        "charms.sdcore_upf_k8s.v0.fiveg_n4.N4RequirerCharmEvents.fiveg_n4_available"
+    )
 
     @pytest.fixture()
     def setUp(self) -> None:
@@ -22,7 +26,7 @@ class TestN4Requires:
         patch.stopall()
 
     @pytest.fixture(autouse=True)
-    def harness(self, setUp, request):
+    def setup_harness(self, setUp, request):
         self.harness = testing.Harness(WhateverCharm)
         self.harness.set_model_name(name="whatever")
         self.harness.begin()

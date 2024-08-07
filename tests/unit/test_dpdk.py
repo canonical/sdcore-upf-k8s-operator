@@ -27,7 +27,6 @@ TEST_RESOURCE_REQUIREMENTS = {
 
 
 class TestDPDKStatefulSetUpdater:
-
     patcher_lightkube_client = patch("lightkube.core.client.GenericSyncClient", new=Mock)
     patcher_lightkube_client_get = patch("lightkube.core.client.Client.get")
     patcher_lightkube_client_replace = patch("lightkube.core.client.Client.replace")
@@ -35,8 +34,12 @@ class TestDPDKStatefulSetUpdater:
     @pytest.fixture(autouse=True)
     def setUp(self, request) -> None:
         TestDPDKStatefulSetUpdater.patcher_lightkube_client.start()
-        self.mock_lightkube_client_get = TestDPDKStatefulSetUpdater.patcher_lightkube_client_get.start()  # noqa E501
-        self.mock_lightkube_client_replace = TestDPDKStatefulSetUpdater.patcher_lightkube_client_replace.start()  # noqa E501
+        self.mock_lightkube_client_get = (
+            TestDPDKStatefulSetUpdater.patcher_lightkube_client_get.start()
+        )
+        self.mock_lightkube_client_replace = (
+            TestDPDKStatefulSetUpdater.patcher_lightkube_client_replace.start()
+        )
         self.dpdk_statefulset_updater = DPDK(
             statefulset_name="doesntmatter",
             namespace="whatever",
@@ -237,6 +240,8 @@ class TestDPDKStatefulSetUpdater:
 
         self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)
 
+        assert test_statefulset.spec
+        assert test_statefulset.spec.template.spec
         assert test_statefulset.spec.template.spec.containers[0] == expected_updated_container_spec
 
     def test_given_client_when_configure_container_for_dpdk_then_statefulset_is_replaced(  # noqa: E501

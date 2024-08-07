@@ -7,7 +7,7 @@
 import logging
 from typing import Iterable, Optional
 
-from lightkube import Client
+from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.models.core_v1 import Container
 from lightkube.resources.apps_v1 import StatefulSet
@@ -38,12 +38,12 @@ class DPDK:
         self.namespace = namespace
         self.dpdk_resource_requirements = {
             "requests": {
-                dpdk_access_interface_resource_name: "1",
-                dpdk_core_interface_resource_name: "1",
+                dpdk_access_interface_resource_name: 1,
+                dpdk_core_interface_resource_name: 1,
             },
             "limits": {
-                dpdk_access_interface_resource_name: "1",
-                dpdk_core_interface_resource_name: "1",
+                dpdk_access_interface_resource_name: 1,
+                dpdk_core_interface_resource_name: 1,
             },
         }
 
@@ -59,13 +59,19 @@ class DPDK:
         statefulset = self._get_statefulset(self.statefulset_name, self.namespace)
         if not statefulset:
             raise RuntimeError("StatefulSet not found!")
+        if not statefulset.spec:
+            raise RuntimeError("StatefulSet spec is missing")
+        if not statefulset.spec.template.spec:
+            raise RuntimeError("StatefulSet spec template spec is missing")
         container = self._get_container(
             container_name=container_name,
-            containers=statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
+            containers=statefulset.spec.template.spec.containers,
         )
         if not container:
             raise RuntimeError("Container not found!")
-        if not container.securityContext.privileged:  # type: ignore[union-attr]
+        if not container.securityContext:
+            return False
+        if not container.securityContext.privileged:
             return False
         if not self._resource_requirements_applied(container, self.dpdk_resource_requirements):
             return False
@@ -80,13 +86,19 @@ class DPDK:
         statefulset = self._get_statefulset(self.statefulset_name, self.namespace)
         if not statefulset:
             raise RuntimeError("StatefulSet not found!")
+        if not statefulset.spec:
+            raise RuntimeError("StatefulSet spec is missing")
+        if not statefulset.spec.template.spec:
+            raise RuntimeError("StatefulSet spec template spec is missing")
         container = self._get_container(
             container_name=container_name,
-            containers=statefulset.spec.template.spec.containers,  # type: ignore[union-attr]
+            containers=statefulset.spec.template.spec.containers,
         )
         if not container:
             raise RuntimeError("Container not found!")
-        container.securityContext.privileged = True  # type: ignore[union-attr]
+        if not container.securityContext:
+            raise RuntimeError("Container securityContext is missing")
+        container.securityContext.privileged = True
         self._apply_resource_requirements(
             container=container,
             resource_requirements=self.dpdk_resource_requirements,
@@ -106,7 +118,7 @@ class DPDK:
             StatefulSet: StatefulSet object
         """
         try:
-            return self.k8s_client.get(res=StatefulSet, name=statefulset_name, namespace=namespace)  # type: ignore[return-value]  # noqa: E501
+            return self.k8s_client.get(res=StatefulSet, name=statefulset_name, namespace=namespace)
         except ApiError as e:
             raise DPDKError(f"Could not get statefulset `{statefulset_name}`: {e.status.message}")
 
@@ -171,10 +183,13 @@ class DPDK:
         Args:
             statefulset (StatefulSet): StatefulSet object to replace
         """
+        if not statefulset.metadata:
+            logger.warning("Statefulset metadata is missing")
+            return
         try:
             self.k8s_client.replace(obj=statefulset)
-            logger.info("Statefulset %s replaced", statefulset.metadata.name)  # type: ignore[union-attr]  # noqa: E501
+            logger.info("Statefulset %s replaced", statefulset.metadata.name)
         except ApiError as e:
             raise DPDKError(
-                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"  # type: ignore[union-attr]  # noqa: E501, W505
+                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"
             )
