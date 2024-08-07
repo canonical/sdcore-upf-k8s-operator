@@ -150,15 +150,10 @@ def data_matches_provider_schema(data: dict) -> bool:
     Returns:
         bool: True if data matches provider schema, False otherwise.
     """
-    print(data)
     try:
-        print(11)
-        a = ProviderSchema(app_data=FivegN4ProviderAppData(**data))
-        print(a)
-        print(22)
+        ProviderSchema(app_data=FivegN4ProviderAppData(**data))
         return True
     except ValidationError as e:
-        print(33)
         logger.error("Invalid data: %s", e)
         return False
 
@@ -215,7 +210,6 @@ class N4Provides(Object):
             upf_hostname (str): UPF's hostname
             upf_n4_port (int): Port on which UPF accepts N4 communication
         """
-        print(1)
         if not data_matches_provider_schema(
             data={"upf_hostname": upf_hostname, "upf_port": upf_n4_port}
         ):
@@ -223,12 +217,8 @@ class N4Provides(Object):
         relation = self.model.get_relation(
             relation_name=self.relation_name, relation_id=relation_id
         )
-        print(2)
         if not relation:
             raise RuntimeError(f"Relation {self.relation_name} not created yet.")
-        print(3)
-        print("UPF HOSTNAME: ", upf_hostname)
-        print("UPF PORT: ", upf_n4_port)
         relation.data[self.charm.app]["upf_hostname"] = upf_hostname
         relation.data[self.charm.app]["upf_port"] = str(upf_n4_port)
 
