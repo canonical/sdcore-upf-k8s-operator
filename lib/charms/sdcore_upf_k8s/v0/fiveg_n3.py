@@ -80,7 +80,7 @@ Typical usage of this class would look something like:
 
 import logging
 
-from interface_tester.schema_base import DataBagSchema  # type: ignore[import]
+from interface_tester.schema_base import DataBagSchema
 from ops.charm import CharmBase, CharmEvents, RelationChangedEvent, RelationJoinedEvent
 from ops.framework import EventBase, EventSource, Object
 from pydantic import BaseModel, Field, IPvAnyAddress, ValidationError
@@ -93,7 +93,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 PYDEPS = ["pydantic", "pytest-interface-tester"]
 
@@ -125,7 +125,7 @@ class ProviderAppData(BaseModel):
 class ProviderSchema(DataBagSchema):
     """Provider schema for fiveg_n3."""
 
-    app: ProviderAppData
+    app_data: ProviderAppData
 
 
 def data_matches_provider_schema(data: dict) -> bool:
@@ -138,7 +138,7 @@ def data_matches_provider_schema(data: dict) -> bool:
         bool: True if data matches provider schema, False otherwise.
     """
     try:
-        ProviderSchema(app=data)
+        ProviderSchema(app_data=ProviderAppData(**data))
         return True
     except ValidationError as e:
         logger.error("Invalid data: %s", e)
@@ -173,7 +173,7 @@ class N3ProviderCharmEvents(CharmEvents):
 class N3Provides(Object):
     """Class to be instantiated by provider of the `fiveg_n3`."""
 
-    on = N3ProviderCharmEvents()
+    on = N3ProviderCharmEvents()  # type: ignore
 
     def __init__(self, charm: CharmBase, relation_name: str):
         """Observe relation joined event.
@@ -238,7 +238,7 @@ class N3RequirerCharmEvents(CharmEvents):
 class N3Requires(Object):
     """Class to be instantiated by requirer of the `fiveg_n3`."""
 
-    on = N3RequirerCharmEvents()
+    on = N3RequirerCharmEvents()  # type: ignore
 
     def __init__(self, charm: CharmBase, relation_name: str):
         """Observe relation joined and relation changed events.
@@ -260,6 +260,6 @@ class N3Requires(Object):
             event (RelationChangedEvent): Juju event
         """
         relation_data = event.relation.data
-        upf_ip_address = relation_data[event.app].get("upf_ip_address")  # type: ignore[index]
+        upf_ip_address = relation_data[event.app].get("upf_ip_address")
         if upf_ip_address:
             self.on.fiveg_n3_available.emit(upf_ip_address=upf_ip_address)
