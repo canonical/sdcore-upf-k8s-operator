@@ -1188,6 +1188,35 @@ class TestCharm:
             DPDK_CORE_INTERFACE_RESOURCE_NAME in nad_annotations["k8s.v1.cni.cncf.io/resourceName"]
         )
 
+    def test_given_upf_configured_to_run_in_dpdk_mode_and_mtu_is_set_when_create_network_attachment_definitions_then_nads_have_mtu_specified(  # noqa: E501
+        self, set_can_connect_containers, enable_huge_pages_multus_and_dpdk
+    ):
+        self.mock_running_service()
+        self.mock_client_list.side_effect = [
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [Node(status=NodeStatus(allocatable={"hugepages-1Gi": "3Gi"}))],
+            [],
+            [],
+            [],
+        ]
+        self.harness.update_config(
+            key_values={
+                "cni-type": "vfioveth",
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": VALID_ACCESS_MAC,
+                "core-interface-mac-address": VALID_CORE_MAC,
+                "access-interface-mtu-size": 9000,
+                "core-interface-mtu-size": 9000,
+            }
+        )
+
+        nads = self.harness.charm._network_attachment_definitions_from_config()
+        for nad in nads:
+            assert nad.spec
+            config = json.loads(nad.spec["config"])
+            assert "mtu" in config
+            assert config["mtu"] == 9000
+
     def test_given_upf_charm_configured_to_run_in_default_mode_when_patch_statefulset_then_2_network_annotations_are_created(  # noqa: E501
         self, set_can_connect_containers, enable_huge_pages_multus_and_dpdk
     ):

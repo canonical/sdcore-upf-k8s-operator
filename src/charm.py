@@ -307,16 +307,14 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        nad_config = self._get_nad_base_config()
-        cni_type = self._charm_config.cni_type
-        # MTU is optional for bridge, macvlan, dpdk
-        # MTU is ignored by host-device
-        if cni_type != CNIType.host_device:
-            if interface_mtu := self._get_interface_mtu_config(interface_name):
-                nad_config.update({"mtu": interface_mtu})
+        nad_config = self._get_nad_base_config(interface_name)
+
         nad_config["ipam"].update(
             {"addresses": [{"address": self._get_network_ip_config(interface_name)}]}
         )
+
+        cni_type = self._charm_config.cni_type
+
         # host interface name is used only by macvlan and host-device
         if host_interface := self._get_interface_config(interface_name):
             if cni_type == CNIType.macvlan:
@@ -352,7 +350,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        access_nad_config = self._get_nad_base_config()
+        access_nad_config = self._get_nad_base_config(ACCESS_INTERFACE_NAME)
         access_nad_config.update({"type": "vfioveth"})
 
         return NetworkAttachmentDefinition(
@@ -371,7 +369,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        core_nad_config = self._get_nad_base_config()
+        core_nad_config = self._get_nad_base_config(CORE_INTERFACE_NAME)
         core_nad_config.update({"type": "vfioveth"})
 
         return NetworkAttachmentDefinition(
@@ -384,8 +382,7 @@ class UPFOperatorCharm(CharmBase):
             spec={"config": json.dumps(core_nad_config)},
         )
 
-    @staticmethod
-    def _get_nad_base_config() -> Dict[Any, Any]:
+    def _get_nad_base_config(self, interface_name: str) -> Dict[Any, Any]:
         """Get the base NetworkAttachmentDefinition.
 
         This config is extended according to charm config.
@@ -393,13 +390,20 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             config (dict): Base NAD config
         """
-        return {
+        base_nad = {
             "cniVersion": "0.3.1",
             "ipam": {
                 "type": "static",
             },
             "capabilities": {"mac": True},
         }
+        cni_type = self._charm_config.cni_type
+        # MTU is optional for bridge, macvlan, dpdk
+        # MTU is ignored by host-device
+        if cni_type != CNIType.host_device:
+            if interface_mtu := self._get_interface_mtu_config(interface_name):
+                base_nad.update({"mtu": interface_mtu})
+        return base_nad
 
     def _write_upf_config_file_to_bessd_container(self, content: str) -> None:
         push_file(
