@@ -1,66 +1,114 @@
-# Copyright 2023 Canonical Ltd.
+# Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import PropertyMock, patch
 
 import pytest
-from ops import testing
+import scenario
+from charms.sdcore_upf_k8s.v0.fiveg_n3 import FiveGN3RequestEvent, N3Provides
+from ops.charm import ActionEvent, CharmBase
 
-from tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_provider_charm.src.charm import (
-    WhateverCharm,
-)
 
-RELATION_NAME = "fiveg_n3"
-REMOVE_APP = "whatever-app"
-TEST_CHARM_PATH = (
-    "tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_provider_charm.src.charm.WhateverCharm"
-)
+class N3Provider(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.fiveg_n3_provider = N3Provides(self, "fiveg_n3")
+        self.framework.observe(
+            self.on.publish_upf_information_action,
+            self._on_publish_upf_information_action,
+        )
+
+    def _on_publish_upf_information_action(self, event: ActionEvent):
+        upf_ip_address = event.params.get("ip-address")
+        relation_id = event.params.get("relation-id")
+        assert upf_ip_address
+        assert relation_id
+        self.fiveg_n3_provider.publish_upf_information(
+            upf_ip_address=upf_ip_address,
+            relation_id=int(relation_id),
+        )
 
 
 class TestN3Provides:
-    patcher_upf_ip_address = patch(
-        f"{TEST_CHARM_PATH}.TEST_UPF_IP_ADDRESS", new_callable=PropertyMock
-    )
-
-    @pytest.fixture()
-    def setUp(self) -> None:
-        self.mock_upf_ip_address = TestN3Provides.patcher_upf_ip_address.start()
-
-    @staticmethod
-    def tearDown() -> None:
-        patch.stopall()
-
     @pytest.fixture(autouse=True)
-    def setup_harness(self, setUp, request):
-        self.harness = testing.Harness(WhateverCharm)
-        self.harness.set_model_name(name="whatever")
-        self.harness.set_leader(is_leader=True)
-        self.harness.begin()
-        yield self.harness
-        self.harness.cleanup()
-        request.addfinalizer(self.tearDown)
-
-    def test_given_fiveg_n3_relation_when_relation_created_then_upf_ip_address_is_published_in_the_relation_data(  # noqa: E501
-        self,
-    ):
-        test_upf_ip = "1.2.3.4"
-        self.mock_upf_ip_address.return_value = test_upf_ip
-        relation_id = self.harness.add_relation(relation_name=RELATION_NAME, remote_app=REMOVE_APP)
-        self.harness.add_relation_unit(relation_id, f"{REMOVE_APP}/0")
-
-        relation_data = self.harness.get_relation_data(
-            relation_id=relation_id, app_or_unit=self.harness.charm.app
+    def context(self):
+        self.ctx = scenario.Context(
+            charm_type=N3Provider,
+            meta={
+                "name": "n3-provider",
+                "provides": {"fiveg_n3": {"interface": "fiveg_n3"}},
+            },
+            actions={
+                "publish-upf-information": {
+                    "params": {
+                        "ip-address": {"type": "string"},
+                        "relation-id": {"type": "string"},
+                    },
+                },
+            },
         )
-        assert test_upf_ip == relation_data["upf_ip_address"]
 
-    def test_given_invalid_upf_ip_address_when_relation_created_then_value_error_is_raised(
+    def test_given_fiveg_n3_relation_when_set_upf_information_then_info_added_to_relation_data(  # noqa: E501
         self,
     ):
-        invalid_upf_ip = "777.888.9999.0"
-        self.mock_upf_ip_address.return_value = invalid_upf_ip
+        fiveg_n3_relation = scenario.Relation(
+            endpoint="fiveg_n3",
+            interface="fiveg_n3",
+        )
+        state_in = scenario.State(
+            leader=True,
+            relations=[fiveg_n3_relation],
+        )
 
-        with pytest.raises(ValueError):
-            relation_id = self.harness.add_relation(
-                relation_name=RELATION_NAME, remote_app=REMOVE_APP
-            )
-            self.harness.add_relation_unit(relation_id, f"{REMOVE_APP}/0")
+        action = scenario.Action(
+            name="publish-upf-information",
+            params={
+                "ip-address": "1.2.3.4",
+                "relation-id": str(fiveg_n3_relation.relation_id),
+            },
+        )
+
+        action_output = self.ctx.run_action(action, state_in)
+
+        assert action_output.state.relations[0].local_app_data["upf_ip_address"] == "1.2.3.4"
+
+    def test_given_invalid_upf_information_when_set_upf_information_then_error_raised(
+        self,
+    ):
+        fiveg_n3_relation = scenario.Relation(
+            endpoint="fiveg_n3",
+            interface="fiveg_n3",
+        )
+        state_in = scenario.State(
+            leader=True,
+            relations=[fiveg_n3_relation],
+        )
+
+        action = scenario.Action(
+            name="publish-upf-information",
+            params={
+                "ip-address": "abcdef",
+                "relation-id": str(fiveg_n3_relation.relation_id),
+            },
+        )
+
+        with pytest.raises(Exception) as e:
+            self.ctx.run_action(action, state_in)
+
+        assert "Invalid UPF IP address" in str(e.value)
+
+    def test_given_when_relation_joined_then_fiveg_n3_request_event_emitted(
+        self,
+    ):
+        fiveg_n3_relation = scenario.Relation(
+            endpoint="fiveg_n3",
+            interface="fiveg_n3",
+        )
+        state_in = scenario.State(
+            leader=True,
+            relations=[fiveg_n3_relation],
+        )
+
+        self.ctx.run(fiveg_n3_relation.joined_event, state_in)
+
+        assert len(self.ctx.emitted_events) == 2
+        assert isinstance(self.ctx.emitted_events[1], FiveGN3RequestEvent)

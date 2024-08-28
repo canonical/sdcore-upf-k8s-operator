@@ -3,6 +3,7 @@
 # See LICENSE file for licensing details.
 
 """A class to manage the external UPF service."""
+
 import logging
 from typing import Optional
 
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class K8sService:
     """A class to manage the external UPF service."""
+
     def __init__(self, namespace: str, service_name: str, app_name: str, pfcp_port: int):
         self.namespace = namespace
         self.service_name = service_name

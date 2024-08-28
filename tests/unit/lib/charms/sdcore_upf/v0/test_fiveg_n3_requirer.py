@@ -1,55 +1,61 @@
-# Copyright 2023 Canonical Ltd.
+# Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import call, patch
 
 import pytest
-from ops import BoundEvent, testing
-
-from tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_requirer_charm.src.charm import (
-    WhateverCharm,
-)
+import scenario
+from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3AvailableEvent, N3Requires
+from ops.charm import CharmBase
 
 
-class TestN3Requires:
-    patcher_n3_available = patch(
-        "charms.sdcore_upf_k8s.v0.fiveg_n3.N3RequirerCharmEvents.fiveg_n3_available"
-    )
+class N3Requirer(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.fiveg_n3_requirer = N3Requires(self, "fiveg_n3")
 
-    @pytest.fixture()
-    def setUp(self) -> None:
-        self.mock_n3_available = TestN3Requires.patcher_n3_available.start()
-        self.mock_n3_available.__class__ = BoundEvent
 
-    @staticmethod
-    def tearDown() -> None:
-        patch.stopall()
-
+class TestN3Provides:
     @pytest.fixture(autouse=True)
-    def setup_harness(self, setUp, request):
-        self.harness = testing.Harness(WhateverCharm)
-        self.harness.set_model_name(name="whatever")
-        self.harness.begin()
-        yield self.harness
-        self.harness.cleanup()
-        request.addfinalizer(self.tearDown)
+    def context(self):
+        self.ctx = scenario.Context(
+            charm_type=N3Requirer,
+            meta={
+                "name": "n3-requirer",
+                "requires": {"fiveg_n3": {"interface": "fiveg_n3"}},
+            },
+        )
 
-    def test_given_relation_with_n3_provider_when_fiveg_n3_available_event_then_n3_information_is_provided(  # noqa: E501
+    def test_given_upf_ip_address_in_relation_data_when_relation_changed_then_fiveg_n3_request_event_emitted(  # noqa: E501
         self,
     ):
-        test_upf_ip = "1.2.3.4"
-        relation_id = self.harness.add_relation(
-            relation_name="fiveg_n3", remote_app="whatever-app"
+        fiveg_n3_relation = scenario.Relation(
+            endpoint="fiveg_n3",
+            interface="fiveg_n3",
+            remote_app_data={"upf_ip_address": "1.2.3.4"},
         )
-        self.harness.add_relation_unit(relation_id, "whatever-app/0")
-
-        self.harness.update_relation_data(
-            relation_id=relation_id,
-            app_or_unit="whatever-app",
-            key_values={"upf_ip_address": test_upf_ip},
+        state_in = scenario.State(
+            leader=True,
+            relations=[fiveg_n3_relation],
         )
 
-        calls = [
-            call.emit(upf_ip_address=test_upf_ip),
-        ]
-        self.mock_n3_available.assert_has_calls(calls)
+        self.ctx.run(fiveg_n3_relation.changed_event, state_in)
+
+        assert len(self.ctx.emitted_events) == 2
+        assert isinstance(self.ctx.emitted_events[1], N3AvailableEvent)
+
+    def test_given_upf_ip_address_not_in_relation_data_when_relation_changed_then_fiveg_n3_request_event_emitted(  # noqa: E501
+        self,
+    ):
+        fiveg_n3_relation = scenario.Relation(
+            endpoint="fiveg_n3",
+            interface="fiveg_n3",
+            remote_app_data={},
+        )
+        state_in = scenario.State(
+            leader=True,
+            relations=[fiveg_n3_relation],
+        )
+
+        self.ctx.run(fiveg_n3_relation.changed_event, state_in)
+
+        assert len(self.ctx.emitted_events) == 1

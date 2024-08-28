@@ -1,76 +1,95 @@
-# Copyright 2023 Canonical Ltd.
+# Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import PropertyMock, patch
 
 import pytest
-from ops import testing
+import scenario
+from charms.sdcore_upf_k8s.v0.fiveg_n4 import FiveGN4RequestEvent, N4Provides
+from ops.charm import ActionEvent, CharmBase
 
-from tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_provider_charm.src.charm import (
-    WhateverCharm,
-)
 
-TEST_CHARM_PATH = (
-    "tests.unit.lib.charms.sdcore_upf.v0.test_charms.test_provider_charm.src.charm.WhateverCharm"
-)
-VALID_HOSTNAME = "upf.edge-cloud.test.com"
-VALID_PORT = 1234
+class N4Provider(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.fiveg_n4_provider = N4Provides(self, "fiveg_n4")
+        self.framework.observe(
+            self.on.publish_upf_information_action,
+            self._on_publish_upf_information_action,
+        )
+
+    def _on_publish_upf_information_action(self, event: ActionEvent):
+        hostname = event.params.get("hostname")
+        port = event.params.get("port")
+        relation_id = event.params.get("relation-id")
+        assert hostname
+        assert port
+        assert relation_id
+        self.fiveg_n4_provider.publish_upf_n4_information(
+            relation_id=int(relation_id),
+            upf_hostname=hostname,
+            upf_n4_port=int(port),
+        )
 
 
 class TestN4Provides:
-    patcher_upf_hostname = patch(f"{TEST_CHARM_PATH}.TEST_UPF_HOSTNAME", new_callable=PropertyMock)
-    patcher_upf_port = patch(f"{TEST_CHARM_PATH}.TEST_UPF_PORT", new_callable=PropertyMock)
-
-    @pytest.fixture()
-    def setUp(self) -> None:
-        self.mock_upf_hostname = TestN4Provides.patcher_upf_hostname.start()
-        self.mock_upf_port = TestN4Provides.patcher_upf_port.start()
-        self.mock_upf_hostname.return_value = VALID_HOSTNAME
-        self.mock_upf_port.return_value = VALID_PORT
-
-    @staticmethod
-    def tearDown() -> None:
-        patch.stopall()
-
     @pytest.fixture(autouse=True)
-    def setup_harness(self, setUp, request):
-        self.harness = testing.Harness(WhateverCharm)
-        self.harness.set_model_name(name="whatever")
-        self.harness.set_leader(is_leader=True)
-        self.harness.begin()
-        yield self.harness
-        self.harness.cleanup()
-        request.addfinalizer(self.tearDown)
-
-    def add_fiveg_n4_relation(self) -> int:
-        relation_id = self.harness.add_relation(
-            relation_name="fiveg_n4", remote_app="whatever-app"
+    def context(self):
+        self.ctx = scenario.Context(
+            charm_type=N4Provider,
+            meta={
+                "name": "n4-provider",
+                "provides": {"fiveg_n4": {"interface": "fiveg_n4"}},
+            },
+            actions={
+                "publish-upf-information": {
+                    "params": {
+                        "relation-id": {"type": "string"},
+                        "hostname": {"type": "string"},
+                        "port": {"type": "string"},
+                    },
+                },
+            },
         )
-        self.harness.add_relation_unit(relation_id, "whatever-app/0")
-        return relation_id
 
-    def test_given_fiveg_n4_relation_when_relation_created_then_upf_hostname_and_upf_port_is_published_in_the_relation_data(  # noqa: E501
+    def test_given_fiveg_n4_relation_when_set_upf_information_then_info_added_to_relation_data(  # noqa: E501
         self,
     ):
-        relation_id = self.add_fiveg_n4_relation()
-        relation_data = self.harness.get_relation_data(
-            relation_id=relation_id, app_or_unit=self.harness.charm.app
+        fiveg_n4_relation = scenario.Relation(
+            endpoint="fiveg_n4",
+            interface="fiveg_n4",
         )
-        assert VALID_HOSTNAME == relation_data["upf_hostname"]
-        assert str(VALID_PORT) == relation_data["upf_port"]
+        state_in = scenario.State(
+            leader=True,
+            relations=[fiveg_n4_relation],
+        )
 
-    def test_given_invalid_upf_hostname_when_relation_created_then_value_error_is_raised(
+        action = scenario.Action(
+            name="publish-upf-information",
+            params={
+                "relation-id": str(fiveg_n4_relation.relation_id),
+                "hostname": "upf",
+                "port": "1234",
+            },
+        )
+
+        action_output = self.ctx.run_action(action, state_in)
+
+        assert action_output.state.relations[0].local_app_data["upf_hostname"] == "upf"
+        assert action_output.state.relations[0].local_app_data["upf_port"] == "1234"
+
+    def test_given_when_relation_joined_then_fiveg_n4_request_event_emitted(
         self,
     ):
-        test_invalid_upf_hostname = None
-        self.mock_upf_hostname.return_value = test_invalid_upf_hostname
-        with pytest.raises(ValueError):
-            self.add_fiveg_n4_relation()
+        fiveg_n4_relation = scenario.Relation(
+            endpoint="fiveg_n4",
+            interface="fiveg_n4",
+        )
+        state_in = scenario.State(
+            leader=True,
+            relations=[fiveg_n4_relation],
+        )
 
-    def test_given_invalid_upf_port_when_relation_created_then_value_error_is_raised(
-        self,
-    ):
-        test_invalid_upf_port = "not_an_int"
-        self.mock_upf_port.return_value = test_invalid_upf_port
-        with pytest.raises(ValueError):
-            self.add_fiveg_n4_relation()
+        self.ctx.run(fiveg_n4_relation.joined_event, state_in)
+
+        assert len(self.ctx.emitted_events) == 2
+        assert isinstance(self.ctx.emitted_events[1], FiveGN4RequestEvent)

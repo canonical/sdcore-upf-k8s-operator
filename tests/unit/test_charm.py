@@ -5,6 +5,14 @@ import json
 from unittest.mock import Mock, call, patch
 
 import pytest
+from charms.kubernetes_charm_libraries.v0.multus import (
+    NetworkAnnotation,
+    NetworkAttachmentDefinition,
+)
+from lightkube.models.core_v1 import Node, NodeStatus
+from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
+from ops.pebble import ConnectionError
+
 from charm import (
     ACCESS_INTERFACE_NAME,
     ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
@@ -14,13 +22,6 @@ from charm import (
     DPDK_CORE_INTERFACE_RESOURCE_NAME,
     UPFOperatorCharm,
 )
-from charms.kubernetes_charm_libraries.v0.multus import (
-    NetworkAnnotation,
-    NetworkAttachmentDefinition,
-)
-from lightkube.models.core_v1 import Node, NodeStatus
-from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
-from ops.pebble import ConnectionError
 
 MULTUS_LIBRARY = "charms.kubernetes_charm_libraries.v0.multus.KubernetesMultusCharmLib"
 K8S_CLIENT = "charms.kubernetes_charm_libraries.v0.multus.KubernetesClient"

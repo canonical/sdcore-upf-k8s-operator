@@ -11,7 +11,6 @@ from pathlib import PurePath
 from subprocess import check_output
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
 from charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch import (
     HugePagesVolume,
     KubernetesHugePagesPatchCharmLib,
@@ -27,9 +26,7 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (
 )
 from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
-from dpdk import DPDK
 from jinja2 import Environment, FileSystemLoader
-from k8s_service import K8sService
 from lightkube.core.client import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod
@@ -38,6 +35,10 @@ from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
 from ops.framework import EventBase, EventSource
 from ops.main import main
 from ops.pebble import ChangeError, ConnectionError, ExecError, Layer, PathError
+
+from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
+from dpdk import DPDK
+from k8s_service import K8sService
 
 logger = logging.getLogger(__name__)
 
