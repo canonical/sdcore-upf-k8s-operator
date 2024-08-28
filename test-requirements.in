@@ -9,3 +9,4 @@ pytest-interface-tester
 pydantic==2.8.2
 pytest-operator
 ruff
+ops-scenario

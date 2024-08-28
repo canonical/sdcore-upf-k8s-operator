@@ -4,7 +4,6 @@
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from dpdk import DPDK, DPDKError
 from lightkube.core.exceptions import ApiError
 from lightkube.models.apps_v1 import StatefulSetSpec
 from lightkube.models.core_v1 import (
@@ -16,6 +15,8 @@ from lightkube.models.core_v1 import (
 )
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
+
+from dpdk import DPDK, DPDKError
 
 TEST_CONTAINER_NAME = "bullseye"
 TEST_RESOURCE_REQUESTS = {"test_request": 1234}
