@@ -22,6 +22,10 @@ class UPFUnitTestFixtures:
     patcher_multus_is_ready = patch("charm.KubernetesMultusCharmLib.is_ready")
     patcher_check_output = patch("charm.check_output")
     patcher_dpdk = patch("charm.DPDK", autospec=DPDK)
+    patcher_n3_provides_publish_upf_information = patch("charm.N3Provides.publish_upf_information")
+    patcher_n4_provides_publish_upf_information = patch(
+        "charm.N4Provides.publish_upf_n4_information"
+    )
 
     @pytest.fixture(autouse=True)
     def setup(self, request):
@@ -33,6 +37,12 @@ class UPFUnitTestFixtures:
         self.mock_multus_is_ready = UPFUnitTestFixtures.patcher_multus_is_ready.start()
         self.mock_check_output = UPFUnitTestFixtures.patcher_check_output.start()
         self.mock_dpdk = UPFUnitTestFixtures.patcher_dpdk.start().return_value
+        self.mock_n3_provides_publish_upf_information = (
+            UPFUnitTestFixtures.patcher_n3_provides_publish_upf_information.start()
+        )
+        self.mock_n4_provides_publish_upf_information = (
+            UPFUnitTestFixtures.patcher_n4_provides_publish_upf_information.start()
+        )
         yield
         request.addfinalizer(self.teardown)
 
