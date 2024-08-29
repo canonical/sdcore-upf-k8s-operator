@@ -68,7 +68,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
     ):
         state_in = scenario.State(
             leader=True,
-            config={"cni-type": "vfioveth", "upf-mode": "dpdk"},
+            config={"upf-mode": "dpdk"},
         )
 
         state_out = self.ctx.run("collect_unit_status", state_in)
@@ -99,7 +99,6 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         state_in = scenario.State(
             leader=True,
             config={
-                "cni-type": "vfioveth",
                 "upf-mode": "dpdk",
                 "access-interface-mac-address": "11:22:33:44:55:66",
                 "core-interface-mac-address": "11:22:33:44:55:77",
@@ -630,3 +629,54 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             state_out = self.ctx.run("collect_unit_status", state_in)
 
         assert state_out.unit_status == ActiveStatus()
+
+    def test_given_no_workload_version_when_collect_unit_status_then_workload_version_is_not_set(  # noqa: E501
+        self,
+    ):
+        self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
+        self.mock_client_list.return_value = []
+        self.mock_multus_is_available.return_value = True
+        self.mock_multus_is_ready.return_value = False
+
+        bessd_container = scenario.Container(
+            name="bessd",
+            can_connect=True,
+        )
+        state_in = scenario.State(
+            leader=True,
+            containers=[bessd_container],
+        )
+
+        state_out = self.ctx.run("collect_unit_status", state_in)
+
+        assert state_out.workload_version == ""
+
+    def test_given_workload_version_file_when_collect_unit_status_then_workload_version_is_set(  # noqa: E501
+        self,
+    ):
+        self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
+        self.mock_client_list.return_value = []
+        self.mock_multus_is_available.return_value = True
+        self.mock_multus_is_ready.return_value = False
+
+        with tempfile.TemporaryDirectory() as temp_file:
+            workload_version_mount = scenario.Mount(
+                location="/etc",
+                src=temp_file,
+            )
+
+            bessd_container = scenario.Container(
+                name="bessd",
+                can_connect=True,
+                mounts={"workload-version": workload_version_mount},
+            )
+            state_in = scenario.State(
+                leader=True,
+                containers=[bessd_container],
+            )
+            with open(f"{temp_file}/workload-version", "w") as f:
+                f.write("1.2.3")
+
+            state_out = self.ctx.run("collect_unit_status", state_in)
+
+        assert state_out.workload_version == "1.2.3"

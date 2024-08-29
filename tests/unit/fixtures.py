@@ -7,6 +7,7 @@ import pytest
 import scenario
 
 from charm import UPFOperatorCharm
+from dpdk import DPDK
 from k8s_service import K8sService
 
 
@@ -20,6 +21,7 @@ class UPFUnitTestFixtures:
     patcher_multus_is_available = patch("charm.KubernetesMultusCharmLib.multus_is_available")
     patcher_multus_is_ready = patch("charm.KubernetesMultusCharmLib.is_ready")
     patcher_check_output = patch("charm.check_output")
+    patcher_dpdk = patch("charm.DPDK", autospec=DPDK)
 
     @pytest.fixture(autouse=True)
     def setup(self, request):
@@ -30,6 +32,7 @@ class UPFUnitTestFixtures:
         self.mock_multus_is_available = UPFUnitTestFixtures.patcher_multus_is_available.start()
         self.mock_multus_is_ready = UPFUnitTestFixtures.patcher_multus_is_ready.start()
         self.mock_check_output = UPFUnitTestFixtures.patcher_check_output.start()
+        self.mock_dpdk = UPFUnitTestFixtures.patcher_dpdk.start().return_value
         yield
         request.addfinalizer(self.teardown)
 
