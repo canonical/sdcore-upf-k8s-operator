@@ -48,11 +48,12 @@ class YourCharm(CharmBase):
         ]
 
 """
+
 import logging
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
-from lightkube import Client
+from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.models.apps_v1 import StatefulSetSpec
 from lightkube.models.core_v1 import (
@@ -75,7 +76,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 3
+LIBPATCH = 5
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +106,9 @@ class KubernetesClient:
         self.namespace = namespace
 
     @classmethod
-    def _get_container(cls, container_name: str, containers: Iterable[Container]) -> Container:
+    def _get_container(
+        cls, container_name: str, containers: Iterable[Container]
+    ) -> Container:
         """Find the container from the container list, assuming list is unique by name.
 
         Args:
@@ -120,9 +123,13 @@ class KubernetesClient:
             Container: An instance of :class:`Container` whose name matches the given name.
         """
         try:
-            return next(iter(filter(lambda ctr: ctr.name == container_name, containers)))
+            return next(
+                iter(filter(lambda ctr: ctr.name == container_name, containers))
+            )
         except StopIteration:
-            raise KubernetesHugePagesVolumesPatchError(f"Container `{container_name}` not found")
+            raise KubernetesHugePagesVolumesPatchError(
+                f"Container `{container_name}` not found"
+            )
 
     def pod_is_patched(
         self,
@@ -152,15 +159,17 @@ class KubernetesClient:
             if e.status.reason == "Unauthorized":
                 logger.debug("kube-apiserver not ready yet")
             else:
-                raise KubernetesHugePagesVolumesPatchError(f"Pod `{pod_name}` not found")
+                raise KubernetesHugePagesVolumesPatchError(
+                    f"Pod `{pod_name}` not found"
+                )
             return False
         pod_has_volumemounts = self._pod_contains_requested_volumemounts(
             requested_volumemounts=requested_volumemounts,
-            containers=pod.spec.containers,  # type: ignore[attr-defined]
+            containers=pod.spec.containers,  # type: ignore[union-attr]
             container_name=container_name,
         )
         pod_has_resources = self._pod_resources_are_set(
-            containers=pod.spec.containers,  # type: ignore[attr-defined]
+            containers=pod.spec.containers,  # type: ignore[union-attr]
             container_name=container_name,
             requested_resources=requested_resources,
         )
@@ -196,8 +205,10 @@ class KubernetesClient:
                     f"Could not get statefulset `{statefulset_name}`"
                 )
             return False
+        if not statefulset.spec:
+            return False
         return self._statefulset_contains_requested_volumes(
-            statefulset_spec=statefulset.spec,  # type: ignore[attr-defined]
+            statefulset_spec=statefulset.spec,
             requested_volumes=requested_volumes,
         )
 
@@ -215,11 +226,11 @@ class KubernetesClient:
         Returns:
             bool: Whether the StatefulSet contains the given volumes.
         """
-        if not statefulset_spec.template.spec.volumes:  # type: ignore[union-attr]
+        if not statefulset_spec.template.spec.volumes:  # type: ignore[reportOptionalMemberAccess]
             return False
         return all(
             [
-                requested_volume in statefulset_spec.template.spec.volumes  # type: ignore[union-attr]  # noqa E501
+                requested_volume in statefulset_spec.template.spec.volumes  # type: ignore[reportOptionalMemberAccess]
                 for requested_volume in requested_volumes
             ]
         )
@@ -240,10 +251,12 @@ class KubernetesClient:
         Returns:
             bool: Whether container spec contains the given volumemounts.
         """
-        container = self._get_container(container_name=container_name, containers=containers)
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         return all(
             [
-                requested_volumemount in container.volumeMounts  # type: ignore[operator]
+                requested_volumemount in container.volumeMounts  # type: ignore[reportOperatorIssue]
                 for requested_volumemount in requested_volumemounts
             ]
         )
@@ -264,18 +277,20 @@ class KubernetesClient:
         Returns:
             bool: whether container spec contains the expected resources requests and limits.
         """
-        container = self._get_container(container_name=container_name, containers=containers)
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         if requested_resources.limits:
             for limit, value in requested_resources.limits.items():
-                if not container.resources.limits:  # type: ignore[union-attr]
+                if not container.resources.limits:  # type: ignore[reportOptionalMemberAccess]
                     return False
-                if container.resources.limits.get(limit) != value:  # type: ignore[union-attr]
+                if container.resources.limits.get(limit) != value:  # type: ignore[reportOptionalMemberAccess]
                     return False
         if requested_resources.requests:
             for request, value in requested_resources.requests.items():
-                if not container.resources.requests:  # type: ignore[union-attr]
+                if not container.resources.requests:  # type: ignore[reportOptionalMemberAccess]
                     return False
-                if container.resources.requests.get(request) != value:  # type: ignore[union-attr]
+                if container.resources.requests.get(request) != value:  # type: ignore[reportOptionalMemberAccess]
                     return False
         return True
 
@@ -308,11 +323,13 @@ class KubernetesClient:
             raise KubernetesHugePagesVolumesPatchError(
                 f"Could not get statefulset `{statefulset_name}`"
             )
-        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
-        container = self._get_container(container_name=container_name, containers=containers)
-        container.volumeMounts = requested_volumemounts  # type: ignore[assignment]
+        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[reportOptionalMemberAccess]
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
+        container.volumeMounts = requested_volumemounts  # type: ignore[reportAttributeAccessIssue]
         container.resources = requested_resources
-        statefulset.spec.template.spec.volumes = requested_volumes  # type: ignore[attr-defined]
+        statefulset.spec.template.spec.volumes = requested_volumes  # type: ignore[reportOptionalMemberAccess]
         try:
             self.client.replace(obj=statefulset)
         except ApiError:
@@ -342,9 +359,11 @@ class KubernetesClient:
             raise KubernetesHugePagesVolumesPatchError(
                 f"Could not get statefulset `{statefulset_name}`"
             )
-        return statefulset.spec.template.spec.volumes  # type: ignore[attr-defined]
+        return statefulset.spec.template.spec.volumes  # type: ignore[reportOptionalMemberAccess]
 
-    def list_volumemounts(self, statefulset_name: str, container_name: str) -> list[VolumeMount]:
+    def list_volumemounts(
+        self, statefulset_name: str, container_name: str
+    ) -> list[VolumeMount]:
         """Lists current volume mounts in the given container.
 
         Args:
@@ -366,9 +385,11 @@ class KubernetesClient:
             raise KubernetesHugePagesVolumesPatchError(
                 f"Could not get statefulset `{statefulset_name}`"
             )
-        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
-        container = self._get_container(container_name=container_name, containers=containers)
-        return container.volumeMounts  # type: ignore[return-value]
+        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[reportOptionalMemberAccess]
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
+        return container.volumeMounts if container.volumeMounts else []
 
     def list_container_resources(
         self, statefulset_name: str, container_name: str
@@ -394,10 +415,10 @@ class KubernetesClient:
             raise KubernetesHugePagesVolumesPatchError(
                 f"Could not get statefulset `{statefulset_name}`"
             )
-        containers: Iterable[
-            Container
-        ] = statefulset.spec.template.spec.containers  # type: ignore[attr-defined]  # noqa: E501
-        container = self._get_container(container_name=container_name, containers=containers)
+        containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[union-attr]
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         return container.resources  # type: ignore[return-value]
 
 
@@ -459,7 +480,8 @@ class KubernetesHugePagesPatchCharmLib(Object):
                 [
                     self._volumemount_is_hugepages(x)
                     for x in self.kubernetes.list_volumemounts(
-                        statefulset_name=self.model.app.name, container_name=self.container_name
+                        statefulset_name=self.model.app.name,
+                        container_name=self.container_name,
                     )
                 ]
             )
@@ -518,7 +540,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
         volumes = self._generate_volumes_from_requested_hugepage()
         statefulset_is_patched = self._statefulset_is_patched(volumes)
         volumemounts = self._generate_volumemounts_from_requested_hugepage()
-        resource_requirements = self._generate_resource_requirements_from_requested_hugepage()
+        resource_requirements = (
+            self._generate_resource_requirements_from_requested_hugepage()
+        )
         pod_is_patched = self._pod_is_patched(
             requested_volumemounts=volumemounts,
             requested_resources=resource_requirements,
@@ -534,7 +558,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
         return [
             Volume(
                 name=f"hugepages-{requested_hugepages.size.lower()}",
-                emptyDir=EmptyDirVolumeSource(medium=f"HugePages-{requested_hugepages.size}"),
+                emptyDir=EmptyDirVolumeSource(
+                    medium=f"HugePages-{requested_hugepages.size}"
+                ),
             )
             for requested_hugepages in self.hugepages_volumes_func()
         ]
@@ -553,7 +579,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
             for requested_hugepages in self.hugepages_volumes_func()
         ]
 
-    def _generate_resource_requirements_from_requested_hugepage(self) -> ResourceRequirements:
+    def _generate_resource_requirements_from_requested_hugepage(
+        self,
+    ) -> ResourceRequirements:
         """Generates the required resource requirements for HugePages.
 
         Returns:
@@ -627,10 +655,14 @@ class KubernetesHugePagesPatchCharmLib(Object):
             if not self._volumemount_is_hugepages(current_volumemount):
                 new_volumemounts.append(current_volumemount)
         if not new_volumemounts:
-            logger.warning("Container `%s` will have no volumeMounts", self.container_name)
+            logger.warning(
+                "Container `%s` will have no volumeMounts", self.container_name
+            )
         return new_volumemounts
 
-    def _remove_hugepages_from_resource_requirements(self, resource_attribute: dict) -> dict:
+    def _remove_hugepages_from_resource_requirements(
+        self, resource_attribute: dict
+    ) -> dict:
         """Removes HugePages-related keys from the given dictionary.
 
         Args:
@@ -657,7 +689,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
         Returns:
             ResourceRequirements: new resource requirements to be replaced in the container.
         """
-        additional_resources = self._generate_resource_requirements_from_requested_hugepage()
+        additional_resources = (
+            self._generate_resource_requirements_from_requested_hugepage()
+        )
         current_resources = self.kubernetes.list_container_resources(
             statefulset_name=self.model.app.name, container_name=self.container_name
         )
@@ -668,12 +702,16 @@ class KubernetesHugePagesPatchCharmLib(Object):
             else {}
         )
         new_requests = (
-            self._remove_hugepages_from_resource_requirements(current_resources.requests)
+            self._remove_hugepages_from_resource_requirements(
+                current_resources.requests
+            )
             if current_resources.requests
             else {}
         )
-        new_limits = dict(new_limits.items() | additional_resources.limits.items())  # type: ignore[union-attr]  # noqa E501
-        new_requests = dict(new_requests.items() | additional_resources.requests.items())  # type: ignore[union-attr]  # noqa E501
+        new_limits = dict(new_limits.items() | additional_resources.limits.items())  # type: ignore[reportOptionalMemberAccess]
+        new_requests = dict(
+            new_requests.items() | additional_resources.requests.items()  # type: ignore[reportOptionalMemberAccess]
+        )
         new_resources = ResourceRequirements(
             limits=new_limits, requests=new_requests, claims=current_resources.claims
         )
