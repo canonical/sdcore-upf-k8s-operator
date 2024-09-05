@@ -3,90 +3,73 @@
 
 """Charm Library used to leverage the Multus Kubernetes CNI in charms.
 
-- On a BoundEvent (e.g. self.on.nad_config_changed which is originated from NadConfigChangedEvent),
- it will:
-  - Configure the requested network attachment definitions
-  - Patch the statefulset with the necessary annotations for the container to have interfaces
-    that use those new network attachments.
-  - If an existing NAD config changed, it triggers pod restart to make the new config effective
-- On charm removal, it will:
-  - Delete the created network attachment definitions
-
 ## Usage
 
 ```python
 
+from typing import List
+
 from charms.kubernetes_charm_libraries.v0.multus import (
     KubernetesMultusCharmLib,
+    NetworkAnnotation,
     NetworkAttachmentDefinition,
-    NetworkAnnotation
 )
-
-class NadConfigChangedEvent(EventBase):
-
-
-class KubernetesMultusCharmEvents(CharmEvents):
-
-    nad_config_changed = EventSource(NadConfigChangedEvent)
+from ops import RemoveEvent
+from ops.charm import CharmBase
+from ops.framework import EventBase
+from ops.main import main
 
 
 class YourCharm(CharmBase):
 
-    on = KubernetesMultusCharmEvents()
-
     def __init__(self, *args):
         super().__init__(*args)
         self._kubernetes_multus = KubernetesMultusCharmLib(
-            charm=self,
-            container_name=self._container_name,
             cap_net_admin=True,
+            namespace=self.model.name,
+            statefulset_name=self.model.app.name,
+            pod_name="-".join(self.model.unit.name.rsplit("/", 1)),
+            container_name=self._bessd_container_name,
+            network_annotations=self._generate_network_annotations(),
+            network_attachment_definitions=self._network_attachment_definitions_from_config(),
             privileged=True,
-            network_annotations=[
-                NetworkAnnotation(
-                    name=NETWORK_ATTACHMENT_DEFINITION_NAME,
-                    interface=INTERFACE_NAME,
-                )
-            ],
-            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
-            refresh_event=self.on.nad_config_changed,
         )
 
-    def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
+        self.framework.observe(self.on.update_status, self._on_update_status)
+
+    def _on_update_status(self, event: EventBase):
+        self._kubernetes_multus.configure()
+
+    def _on_remove(self, _: RemoveEvent) -> None:
+        self._kubernetes_multus.remove()
+
+    def _generate_network_annotations(self) -> List[NetworkAnnotation]:
         return [
-            NetworkAttachmentDefinition(
-                metadata=ObjectMeta(name=NETWORK_ATTACHMENT_DEFINITION_NAME),
-                spec={
-                    "config": json.dumps(
-                        {
-                            "cniVersion": "0.3.1",
-                            "type": "macvlan",
-                            "ipam": {
-                                "type": "static",
-                                "routes": [
-                                    {
-                                        "dst": self._get_upf_ip_address_from_config(),
-                                        "gw": self._get_upf_gateway_from_config(),
-                                    }
-                                ],
-                                "addresses": [
-                                    {
-                                        "address": self._get_interface_ip_address_from_config(),
-                                    }
-                                ],
-                            },
-                        }
-                    )
-                },
+            NetworkAnnotation(
+                name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                interface_name=ACCESS_INTERFACE_NAME,
+                bridge_name=ACCESS_INTERFACE_BRIDGE_NAME,
+            ),
+            NetworkAnnotation(
+                name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                interface_name=CORE_INTERFACE_NAME,
+                bridge_name=CORE_INTERFACE_BRIDGE_NAME,
             ),
         ]
 
-    def _on_config_changed(self, event: EventBase):
-        if not self.unit.is_leader():
-            return
-        if self._get_invalid_configs():
-            return
-        # Fire the NadConfigChangedEvent if the configs are valid.
-        self.on.nad_config_changed.emit()
+    def _network_attachment_definitions_from_config(self) -> List[NetworkAttachmentDefinition]:
+        return [
+            NetworkAttachmentDefinition(
+                name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                cni_type="macvlan",
+                network_name=self.config["access_network_name"],
+            ),
+            NetworkAttachmentDefinition(
+                name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+                cni_type="macvlan",
+                network_name=self.config["core_network_name"],
+            ),
+        ]
 ```
 """
 
