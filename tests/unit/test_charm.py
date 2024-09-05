@@ -5,15 +5,6 @@ import json
 import unittest
 from unittest.mock import Mock, call, patch
 
-from charm import (
-    ACCESS_INTERFACE_NAME,
-    ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
-    CORE_INTERFACE_NAME,
-    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
-    DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
-    DPDK_CORE_INTERFACE_RESOURCE_NAME,
-    UPFOperatorCharm,
-)
 from charms.kubernetes_charm_libraries.v0.multus import (  # type: ignore[import]
     NetworkAnnotation,
     NetworkAttachmentDefinition,
@@ -25,6 +16,16 @@ from lightkube.resources.core_v1 import Service
 from ops import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus, testing
 from ops.pebble import ConnectionError
 from parameterized import parameterized  # type: ignore[import-untyped]
+
+from charm import (
+    ACCESS_INTERFACE_NAME,
+    ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
+    CORE_INTERFACE_NAME,
+    CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
+    DPDK_ACCESS_INTERFACE_RESOURCE_NAME,
+    DPDK_CORE_INTERFACE_RESOURCE_NAME,
+    UPFOperatorCharm,
+)
 
 MULTUS_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.multus"
 HUGEPAGES_LIBRARY_PATH = "charms.kubernetes_charm_libraries.v0.hugepages_volumes_patch"
@@ -73,7 +74,6 @@ def update_nad_labels(nads: list[NetworkAttachmentDefinition], app_name: str) ->
 
 
 class TestCharmInitialisation(unittest.TestCase):
-
     def setUp(self):
         self.patch_k8s_client = patch("lightkube.core.client.GenericSyncClient")
         self.patch_k8s_client.start()
@@ -389,7 +389,6 @@ class TestCharmInitialisation(unittest.TestCase):
 
 
 class TestCharm(unittest.TestCase):
-
     def setUp(self):
         self.patch_k8s_client = patch("lightkube.core.client.GenericSyncClient")
         self.patch_k8s_client.start()
@@ -728,7 +727,12 @@ class TestCharm(unittest.TestCase):
     @patch("ops.model.Container.get_service")
     @patch(f"{MULTUS_LIBRARY_PATH}.KubernetesMultusCharmLib.is_ready")
     def test_given_can_connect_to_bessd_when_bessd_pebble_ready_then_bessctl_configure_is_executed(
-        self, accessRoutes_check_out, coreRoutes_check_out, config_check_out, patch_is_ready, _  # noqa: N803
+        self,
+        access_routes_check_out,
+        core_routes_check_out,
+        config_check_out,
+        patch_is_ready,
+        _,  # noqa: N803
     ):
         self.harness.set_can_connect("bessd", True)
         self.harness.set_can_connect("pfcp-agent", True)
@@ -754,8 +758,8 @@ class TestCharm(unittest.TestCase):
         self.harness.handle_exec("bessd", ["ip"], result=0)
         self.harness.handle_exec("bessd", ["iptables-legacy"], result=0)
         self.harness.handle_exec("bessd", grpc_check_cmd, result=0)
-        self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=accessRoutes_check_out)
-        self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=coreRoutes_check_out)
+        self.harness.handle_exec("bessd", accessRoutes_check_cmd, result=access_routes_check_out)
+        self.harness.handle_exec("bessd", coreRoutes_check_cmd, result=core_routes_check_out)
         self.harness.handle_exec("bessd", config_check_cmd, result=config_check_out)
         self.harness.handle_exec("bessd", bessctl_cmd, handler=bessctl_handler)
         patch_is_ready.return_value = True
