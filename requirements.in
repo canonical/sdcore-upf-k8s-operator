@@ -6,7 +6,7 @@ juju
 lightkube
 lightkube-models
 macaddress
-pydantic==2.8.2
+pydantic==2.9.1
 pydantic_extra_types
 pytest-interface-tester
 PyYAML>=6.0.1
