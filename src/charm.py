@@ -63,10 +63,6 @@ LOGGING_RELATION_NAME = "logging"
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 
 
-class NadConfigChangedEvent(EventBase):
-    """Event triggered when an existing network attachment definition is changed."""
-
-
 class K8sHugePagesVolumePatchChangedEvent(EventBase):
     """Event triggered when a HugePages volume is changed."""
 
@@ -74,7 +70,6 @@ class K8sHugePagesVolumePatchChangedEvent(EventBase):
 class UpfOperatorCharmEvents(CharmEvents):
     """Kubernetes UPF operator charm events."""
 
-    nad_config_changed = EventSource(NadConfigChangedEvent)
     hugepages_volumes_config_changed = EventSource(K8sHugePagesVolumePatchChangedEvent)
 
 
@@ -110,12 +105,13 @@ class UPFOperatorCharm(CharmBase):
         except CharmConfigInvalidError:
             return
         self._kubernetes_multus = KubernetesMultusCharmLib(
-            charm=self,
-            container_name=self._bessd_container_name,
             cap_net_admin=True,
-            network_annotations_func=self._generate_network_annotations,
-            network_attachment_definitions_func=self._network_attachment_definitions_from_config,
-            refresh_event=self.on.nad_config_changed,
+            namespace=self._namespace,
+            statefulset_name=self.model.app.name,
+            pod_name=self._pod_name,
+            container_name=self._bessd_container_name,
+            network_annotations=self._generate_network_annotations(),
+            network_attachment_definitions=self._network_attachment_definitions_from_config(),
             privileged=self._get_privilege_required(),
         )
         self._kubernetes_volumes_patch = KubernetesHugePagesPatchCharmLib(
@@ -162,6 +158,7 @@ class UPFOperatorCharm(CharmBase):
         # hooks are finished running. In this case, we will leave behind a
         # dirty state in k8s, but it will be cleaned up when the juju model is
         # destroyed. It will be re-used if the charm is re-deployed.
+        self._kubernetes_multus.remove()
         if self.k8s_service.is_created():
             self.k8s_service.delete()
 
@@ -544,7 +541,7 @@ class UPFOperatorCharm(CharmBase):
             self.k8s_service.create()
         if not self._kubernetes_multus.multus_is_available():
             return
-        self.on.nad_config_changed.emit()
+        self._kubernetes_multus.configure()
         self.on.hugepages_volumes_config_changed.emit()
         if self._charm_config.upf_mode == UpfMode.dpdk:
             self._configure_bessd_for_dpdk()
