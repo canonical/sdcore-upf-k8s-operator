@@ -7,7 +7,7 @@ parameterized
 pytest
 pytest-asyncio==0.21.2
 pytest-interface-tester
-pydantic==2.6.4
+pydantic==2.9.1
 pytest-operator
 ruff
 types-PyYAML
