@@ -60,7 +60,6 @@ from lightkube.models.core_v1 import (
 )
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Pod
-from ops.framework import Object
 
 # The unique Charmhub library identifier, never change it
 LIBID = "b4cf8e58c9f64b73b22083d3e8d0de8e"
@@ -100,7 +99,9 @@ class KubernetesClient:
         self.namespace = namespace
 
     @classmethod
-    def _get_container(cls, container_name: str, containers: Iterable[Container]) -> Container:
+    def _get_container(
+        cls, container_name: str, containers: Iterable[Container]
+    ) -> Container:
         """Find the container from the container list, assuming list is unique by name.
 
         Args:
@@ -115,9 +116,13 @@ class KubernetesClient:
             Container: An instance of :class:`Container` whose name matches the given name.
         """
         try:
-            return next(iter(filter(lambda ctr: ctr.name == container_name, containers)))
+            return next(
+                iter(filter(lambda ctr: ctr.name == container_name, containers))
+            )
         except StopIteration:
-            raise KubernetesHugePagesVolumesPatchError(f"Container `{container_name}` not found")
+            raise KubernetesHugePagesVolumesPatchError(
+                f"Container `{container_name}` not found"
+            )
 
     def pod_is_patched(
         self,
@@ -147,7 +152,9 @@ class KubernetesClient:
             if e.status.reason == "Unauthorized":
                 logger.debug("kube-apiserver not ready yet")
             else:
-                raise KubernetesHugePagesVolumesPatchError(f"Pod `{pod_name}` not found")
+                raise KubernetesHugePagesVolumesPatchError(
+                    f"Pod `{pod_name}` not found"
+                )
             return False
         pod_has_volumemounts = self._pod_contains_requested_volumemounts(
             requested_volumemounts=requested_volumemounts,
@@ -235,7 +242,9 @@ class KubernetesClient:
         Returns:
             bool: Whether container spec contains the given volumemounts.
         """
-        container = self._get_container(container_name=container_name, containers=containers)
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         return all(
             requested_volumemount in container.volumeMounts  # type: ignore[reportOperatorIssue]
             for requested_volumemount in requested_volumemounts
@@ -257,7 +266,9 @@ class KubernetesClient:
         Returns:
             bool: whether container spec contains the expected resources requests and limits.
         """
-        container = self._get_container(container_name=container_name, containers=containers)
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         if requested_resources.limits:
             for limit, value in requested_resources.limits.items():
                 if not container.resources.limits:  # type: ignore[reportOptionalMemberAccess]
@@ -302,7 +313,9 @@ class KubernetesClient:
                 f"Could not get statefulset `{statefulset_name}`"
             )
         containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[reportOptionalMemberAccess]
-        container = self._get_container(container_name=container_name, containers=containers)
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         container.volumeMounts = requested_volumemounts  # type: ignore[reportAttributeAccessIssue]
         container.resources = requested_resources
         statefulset.spec.template.spec.volumes = requested_volumes  # type: ignore[reportOptionalMemberAccess]
@@ -337,7 +350,9 @@ class KubernetesClient:
             )
         return statefulset.spec.template.spec.volumes  # type: ignore[reportOptionalMemberAccess]
 
-    def list_volumemounts(self, statefulset_name: str, container_name: str) -> list[VolumeMount]:
+    def list_volumemounts(
+        self, statefulset_name: str, container_name: str
+    ) -> list[VolumeMount]:
         """List current volume mounts in the given container.
 
         Args:
@@ -360,7 +375,9 @@ class KubernetesClient:
                 f"Could not get statefulset `{statefulset_name}`"
             )
         containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[reportOptionalMemberAccess]
-        container = self._get_container(container_name=container_name, containers=containers)
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         return container.volumeMounts if container.volumeMounts else []
 
     def list_container_resources(
@@ -388,11 +405,13 @@ class KubernetesClient:
                 f"Could not get statefulset `{statefulset_name}`"
             )
         containers: Iterable[Container] = statefulset.spec.template.spec.containers  # type: ignore[union-attr]
-        container = self._get_container(container_name=container_name, containers=containers)
+        container = self._get_container(
+            container_name=container_name, containers=containers
+        )
         return container.resources  # type: ignore[return-value]
 
 
-class KubernetesHugePagesPatchCharmLib(Object):
+class KubernetesHugePagesPatchCharmLib:
     """Class to be instantiated by charms requiring changes in HugePages volumes."""
 
     def __init__(
@@ -477,7 +496,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
         if not requested_volumes:
             return not any(
                 self._volume_is_hugepages(volume)
-                for volume in self.kubernetes.list_volumes(statefulset_name=self.statefulset_name)
+                for volume in self.kubernetes.list_volumes(
+                    statefulset_name=self.statefulset_name
+                )
             )
         return self.kubernetes.statefulset_is_patched(
             statefulset_name=self.statefulset_name,
@@ -497,7 +518,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
         volumes = self._generate_volumes_from_requested_hugepage()
         statefulset_is_patched = self._statefulset_is_patched(volumes)
         volumemounts = self._generate_volumemounts_from_requested_hugepage()
-        resource_requirements = self._generate_resource_requirements_from_requested_hugepage()
+        resource_requirements = (
+            self._generate_resource_requirements_from_requested_hugepage()
+        )
         pod_is_patched = self._pod_is_patched(
             requested_volumemounts=volumemounts,
             requested_resources=resource_requirements,
@@ -513,7 +536,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
         return [
             Volume(
                 name=f"hugepages-{requested_hugepages.size.lower()}",
-                emptyDir=EmptyDirVolumeSource(medium=f"HugePages-{requested_hugepages.size}"),
+                emptyDir=EmptyDirVolumeSource(
+                    medium=f"HugePages-{requested_hugepages.size}"
+                ),
             )
             for requested_hugepages in self.hugepages_volumes
         ]
@@ -586,7 +611,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
             if not self._volume_is_hugepages(current_volume):
                 new_volumes.append(current_volume)
         if not new_volumes:
-            logger.warning("StatefulSet `%s` will have no volumes", self.statefulset_name)
+            logger.warning(
+                "StatefulSet `%s` will have no volumes", self.statefulset_name
+            )
         return new_volumes
 
     def _generate_volumemounts_to_be_replaced(self) -> list[VolumeMount]:
@@ -608,10 +635,14 @@ class KubernetesHugePagesPatchCharmLib(Object):
             if not self._volumemount_is_hugepages(current_volumemount):
                 new_volumemounts.append(current_volumemount)
         if not new_volumemounts:
-            logger.warning("Container `%s` will have no volumeMounts", self.container_name)
+            logger.warning(
+                "Container `%s` will have no volumeMounts", self.container_name
+            )
         return new_volumemounts
 
-    def _remove_hugepages_from_resource_requirements(self, resource_attribute: dict) -> dict:
+    def _remove_hugepages_from_resource_requirements(
+        self, resource_attribute: dict
+    ) -> dict:
         """Remove HugePages-related keys from the given dictionary.
 
         Args:
@@ -638,7 +669,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
         Returns:
             ResourceRequirements: new resource requirements to be replaced in the container.
         """
-        additional_resources = self._generate_resource_requirements_from_requested_hugepage()
+        additional_resources = (
+            self._generate_resource_requirements_from_requested_hugepage()
+        )
         current_resources = self.kubernetes.list_container_resources(
             statefulset_name=self.statefulset_name, container_name=self.container_name
         )
@@ -649,7 +682,9 @@ class KubernetesHugePagesPatchCharmLib(Object):
             else {}
         )
         new_requests = (
-            self._remove_hugepages_from_resource_requirements(current_resources.requests)
+            self._remove_hugepages_from_resource_requirements(
+                current_resources.requests
+            )
             if current_resources.requests
             else {}
         )
