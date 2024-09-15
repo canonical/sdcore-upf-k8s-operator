@@ -3,7 +3,7 @@
 
 """Charm library used to manage HugePages volumes in Kubernetes charms.
 
-- On a bound event (e.g., self.on.hugepages_volumes_config_changed), it will:
+- Using the `configure` endpoint, it will:
   - Replace the volumes in the StatefulSet with the new requested ones
   - Replace the volume mounts in the container in the Pod with the new requested ones.
   - Replace the resource requirements in the container in the Pod with the new requested ones.
@@ -18,27 +18,19 @@ from charms.kubernetes_charm_libraries.v0.kubernetes_hugepages_volumes_patch imp
 )
 
 
-class K8sHugePagesVolumePatchChangedEvent(EventBase):
-
-
-class K8sHugePagesVolumePatchChangedCharmEvents(CharmEvents):
-    hugepages_volumes_config_changed = EventSource(K8sHugePagesVolumePatchChangedEvent)
-
-
 class YourCharm(CharmBase):
-
-    on = K8sHugePagesVolumePatchChangedCharmEvents()
 
     def __init__(self, *args):
         super().__init__(*args)
         self._kubernetes_volumes_patch = KubernetesHugePagesPatchCharmLib(
-            charm=self,
-            container_name=self._container_name,
-            hugepages_volumes_func=self._hugepages_volumes_func_from_config,
-            refresh_event=self.on.hugepages_volumes_config_changed,
+            statefulset_name=self.model.app.name,
+            container_name=self._bessd_container_name,
+            pod_name=self._pod_name,
+            hugepages_volumes=self._volumes_request_from_config(),
         )
+        self.framework.observe(self.on.config_changed, self.on_config_changed)
 
-    def _hugepages_volumes_func_from_config(self) -> list[HugePagesVolume]:
+    def _volumes_request_from_config(self) -> list[HugePagesVolume]:
         return [
             HugePagesVolume(
                 mount_path="/dev/hugepages",
@@ -47,11 +39,14 @@ class YourCharm(CharmBase):
             )
         ]
 
+    def on_config_changed(self, event: ConfigChangedEvent):
+        self._kubernetes_volumes_patch.configure()
+```
 """
 
 import logging
 from dataclasses import dataclass
-from typing import Callable, Iterable
+from typing import Iterable, List
 
 from lightkube.core.client import Client
 from lightkube.core.exceptions import ApiError
@@ -65,8 +60,6 @@ from lightkube.models.core_v1 import (
 )
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Pod
-from ops.charm import CharmBase
-from ops.framework import BoundEvent, Object
 
 # The unique Charmhub library identifier, never change it
 LIBID = "b4cf8e58c9f64b73b22083d3e8d0de8e"
@@ -76,7 +69,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 5
+LIBPATCH = 6
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +131,7 @@ class KubernetesClient:
         requested_resources: ResourceRequirements,
         container_name: str,
     ) -> bool:
-        """Returns whether pod contains the given volumes mounts and resources.
+        """Return whether pod contains the given volumes mounts and resources.
 
         Args:
             pod_name: Pod name
@@ -180,7 +173,7 @@ class KubernetesClient:
         statefulset_name: str,
         requested_volumes: Iterable[Volume],
     ) -> bool:
-        """Returns whether the statefulset contains the given volumes.
+        """Return whether the statefulset contains the given volumes.
 
         Args:
             statefulset_name: Statefulset name
@@ -217,7 +210,7 @@ class KubernetesClient:
         statefulset_spec: StatefulSetSpec,
         requested_volumes: Iterable[Volume],
     ) -> bool:
-        """Returns whether the StatefulSet contains the given volumes.
+        """Return whether the StatefulSet contains the given volumes.
 
         Args:
             statefulset_spec: StatefulSet spec
@@ -229,10 +222,8 @@ class KubernetesClient:
         if not statefulset_spec.template.spec.volumes:  # type: ignore[reportOptionalMemberAccess]
             return False
         return all(
-            [
-                requested_volume in statefulset_spec.template.spec.volumes  # type: ignore[reportOptionalMemberAccess]
-                for requested_volume in requested_volumes
-            ]
+            requested_volume in statefulset_spec.template.spec.volumes  # type: ignore[reportOptionalMemberAccess]
+            for requested_volume in requested_volumes
         )
 
     def _pod_contains_requested_volumemounts(
@@ -241,7 +232,7 @@ class KubernetesClient:
         container_name: str,
         requested_volumemounts: Iterable[VolumeMount],
     ) -> bool:
-        """Returns whether container spec contains the given volumemounts.
+        """Return whether container spec contains the given volumemounts.
 
         Args:
             containers: Iterable of Containers
@@ -255,10 +246,8 @@ class KubernetesClient:
             container_name=container_name, containers=containers
         )
         return all(
-            [
-                requested_volumemount in container.volumeMounts  # type: ignore[reportOperatorIssue]
-                for requested_volumemount in requested_volumemounts
-            ]
+            requested_volumemount in container.volumeMounts  # type: ignore[reportOperatorIssue]
+            for requested_volumemount in requested_volumemounts
         )
 
     def _pod_resources_are_set(
@@ -267,7 +256,7 @@ class KubernetesClient:
         container_name: str,
         requested_resources: ResourceRequirements,
     ) -> bool:
-        """Returns whether container spec contains the expected resources requests and limits.
+        """Return whether container spec contains the expected resources requests and limits.
 
         Args:
             containers: Iterable of Containers
@@ -302,7 +291,7 @@ class KubernetesClient:
         requested_resources: ResourceRequirements,
         container_name: str,
     ) -> None:
-        """Updates a StatefulSet and a container in its spec.
+        """Update a StatefulSet and a container in its spec.
 
         Raises:
             KubernetesHugePagesVolumesPatchError: If the user-provided statefulset name does
@@ -339,7 +328,7 @@ class KubernetesClient:
         logger.info("Replaced `%s` statefulset", statefulset_name)
 
     def list_volumes(self, statefulset_name: str) -> list[Volume]:
-        """Lists current volumes in the given StatefulSet.
+        """List current volumes in the given StatefulSet.
 
         Args:
             statefulset_name: Statefulset name
@@ -364,7 +353,7 @@ class KubernetesClient:
     def list_volumemounts(
         self, statefulset_name: str, container_name: str
     ) -> list[VolumeMount]:
-        """Lists current volume mounts in the given container.
+        """List current volume mounts in the given container.
 
         Args:
             statefulset_name: Statefulset name
@@ -394,7 +383,7 @@ class KubernetesClient:
     def list_container_resources(
         self, statefulset_name: str, container_name: str
     ) -> ResourceRequirements:
-        """Returns resource requirements in the given container.
+        """Return resource requirements in the given container.
 
         Args:
             statefulset_name: Statefulset name
@@ -422,36 +411,38 @@ class KubernetesClient:
         return container.resources  # type: ignore[return-value]
 
 
-class KubernetesHugePagesPatchCharmLib(Object):
+class KubernetesHugePagesPatchCharmLib:
     """Class to be instantiated by charms requiring changes in HugePages volumes."""
 
     def __init__(
         self,
-        charm: CharmBase,
-        hugepages_volumes_func: Callable[[], Iterable[HugePagesVolume]],
+        hugepages_volumes: List[HugePagesVolume],
+        namespace: str,
+        statefulset_name: str,
         container_name: str,
-        refresh_event: BoundEvent,
+        pod_name: str,
     ):
-        """Constructor for the KubernetesHugePagesPatchCharmLib.
+        """Construct the KubernetesHugePagesPatchCharmLib.
 
         Args:
-            charm: Charm object
-            hugepages_volumes_func: A callable to a function returning a list of
-              `HugePagesVolume` to be created.
+            hugepages_volumes: list of `HugePagesVolume` to be created.
+            namespace: Namespace where the StatefulSet is located
+            statefulset_name: Statefulset name
             container_name: Container name
-            refresh_event: a bound event which will be observed to re-apply the patch.
+            pod_name: Pod name
         """
-        super().__init__(charm, "kubernetes-requested-volumes")
-        self.kubernetes = KubernetesClient(namespace=self.model.name)
-        self.hugepages_volumes_func = hugepages_volumes_func
+        self.statefulset_name = statefulset_name
+        self.namespace = namespace
+        self.kubernetes = KubernetesClient(namespace=self.namespace)
+        self.hugepages_volumes = hugepages_volumes
         self.container_name = container_name
-        self.framework.observe(refresh_event, self._configure_requested_volumes)
+        self.pod_name = pod_name
 
-    def _configure_requested_volumes(self, _):
-        """Configures HugePages in the StatefulSet and container."""
+    def configure(self):
+        """Configure HugePages in the StatefulSet and container."""
         if not self.is_patched():
             self.kubernetes.replace_statefulset(
-                statefulset_name=self.model.app.name,
+                statefulset_name=self.statefulset_name,
                 container_name=self.container_name,
                 requested_volumes=self._generate_volumes_to_be_replaced(),
                 requested_volumemounts=self._generate_volumemounts_to_be_replaced(),
@@ -463,7 +454,7 @@ class KubernetesHugePagesPatchCharmLib(Object):
         requested_volumemounts: Iterable[VolumeMount],
         requested_resources: ResourceRequirements,
     ) -> bool:
-        """Returns whether pod contains given volume mounts and resource limits.
+        """Return whether pod contains given volume mounts and resource limits.
 
         If no HugePages volumeMount is requested, it returns whether other HugePages
         volumeMounts are present in the pod.
@@ -477,32 +468,21 @@ class KubernetesHugePagesPatchCharmLib(Object):
         """
         if not requested_volumemounts:
             return not any(
-                [
-                    self._volumemount_is_hugepages(x)
-                    for x in self.kubernetes.list_volumemounts(
-                        statefulset_name=self.model.app.name,
-                        container_name=self.container_name,
-                    )
-                ]
+                self._volumemount_is_hugepages(x)
+                for x in self.kubernetes.list_volumemounts(
+                    statefulset_name=self.statefulset_name,
+                    container_name=self.container_name,
+                )
             )
         return self.kubernetes.pod_is_patched(
-            pod_name=self._pod,
+            pod_name=self.pod_name,
             requested_volumemounts=requested_volumemounts,
             requested_resources=requested_resources,
             container_name=self.container_name,
         )
 
-    @property
-    def _pod(self) -> str:
-        """Name of the unit's pod.
-
-        Returns:
-            str: A string containing the name of the current unit's pod.
-        """
-        return "-".join(self.model.unit.name.rsplit("/", 1))
-
     def _statefulset_is_patched(self, requested_volumes: Iterable[Volume]) -> bool:
-        """Returns whether statefulset contains requested volumes.
+        """Return whether statefulset contains requested volumes.
 
         If no HugePages volume is requested, it returns whether other HugePages
         volumes are present in the statefulset.
@@ -515,20 +495,18 @@ class KubernetesHugePagesPatchCharmLib(Object):
         """
         if not requested_volumes:
             return not any(
-                [
-                    self._volume_is_hugepages(volume)
-                    for volume in self.kubernetes.list_volumes(
-                        statefulset_name=self.model.app.name
-                    )
-                ]
+                self._volume_is_hugepages(volume)
+                for volume in self.kubernetes.list_volumes(
+                    statefulset_name=self.statefulset_name
+                )
             )
         return self.kubernetes.statefulset_is_patched(
-            statefulset_name=self.model.app.name,
+            statefulset_name=self.statefulset_name,
             requested_volumes=requested_volumes,
         )
 
     def is_patched(self) -> bool:
-        """Returns whether statefulset and pod are patched.
+        """Return whether statefulset and pod are patched.
 
         Validates that the statefulset contains the appropriate volumes
         and that the pod also contains the appropriate volume mounts and
@@ -550,7 +528,7 @@ class KubernetesHugePagesPatchCharmLib(Object):
         return statefulset_is_patched and pod_is_patched
 
     def _generate_volumes_from_requested_hugepage(self) -> list[Volume]:
-        """Generates the list of required HugePages volumes.
+        """Generate the list of required HugePages volumes.
 
         Returns:
             list[Volume]: list of volumes to be set in the StatefulSet.
@@ -562,11 +540,11 @@ class KubernetesHugePagesPatchCharmLib(Object):
                     medium=f"HugePages-{requested_hugepages.size}"
                 ),
             )
-            for requested_hugepages in self.hugepages_volumes_func()
+            for requested_hugepages in self.hugepages_volumes
         ]
 
     def _generate_volumemounts_from_requested_hugepage(self) -> list[VolumeMount]:
-        """Generates the list of required HugePages volume mounts.
+        """Generate the list of required HugePages volume mounts.
 
         Returns:
             list[VolumeMount]: list of volume mounts to be set in the container.
@@ -576,20 +554,20 @@ class KubernetesHugePagesPatchCharmLib(Object):
                 name=f"hugepages-{requested_hugepages.size.lower()}",
                 mountPath=requested_hugepages.mount_path,
             )
-            for requested_hugepages in self.hugepages_volumes_func()
+            for requested_hugepages in self.hugepages_volumes
         ]
 
     def _generate_resource_requirements_from_requested_hugepage(
         self,
     ) -> ResourceRequirements:
-        """Generates the required resource requirements for HugePages.
+        """Generate the required resource requirements for HugePages.
 
         Returns:
             ResourceRequirements: required resource requirements to be set in the container.
         """
         limits = {}
         requests = {}
-        for hugepage in self.hugepages_volumes_func():
+        for hugepage in self.hugepages_volumes:
             limits.update({f"hugepages-{hugepage.size}": hugepage.limit})
             limits.update({"cpu": "2"})
             requests.update({f"hugepages-{hugepage.size}": hugepage.limit})
@@ -601,17 +579,17 @@ class KubernetesHugePagesPatchCharmLib(Object):
 
     @staticmethod
     def _volumemount_is_hugepages(volume_mount: VolumeMount) -> bool:
-        """Returns whether the specified volumeMount is HugePages."""
+        """Return whether the specified volumeMount is HugePages."""
         return volume_mount.name.startswith("hugepages")
 
     @staticmethod
     def _volume_is_hugepages(volume: Volume) -> bool:
-        """Returns whether the specified volume is HugePages."""
+        """Return whether the specified volume is HugePages."""
         return volume.name.startswith("hugepages")
 
     @staticmethod
     def _limit_or_request_is_hugepages(key: str) -> bool:
-        """Returns whether the specified limit or request regards HugePages."""
+        """Return whether the specified limit or request regards HugePages."""
         return key.startswith("hugepages")
 
     def _generate_volumes_to_be_replaced(self) -> list[Volume]:
@@ -627,13 +605,15 @@ class KubernetesHugePagesPatchCharmLib(Object):
         """
         new_volumes = self._generate_volumes_from_requested_hugepage()
         current_volumes = self.kubernetes.list_volumes(
-            statefulset_name=self.model.app.name,
+            statefulset_name=self.statefulset_name,
         )
         for current_volume in current_volumes:
             if not self._volume_is_hugepages(current_volume):
                 new_volumes.append(current_volume)
         if not new_volumes:
-            logger.warning("StatefulSet `%s` will have no volumes", self.model.app.name)
+            logger.warning(
+                "StatefulSet `%s` will have no volumes", self.statefulset_name
+            )
         return new_volumes
 
     def _generate_volumemounts_to_be_replaced(self) -> list[VolumeMount]:
@@ -649,7 +629,7 @@ class KubernetesHugePagesPatchCharmLib(Object):
         """
         new_volumemounts = self._generate_volumemounts_from_requested_hugepage()
         current_volumemounts = self.kubernetes.list_volumemounts(
-            statefulset_name=self.model.app.name, container_name=self.container_name
+            statefulset_name=self.statefulset_name, container_name=self.container_name
         )
         for current_volumemount in current_volumemounts:
             if not self._volumemount_is_hugepages(current_volumemount):
@@ -663,7 +643,7 @@ class KubernetesHugePagesPatchCharmLib(Object):
     def _remove_hugepages_from_resource_requirements(
         self, resource_attribute: dict
     ) -> dict:
-        """Removes HugePages-related keys from the given dictionary.
+        """Remove HugePages-related keys from the given dictionary.
 
         Args:
             resource_attribute: dictionary of resource requirements attribute (limits or requests)
@@ -693,7 +673,7 @@ class KubernetesHugePagesPatchCharmLib(Object):
             self._generate_resource_requirements_from_requested_hugepage()
         )
         current_resources = self.kubernetes.list_container_resources(
-            statefulset_name=self.model.app.name, container_name=self.container_name
+            statefulset_name=self.statefulset_name, container_name=self.container_name
         )
 
         new_limits = (

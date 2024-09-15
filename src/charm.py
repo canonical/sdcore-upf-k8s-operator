@@ -31,8 +31,8 @@ from lightkube.core.client import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod
 from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent, WaitingStatus
-from ops.charm import CharmBase, CharmEvents, CollectStatusEvent
-from ops.framework import EventBase, EventSource
+from ops.charm import CharmBase, CollectStatusEvent
+from ops.framework import EventBase
 from ops.main import main
 from ops.pebble import ChangeError, ConnectionError, ExecError, Layer, PathError
 
@@ -63,20 +63,8 @@ LOGGING_RELATION_NAME = "logging"
 WORKLOAD_VERSION_FILE_NAME = "/etc/workload-version"
 
 
-class K8sHugePagesVolumePatchChangedEvent(EventBase):
-    """Event triggered when a HugePages volume is changed."""
-
-
-class UpfOperatorCharmEvents(CharmEvents):
-    """Kubernetes UPF operator charm events."""
-
-    hugepages_volumes_config_changed = EventSource(K8sHugePagesVolumePatchChangedEvent)
-
-
 class UPFOperatorCharm(CharmBase):
     """Main class to describe juju event handling for the 5G UPF operator for K8s."""
-
-    on = UpfOperatorCharmEvents()  # type: ignore
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -115,10 +103,11 @@ class UPFOperatorCharm(CharmBase):
             privileged=self._get_privilege_required(),
         )
         self._kubernetes_volumes_patch = KubernetesHugePagesPatchCharmLib(
-            charm=self,
+            namespace=self._namespace,
+            statefulset_name=self.model.app.name,
             container_name=self._bessd_container_name,
-            hugepages_volumes_func=self._volumes_request_func_from_config,
-            refresh_event=self.on.hugepages_volumes_config_changed,
+            pod_name=self._pod_name,
+            hugepages_volumes=self._volumes_request_from_config(),
         )
         self.k8s_service = K8sService(
             namespace=self._namespace,
@@ -248,7 +237,7 @@ class UPFOperatorCharm(CharmBase):
             return lb_hostname
         return self._upf_hostname
 
-    def _volumes_request_func_from_config(self) -> list[HugePagesVolume]:
+    def _volumes_request_from_config(self) -> List[HugePagesVolume]:
         """Return list of HugePages to be set based on the application config.
 
         Returns:
@@ -542,7 +531,7 @@ class UPFOperatorCharm(CharmBase):
         if not self._kubernetes_multus.multus_is_available():
             return
         self._kubernetes_multus.configure()
-        self.on.hugepages_volumes_config_changed.emit()
+        self._kubernetes_volumes_patch.configure()
         if self._charm_config.upf_mode == UpfMode.dpdk:
             self._configure_bessd_for_dpdk()
         if not self._bessd_container.can_connect():
