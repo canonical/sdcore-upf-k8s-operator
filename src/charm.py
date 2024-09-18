@@ -570,6 +570,8 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._hugepages_are_available():
             return
+        if not self._kubernetes_multus.multus_is_available():
+            return
         if not self._kubernetes_multus.is_ready():
             return
         if not path_exists(container=self._bessd_container, path=BESSD_CONTAINER_CONFIG_PATH):
