@@ -78,7 +78,7 @@ oauthlib==3.2.2
     #   requests-oauthlib
 ops==2.16.1
     # via ops-scenario
-ops-scenario==6.1.6
+ops-scenario==7.0.5
     # via pytest-interface-tester
 packaging==24.1
     # via
@@ -140,7 +140,7 @@ pytest-asyncio==0.21.2
     # via
     #   -r test-requirements.in
     #   pytest-operator
-pytest-interface-tester==3.1.0
+pytest-interface-tester==3.1.1
     # via -r test-requirements.in
 pytest-operator==0.36.0
     # via -r test-requirements.in
