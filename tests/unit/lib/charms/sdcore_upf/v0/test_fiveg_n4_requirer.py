@@ -41,7 +41,7 @@ class TestN4Provides:
             relations=[fiveg_n4_relation],
         )
 
-        self.ctx.run(fiveg_n4_relation.changed_event, state_in)
+        self.ctx.run(self.ctx.on.relation_changed(fiveg_n4_relation), state_in)
 
         assert len(self.ctx.emitted_events) == 2
         assert isinstance(self.ctx.emitted_events[1], N4AvailableEvent)
@@ -59,6 +59,6 @@ class TestN4Provides:
             relations=[fiveg_n4_relation],
         )
 
-        self.ctx.run(fiveg_n4_relation.changed_event, state_in)
+        self.ctx.run(self.ctx.on.relation_changed(fiveg_n4_relation), state_in)
 
         assert len(self.ctx.emitted_events) == 1

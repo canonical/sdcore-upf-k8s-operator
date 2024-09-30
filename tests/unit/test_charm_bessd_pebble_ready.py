@@ -22,7 +22,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -30,62 +30,44 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 layers={
                     "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
                 },
-                service_status={"pfcp-agent": ServiceStatus.ACTIVE},
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
             bessd_container = scenario.Container(
                 name="bessd",
                 mounts={"config": bessd_config_mount},
                 can_connect=True,
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "iptables-legacy",
-                        "--check",
-                        "OUTPUT",
-                        "-p",
-                        "icmp",
-                        "--icmp-type",
-                        "port-unreachable",
-                        "-j",
-                        "DROP",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -100,7 +82,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 model=scenario.Model(name="whatever"),
             )
 
-            self.ctx.run(bessd_container.pebble_ready_event, state_in)
+            self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
 
             with open("tests/unit/expected_upf.json", "r") as f:
                 expected_upf_config = f.read()
@@ -120,7 +102,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -128,62 +110,44 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 layers={
                     "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
                 },
-                service_status={"pfcp-agent": ServiceStatus.ACTIVE},
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
             bessd_container = scenario.Container(
                 name="bessd",
                 mounts={"config": bessd_config_mount},
                 can_connect=True,
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "iptables-legacy",
-                        "--check",
-                        "OUTPUT",
-                        "-p",
-                        "icmp",
-                        "--icmp-type",
-                        "port-unreachable",
-                        "-j",
-                        "DROP",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -203,7 +167,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 f.write(expected_upf_config.strip())
             config_modification_time = os.stat(f"{temp_file}/upf.json").st_mtime
 
-            self.ctx.run(bessd_container.pebble_ready_event, state_in)
+            self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
 
             with open(f"{temp_file}/upf.json", "r") as f:
                 actual_upf_config = f.read()
@@ -220,7 +184,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -228,62 +192,44 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 layers={
                     "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
                 },
-                service_status={"pfcp-agent": ServiceStatus.ACTIVE},
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
             bessd_container = scenario.Container(
                 name="bessd",
                 mounts={"config": bessd_config_mount},
                 can_connect=True,
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "iptables-legacy",
-                        "--check",
-                        "OUTPUT",
-                        "-p",
-                        "icmp",
-                        "--icmp-type",
-                        "port-unreachable",
-                        "-j",
-                        "DROP",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -297,9 +243,10 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 },
             )
 
-            state_out = self.ctx.run(bessd_container.pebble_ready_event, state_in)
+            state_out = self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
 
-            assert state_out.containers[0].layers == {
+            container = state_out.get_container("bessd")
+            assert container.layers == {
                 "bessd": Layer(
                     {
                         "summary": "bessd layer",
@@ -353,7 +300,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -361,51 +308,25 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 layers={
                     "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
                 },
-                service_status={"pfcp-agent": ServiceStatus.ACTIVE},
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
             bessd_container = scenario.Container(
                 name="bessd",
                 mounts={"config": bessd_config_mount},
                 can_connect=True,
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                execs={
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "run",
+                            "/opt/bess/bessctl/conf/up4",
+                        ],
                         return_code=0,
                         stdout="",
-                        stderr="",
-                    ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "iptables-legacy",
-                        "--check",
-                        "OUTPUT",
-                        "-p",
-                        "icmp",
-                        "--icmp-type",
-                        "port-unreachable",
-                        "-j",
-                        "DROP",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "run",
-                        "/opt/bess/bessctl/conf/up4",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="whatever command output",
-                        stderr="",
                     ),
                 },
             )
@@ -419,12 +340,13 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 },
             )
 
-            self.ctx.run(bessd_container.pebble_ready_event, state_in)
+            self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
 
-            # When scenario 7 is out, we should assert that the mock exec was called
-            # instead of validating log content
-            # Reference: https://github.com/canonical/ops-scenario/issues/180
-            assert "whatever command output" in caplog.text
+            assert self.ctx.exec_history[bessd_container.name][1].command == [
+                "/opt/bess/bessctl/bessctl",
+                "run",
+                "/opt/bess/bessctl/conf/up4",
+            ]
 
     def test_given_routes_not_created_when_bessd_pebble_ready_then_routes_created(self, caplog):
         gnb_subnet = "2.2.2.0/24"
@@ -434,7 +356,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -442,88 +364,45 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 layers={
                     "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
                 },
-                service_status={"pfcp-agent": ServiceStatus.ACTIVE},
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
             bessd_container = scenario.Container(
                 name="bessd",
                 mounts={"config": bessd_config_mount},
                 can_connect=True,
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout="",  # route not created
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "ip",
+                            "route",
+                            "replace",
+                            "default",
+                            "via",
+                            core_gateway_ip,
+                            "metric",
+                            "110",
+                        ],
                         return_code=0,
-                        stdout="RUNNING",
-                        stderr="",
                     ),
-                    (
-                        "iptables-legacy",
-                        "--check",
-                        "OUTPUT",
-                        "-p",
-                        "icmp",
-                        "--icmp-type",
-                        "port-unreachable",
-                        "-j",
-                        "DROP",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "ip",
+                            "route",
+                            "replace",
+                            gnb_subnet,
+                            "via",
+                            access_gateway_ip,
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "ip",
-                        "route",
-                        "replace",
-                        "default",
-                        "via",
-                        core_gateway_ip,
-                        "metric",
-                        "110",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "ip",
-                        "route",
-                        "replace",
-                        gnb_subnet,
-                        "via",
-                        access_gateway_ip,
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -537,16 +416,29 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 },
             )
 
-            self.ctx.run(bessd_container.pebble_ready_event, state_in)
+            self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
 
-            # When scenario 7 is out, we should assert that the mock exec was called
-            # instead of validating log content
-            # Reference: https://github.com/canonical/ops-scenario/issues/180
-            assert "Default core network route created" in caplog.text
-            assert "Route to gnb-subnet created" in caplog.text
+            assert self.ctx.exec_history[bessd_container.name][1].command == [
+                "ip",
+                "route",
+                "replace",
+                "default",
+                "via",
+                core_gateway_ip,
+                "metric",
+                "110",
+            ]
+            assert self.ctx.exec_history[bessd_container.name][3].command == [
+                "ip",
+                "route",
+                "replace",
+                gnb_subnet,
+                "via",
+                access_gateway_ip,
+            ]
 
     def test_given_iptables_rule_not_created_when_bessd_pebble_ready_then_rule_created(
-        self, caplog
+        self,
     ):
         gnb_subnet = "2.2.2.0/24"
         core_gateway_ip = "1.2.3.4"
@@ -555,7 +447,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -563,77 +455,30 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 layers={
                     "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
                 },
-                service_status={"pfcp-agent": ServiceStatus.ACTIVE},
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
             bessd_container = scenario.Container(
                 name="bessd",
                 mounts={"config": bessd_config_mount},
                 can_connect=True,
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                execs={
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "iptables-legacy",
+                            "-I",
+                            "OUTPUT",
+                            "-p",
+                            "icmp",
+                            "--icmp-type",
+                            "port-unreachable",
+                            "-j",
+                            "DROP",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="RUNNING",
-                        stderr="",
-                    ),
-                    (
-                        "iptables-legacy",
-                        "--check",
-                        "OUTPUT",
-                        "-p",
-                        "icmp",
-                        "--icmp-type",
-                        "port-unreachable",
-                        "-j",
-                        "DROP",
-                    ): scenario.ExecOutput(
-                        return_code=1,  # rule not created
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
-                    ),
-                    (
-                        "iptables-legacy",
-                        "-I",
-                        "OUTPUT",
-                        "-p",
-                        "icmp",
-                        "--icmp-type",
-                        "port-unreachable",
-                        "-j",
-                        "DROP",
-                    ): scenario.ExecOutput(
-                        return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -647,9 +492,16 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 },
             )
 
-            self.ctx.run(bessd_container.pebble_ready_event, state_in)
+            self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
 
-            # When scenario 7 is out, we should assert that the mock exec was called
-            # instead of validating log content
-            # Reference: https://github.com/canonical/ops-scenario/issues/180
-            assert "Iptables rule for ICMP created" in caplog.text
+            assert self.ctx.exec_history[bessd_container.name][0].command == [
+                "iptables-legacy",
+                "-I",
+                "OUTPUT",
+                "-p",
+                "icmp",
+                "--icmp-type",
+                "port-unreachable",
+                "-j",
+                "DROP",
+            ]

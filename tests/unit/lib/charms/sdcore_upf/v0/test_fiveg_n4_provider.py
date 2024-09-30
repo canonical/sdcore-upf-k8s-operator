@@ -63,19 +63,19 @@ class TestN4Provides:
             relations=[fiveg_n4_relation],
         )
 
-        action = scenario.Action(
-            name="publish-upf-information",
-            params={
-                "relation-id": str(fiveg_n4_relation.relation_id),
-                "hostname": "upf",
-                "port": "1234",
-            },
+        params = {
+            "relation-id": str(fiveg_n4_relation.id),
+            "hostname": "upf",
+            "port": "1234",
+        }
+
+        state_out = self.ctx.run(
+            self.ctx.on.action("publish-upf-information", params=params), state_in
         )
 
-        action_output = self.ctx.run_action(action, state_in)
-
-        assert action_output.state.relations[0].local_app_data["upf_hostname"] == "upf"
-        assert action_output.state.relations[0].local_app_data["upf_port"] == "1234"
+        relation = state_out.get_relation(fiveg_n4_relation.id)
+        assert relation.local_app_data["upf_hostname"] == "upf"
+        assert relation.local_app_data["upf_port"] == "1234"
 
     def test_given_when_relation_joined_then_fiveg_n4_request_event_emitted(
         self,
@@ -89,7 +89,7 @@ class TestN4Provides:
             relations=[fiveg_n4_relation],
         )
 
-        self.ctx.run(fiveg_n4_relation.joined_event, state_in)
+        self.ctx.run(self.ctx.on.relation_joined(fiveg_n4_relation), state_in)
 
         assert len(self.ctx.emitted_events) == 2
         assert isinstance(self.ctx.emitted_events[1], FiveGN4RequestEvent)

@@ -19,7 +19,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             leader=False,
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus("Scaling is not implemented for this charm")
 
@@ -57,7 +57,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             },
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus(
             f"The following configurations are not valid: ['{config_param}']"
@@ -71,7 +71,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             config={"upf-mode": "dpdk"},
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus(
             "The following configurations are not valid: ['access-interface-mac-address', 'core-interface-mac-address']"  # noqa: E501
@@ -85,7 +85,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             leader=True,
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus(
             "CPU is not compatible, see logs for more details"
@@ -105,7 +105,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             },
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus("Not enough HugePages available")
 
@@ -118,7 +118,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             config={},
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus("Multus is not installed or enabled")
 
@@ -137,7 +137,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             containers=[bessd_container],
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for bessd container to be ready")
 
@@ -155,7 +155,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             containers=[bessd_container],
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for Multus to be ready")
 
@@ -167,12 +167,12 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         bessd_container = scenario.Container(
             name="bessd",
             can_connect=True,
-            exec_mock={
-                ("ip", "route", "show"): scenario.ExecOutput(
+            execs={
+                scenario.Exec(
+                    command_prefix=["ip", "route", "show"],
                     return_code=0,
                     stdout="",
-                    stderr="",
-                )
+                ),
             },
         )
         state_in = scenario.State(
@@ -180,7 +180,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             containers=[bessd_container],
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for default route creation")
 
@@ -193,12 +193,12 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         bessd_container = scenario.Container(
             name="bessd",
             can_connect=True,
-            exec_mock={
-                ("ip", "route", "show"): scenario.ExecOutput(
+            execs={
+                scenario.Exec(
+                    command_prefix=["ip", "route", "show"],
                     return_code=0,
                     stdout=f"default via {core_gateway_ip}",
-                    stderr="",
-                )
+                ),
             },
         )
         state_in = scenario.State(
@@ -210,7 +210,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             },
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for RAN route creation")
 
@@ -225,12 +225,12 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         bessd_container = scenario.Container(
             name="bessd",
             can_connect=True,
-            exec_mock={
-                ("ip", "route", "show"): scenario.ExecOutput(
+            execs={
+                scenario.Exec(
+                    command_prefix=["ip", "route", "show"],
                     return_code=0,
                     stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",
-                    stderr="",
-                )
+                ),
             },
         )
         state_in = scenario.State(
@@ -243,7 +243,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             },
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for storage to be attached")
 
@@ -258,7 +258,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             bessd_container = scenario.Container(
                 name="bessd",
@@ -266,12 +266,12 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 mounts={
                     "config": bessd_config_mount,
                 },
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
-                    )
+                    ),
                 },
             )
             state_in = scenario.State(
@@ -284,7 +284,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.unit_status == WaitingStatus("Waiting for bessd service to run")
 
@@ -299,7 +299,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             bessd_container = scenario.Container(
                 name="bessd",
@@ -308,17 +308,16 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                     "config": bessd_config_mount,
                 },
                 layers={"bessd": Layer({"services": {"bessd": {}}})},
-                service_status={"bessd": ServiceStatus.ACTIVE},
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                service_statuses={"bessd": ServiceStatus.ACTIVE},
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=1,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -332,7 +331,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.unit_status == WaitingStatus(
                 "Waiting for bessd service to accept configuration messages"
@@ -349,7 +348,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             bessd_container = scenario.Container(
                 name="bessd",
@@ -358,22 +357,20 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                     "config": bessd_config_mount,
                 },
                 layers={"bessd": Layer({"services": {"bessd": {}}})},
-                service_status={"bessd": ServiceStatus.ACTIVE},
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                service_statuses={"bessd": ServiceStatus.ACTIVE},
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=1,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -387,7 +384,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
             assert state_out.unit_status == WaitingStatus(
                 "Waiting for bessd configuration to complete"
@@ -406,7 +403,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             bessd_container = scenario.Container(
                 name="bessd",
@@ -415,42 +412,39 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                     "config": bessd_config_mount,
                 },
                 layers={"bessd": Layer({"services": {"bessd": {}}})},
-                service_status={"bessd": ServiceStatus.ACTIVE},
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                service_statuses={"bessd": ServiceStatus.ACTIVE},
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -464,7 +458,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for routectl service to run")
 
@@ -479,7 +473,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -494,42 +488,39 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 layers={
                     "bessd": Layer({"services": {"bessd": {}, "routectl": {}}}),
                 },
-                service_status={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                service_statuses={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -543,7 +534,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == WaitingStatus("Waiting for pfcp agent service to run")
 
@@ -558,7 +549,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             bessd_config_mount = scenario.Mount(
                 location="/etc/bess/conf/",
-                src=temp_file,
+                source=temp_file,
             )
             pfcp_agent_container = scenario.Container(
                 name="pfcp-agent",
@@ -566,7 +557,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 layers={
                     "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
                 },
-                service_status={"pfcp-agent": ServiceStatus.ACTIVE},
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
             bessd_container = scenario.Container(
                 name="bessd",
@@ -577,42 +568,39 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 layers={
                     "bessd": Layer({"services": {"bessd": {}, "routectl": {}}}),
                 },
-                service_status={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
-                exec_mock={
-                    ("ip", "route", "show"): scenario.ExecOutput(
+                service_statuses={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "accessRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
-                    (
-                        "/opt/bess/bessctl/bessctl",
-                        "show",
-                        "module",
-                        "coreRoutes",
-                    ): scenario.ExecOutput(
+                    scenario.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
                         return_code=0,
-                        stdout="",
-                        stderr="",
                     ),
                 },
             )
@@ -626,7 +614,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
             )
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == ActiveStatus()
 
@@ -647,7 +635,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             containers=[bessd_container],
         )
 
-        state_out = self.ctx.run("collect_unit_status", state_in)
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.workload_version == ""
 
@@ -662,7 +650,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         with tempfile.TemporaryDirectory() as temp_file:
             workload_version_mount = scenario.Mount(
                 location="/etc",
-                src=temp_file,
+                source=temp_file,
             )
 
             bessd_container = scenario.Container(
@@ -677,6 +665,6 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             with open(f"{temp_file}/workload-version", "w") as f:
                 f.write("1.2.3")
 
-            state_out = self.ctx.run("collect_unit_status", state_in)
+            state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.workload_version == "1.2.3"

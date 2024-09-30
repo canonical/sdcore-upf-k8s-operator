@@ -26,44 +26,7 @@ class TestCharmPFCPAgentPebbleReady(UPFUnitTestFixtures):
         bessd_container = scenario.Container(
             name="bessd",
             can_connect=True,
-            service_status={"bessd": ServiceStatus.ACTIVE},
-            exec_mock={
-                ("ip", "route", "show"): scenario.ExecOutput(
-                    return_code=0,
-                    stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
-                    stderr="",
-                ),
-                ("/opt/bess/bessctl/bessctl", "show", "version"): scenario.ExecOutput(
-                    return_code=0,
-                    stdout="",
-                    stderr="",
-                ),
-                ("/opt/bess/bessctl/bessctl", "show", "worker"): scenario.ExecOutput(
-                    return_code=0,
-                    stdout="RUNNING",
-                    stderr="",
-                ),
-                (
-                    "/opt/bess/bessctl/bessctl",
-                    "show",
-                    "module",
-                    "accessRoutes",
-                ): scenario.ExecOutput(
-                    return_code=0,
-                    stdout="",
-                    stderr="",
-                ),
-                (
-                    "/opt/bess/bessctl/bessctl",
-                    "show",
-                    "module",
-                    "coreRoutes",
-                ): scenario.ExecOutput(
-                    return_code=0,
-                    stdout="",
-                    stderr="",
-                ),
-            },
+            service_statuses={"bessd": ServiceStatus.ACTIVE},
             layers={
                 "bessd": Layer(
                     {
@@ -83,9 +46,10 @@ class TestCharmPFCPAgentPebbleReady(UPFUnitTestFixtures):
             },
         )
 
-        state_out = self.ctx.run(pfcp_agent_container.pebble_ready_event, state_in)
+        state_out = self.ctx.run(self.ctx.on.pebble_ready(pfcp_agent_container), state_in)
 
-        assert state_out.containers[1].layers == {
+        container = state_out.get_container("pfcp-agent")
+        assert container.layers == {
             "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
             "pfcp": Layer(
                 {
