@@ -59,17 +59,17 @@ class TestN3Provides:
             relations=[fiveg_n3_relation],
         )
 
-        action = scenario.Action(
-            name="publish-upf-information",
-            params={
-                "ip-address": "1.2.3.4",
-                "relation-id": str(fiveg_n3_relation.relation_id),
-            },
+        params = {
+            "ip-address": "1.2.3.4",
+            "relation-id": str(fiveg_n3_relation.id),
+        }
+
+        state_out = self.ctx.run(
+            self.ctx.on.action("publish-upf-information", params=params), state_in
         )
 
-        action_output = self.ctx.run_action(action, state_in)
-
-        assert action_output.state.relations[0].local_app_data["upf_ip_address"] == "1.2.3.4"
+        relation = state_out.get_relation(fiveg_n3_relation.id)
+        assert relation.local_app_data["upf_ip_address"] == "1.2.3.4"
 
     def test_given_invalid_upf_information_when_set_upf_information_then_error_raised(
         self,
@@ -83,16 +83,13 @@ class TestN3Provides:
             relations=[fiveg_n3_relation],
         )
 
-        action = scenario.Action(
-            name="publish-upf-information",
-            params={
-                "ip-address": "abcdef",
-                "relation-id": str(fiveg_n3_relation.relation_id),
-            },
-        )
+        params = {
+            "ip-address": "abcdef",
+            "relation-id": str(fiveg_n3_relation.id),
+        }
 
         with pytest.raises(Exception) as e:
-            self.ctx.run_action(action, state_in)
+            self.ctx.run(self.ctx.on.action("publish-upf-information", params=params), state_in)
 
         assert "Invalid UPF IP address" in str(e.value)
 
@@ -108,7 +105,7 @@ class TestN3Provides:
             relations=[fiveg_n3_relation],
         )
 
-        self.ctx.run(fiveg_n3_relation.joined_event, state_in)
+        self.ctx.run(self.ctx.on.relation_joined(fiveg_n3_relation), state_in)
 
         assert len(self.ctx.emitted_events) == 2
         assert isinstance(self.ctx.emitted_events[1], FiveGN3RequestEvent)

@@ -16,6 +16,6 @@ class TestCharmRemove(UPFUnitTestFixtures):
             leader=True,
         )
 
-        self.ctx.run("remove", state_in)
+        self.ctx.run(self.ctx.on.remove(), state_in)
 
         self.mock_k8s_service.delete.assert_called_once()
