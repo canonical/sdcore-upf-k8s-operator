@@ -1,6 +1,6 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
-
+import tempfile
 
 import scenario
 from ops.pebble import Layer, ServiceStatus
@@ -16,52 +16,63 @@ class TestCharmPFCPAgentPebbleReady(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
-        pfcp_agent_container = scenario.Container(
-            name="pfcp-agent",
-            can_connect=True,
-            layers={
-                "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
-            },
-        )
-        bessd_container = scenario.Container(
-            name="bessd",
-            can_connect=True,
-            service_statuses={"bessd": ServiceStatus.ACTIVE},
-            layers={
-                "bessd": Layer(
+        with tempfile.TemporaryDirectory() as temp_file:
+            pfcp_agent_config_mount = scenario.Mount(
+                location="/tmp/conf/",
+                source=temp_file,
+            )
+            pfcp_agent_container = scenario.Container(
+                name="pfcp-agent",
+                can_connect=True,
+                mounts={
+                    "config": pfcp_agent_config_mount,
+                },
+            )
+            bessd_container = scenario.Container(
+                name="bessd",
+                can_connect=True,
+                execs={
+                    scenario.Exec(
+                        command_prefix=["ip", "route", "show"],
+                        return_code=0,
+                        stdout="",
+                    ),
+                },
+                service_statuses={"bessd": ServiceStatus.ACTIVE},
+                layers={
+                    "bessd": Layer(
+                        {
+                            "services": {"bessd": {}},
+                        }
+                    ),
+                },
+            )
+            self.mock_k8s_service.is_created.return_value = True
+            state_in = scenario.State(
+                leader=True,
+                containers=[bessd_container, pfcp_agent_container],
+                config={
+                    "core-gateway-ip": core_gateway_ip,
+                    "access-gateway-ip": access_gateway_ip,
+                    "gnb-subnet": gnb_subnet,
+                },
+            )
+
+            state_out = self.ctx.run(self.ctx.on.pebble_ready(pfcp_agent_container), state_in)
+
+            container = state_out.get_container("pfcp-agent")
+            assert container.layers == {
+                "pfcp": Layer(
                     {
-                        "services": {"bessd": {}},
+                        "summary": "pfcp agent layer",
+                        "description": "pebble config layer for pfcp agent",
+                        "services": {
+                            "pfcp-agent": {
+                                "startup": "enabled",
+                                "override": "replace",
+                                "command": "pfcpiface -config /tmp/conf/upf.json",
+                            }
+                        },
                     }
                 ),
-            },
-        )
-        self.mock_k8s_service.is_created.return_value = True
-        state_in = scenario.State(
-            leader=True,
-            containers=[bessd_container, pfcp_agent_container],
-            config={
-                "core-gateway-ip": core_gateway_ip,
-                "access-gateway-ip": access_gateway_ip,
-                "gnb-subnet": gnb_subnet,
-            },
-        )
-
-        state_out = self.ctx.run(self.ctx.on.pebble_ready(pfcp_agent_container), state_in)
-
-        container = state_out.get_container("pfcp-agent")
-        assert container.layers == {
-            "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
-            "pfcp": Layer(
-                {
-                    "summary": "pfcp agent layer",
-                    "description": "pebble config layer for pfcp agent",
-                    "services": {
-                        "pfcp-agent": {
-                            "startup": "enabled",
-                            "override": "replace",
-                            "command": "pfcpiface -config /tmp/conf/upf.json",
-                        }
-                    },
-                }
-            ),
-        }
+            }

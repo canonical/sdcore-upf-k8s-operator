@@ -42,6 +42,10 @@ class TestCharmConfigChanged(UPFUnitTestFixtures):
             name="bessd",
             can_connect=True,
         )
+        pfcp_agent_container = scenario.Container(
+            name="pfcp-agent",
+            can_connect=True,
+        )
         n3_relation = scenario.Relation(
             endpoint="fiveg_n3",
             interface="fiveg_n3",
@@ -49,7 +53,7 @@ class TestCharmConfigChanged(UPFUnitTestFixtures):
 
         state_in = scenario.State(
             leader=True,
-            containers=[bessd_container],
+            containers=[bessd_container, pfcp_agent_container],
             relations=[n3_relation],
             config={"access-ip": "1.2.3.4"},
         )
@@ -71,6 +75,10 @@ class TestCharmConfigChanged(UPFUnitTestFixtures):
             name="bessd",
             can_connect=True,
         )
+        pfcp_agent_container = scenario.Container(
+            name="pfcp-agent",
+            can_connect=True,
+        )
         n4_relation = scenario.Relation(
             endpoint="fiveg_n4",
             interface="fiveg_n4",
@@ -78,7 +86,7 @@ class TestCharmConfigChanged(UPFUnitTestFixtures):
 
         state_in = scenario.State(
             leader=True,
-            containers=[bessd_container],
+            containers=[bessd_container, pfcp_agent_container],
             relations=[n4_relation],
         )
 
