@@ -464,6 +464,10 @@ class UPFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for bessd container to be ready"))
             logger.info("Waiting for bessd container to be ready")
             return
+        if not self._pfcp_agent_container.can_connect():
+            event.add_status(WaitingStatus("Waiting for pfcp-agent container to be ready"))
+            logger.info("Waiting for pfcp-agent container to be ready")
+            return
         self.unit.set_workload_version(self._get_workload_version())
 
         if not self._kubernetes_multus.is_ready():
@@ -485,8 +489,19 @@ class UPFOperatorCharm(CharmBase):
             logger.info("Waiting for RAN route creation")
             return
         if not path_exists(container=self._bessd_container, path=BESSD_CONTAINER_CONFIG_PATH):
-            event.add_status(WaitingStatus("Waiting for storage to be attached"))
-            logger.info("Waiting for storage to be attached")
+            event.add_status(
+                WaitingStatus("Waiting for storage to be attached for bessd container")
+            )
+            logger.info("Waiting for storage to be attached for bessd container")
+            return
+        if not path_exists(
+            container=self._pfcp_agent_container,
+            path=PFCP_AGENT_CONTAINER_CONFIG_PATH,
+            ):
+            event.add_status(
+                WaitingStatus("Waiting for storage to be attached for pfcp-agent container")
+            )
+            logger.info("Waiting for storage to be attached for pfcp-agent container")
             return
         if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
             event.add_status(WaitingStatus("Waiting for bessd service to run"))
@@ -586,7 +601,10 @@ class UPFOperatorCharm(CharmBase):
             return
         if not self._hugepages_are_available():
             return
-        if not service_is_running_on_container(self._bessd_container, self._bessd_service_name):
+        if not path_exists(
+            container=self._pfcp_agent_container,
+            path=PFCP_AGENT_CONTAINER_CONFIG_PATH,
+        ):
             return
         self._configure_pfcp_agent_workload()
 
@@ -878,12 +896,15 @@ class UPFOperatorCharm(CharmBase):
 
     def _configure_pfcp_agent_workload(self) -> None:
         """Configure pebble layer for `pfcp-agent` container."""
+        restart_service = False
         plan = self._pfcp_agent_container.get_plan()
         layer = self._pfcp_agent_pebble_layer
         if plan.services != layer.services:
             self._pfcp_agent_container.add_layer(
                 "pfcp", self._pfcp_agent_pebble_layer, combine=True
             )
+            restart_service = True
+        if restart_service:
             self._pfcp_agent_container.restart(self._pfcp_agent_service_name)
             logger.info("Service `pfcp` restarted")
 
