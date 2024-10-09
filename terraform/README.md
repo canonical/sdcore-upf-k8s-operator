@@ -17,7 +17,7 @@ depending on the deployment architecture.
 - **output.tf** - Responsible for integrating the module with other Terraform modules, primarily
   by defining potential integration endpoints (charm integrations), but also by exposing
   the application name.
-- **terraform.tf** - Defines the Terraform provider.
+- **versions.tf** - Defines the Terraform provider.
 
 ## Deploying sdcore-upf-k8s base module separately
 
@@ -68,10 +68,14 @@ If you want to use `sdcore-upf-k8s` base module as part of your Terraform module
 like shown below:
 
 ```text
+data "juju_model" "my_model" {
+  name = "my_model_name"
+}
+
 module "upf" {
   source = "git::https://github.com/canonical/sdcore-upf-k8s-operator//terraform"
   
-  model_name = "juju_model_name"
+  model = juju_model.my_model.name
   config = Optional config map
 }
 ```
@@ -79,15 +83,15 @@ module "upf" {
 Create integrations, for instance:
 
 ```text
-resource "juju_integration" "upf-prometheus" {
-  model = var.model_name
+resource "juju_integration" "upf-nms" {
+  model = juju_model.my_model.name
   application {
     name     = module.upf.app_name
-    endpoint = module.upf.metrics_endpoint
+    endpoint = module.upf.provides.fiveg_n4
   }
   application {
-    name     = module.prometheus.app_name
-    endpoint = module.prometheus.metrics_endpoint
+    name     = module.nms.app_name
+    endpoint = module.nms.requires.fiveg_n4
   }
 }
 ```
