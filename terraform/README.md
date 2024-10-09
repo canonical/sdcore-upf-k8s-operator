@@ -84,7 +84,7 @@ Create integrations, for instance:
 
 ```text
 resource "juju_integration" "upf-nms" {
-  model = var.model_name
+  model = juju_model.my_model.name
   application {
     name     = module.upf.app_name
     endpoint = module.upf.provides.fiveg_n4
