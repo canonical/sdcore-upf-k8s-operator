@@ -30,10 +30,17 @@ from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod
-from ops import ActiveStatus, BlockedStatus, Container, ModelError, RemoveEvent, WaitingStatus
+from ops import (
+    ActiveStatus,
+    BlockedStatus,
+    Container,
+    ModelError,
+    RemoveEvent,
+    WaitingStatus,
+    main,
+)
 from ops.charm import CharmBase, CollectStatusEvent
 from ops.framework import EventBase
-from ops.main import main
 from ops.pebble import ChangeError, ConnectionError, ExecError, Layer, PathError
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
@@ -497,7 +504,7 @@ class UPFOperatorCharm(CharmBase):
         if not path_exists(
             container=self._pfcp_agent_container,
             path=PFCP_AGENT_CONTAINER_CONFIG_PATH,
-            ):
+        ):
             event.add_status(
                 WaitingStatus("Waiting for storage to be attached for pfcp-agent container")
             )
