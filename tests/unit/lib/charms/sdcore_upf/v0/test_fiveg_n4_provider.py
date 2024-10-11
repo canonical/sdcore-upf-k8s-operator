@@ -3,8 +3,8 @@
 
 
 import pytest
-import scenario
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import FiveGN4RequestEvent, N4Provides
+from ops import testing
 from ops.charm import ActionEvent, CharmBase
 
 
@@ -34,7 +34,7 @@ class N4Provider(CharmBase):
 class TestN4Provides:
     @pytest.fixture(autouse=True)
     def context(self):
-        self.ctx = scenario.Context(
+        self.ctx = testing.Context(
             charm_type=N4Provider,
             meta={
                 "name": "n4-provider",
@@ -54,11 +54,11 @@ class TestN4Provides:
     def test_given_fiveg_n4_relation_when_set_upf_information_then_info_added_to_relation_data(  # noqa: E501
         self,
     ):
-        fiveg_n4_relation = scenario.Relation(
+        fiveg_n4_relation = testing.Relation(
             endpoint="fiveg_n4",
             interface="fiveg_n4",
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             relations=[fiveg_n4_relation],
         )
@@ -80,11 +80,11 @@ class TestN4Provides:
     def test_given_when_relation_joined_then_fiveg_n4_request_event_emitted(
         self,
     ):
-        fiveg_n4_relation = scenario.Relation(
+        fiveg_n4_relation = testing.Relation(
             endpoint="fiveg_n4",
             interface="fiveg_n4",
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             relations=[fiveg_n4_relation],
         )

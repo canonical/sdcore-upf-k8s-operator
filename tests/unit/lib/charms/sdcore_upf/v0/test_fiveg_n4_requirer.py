@@ -3,8 +3,8 @@
 
 
 import pytest
-import scenario
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4AvailableEvent, N4Requires
+from ops import testing
 from ops.charm import CharmBase
 
 
@@ -17,7 +17,7 @@ class N4Requirer(CharmBase):
 class TestN4Provides:
     @pytest.fixture(autouse=True)
     def context(self):
-        self.ctx = scenario.Context(
+        self.ctx = testing.Context(
             charm_type=N4Requirer,
             meta={
                 "name": "n4-requirer",
@@ -28,7 +28,7 @@ class TestN4Provides:
     def test_given_upf_hostname_in_relation_data_when_relation_changed_then_fiveg_n4_request_event_emitted(  # noqa: E501
         self,
     ):
-        fiveg_n4_relation = scenario.Relation(
+        fiveg_n4_relation = testing.Relation(
             endpoint="fiveg_n4",
             interface="fiveg_n4",
             remote_app_data={
@@ -36,7 +36,7 @@ class TestN4Provides:
                 "upf_port": "1234",
             },
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             relations=[fiveg_n4_relation],
         )
@@ -49,12 +49,12 @@ class TestN4Provides:
     def test_given_upf_hostname_not_in_relation_data_when_relation_changed_then_fiveg_n4_request_event_emitted(  # noqa: E501
         self,
     ):
-        fiveg_n4_relation = scenario.Relation(
+        fiveg_n4_relation = testing.Relation(
             endpoint="fiveg_n4",
             interface="fiveg_n4",
             remote_app_data={},
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             relations=[fiveg_n4_relation],
         )

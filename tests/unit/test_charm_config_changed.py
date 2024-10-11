@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 
 
-import scenario
+from ops import testing
 
 from tests.unit.fixtures import UPFUnitTestFixtures
 
@@ -14,12 +14,12 @@ class TestCharmConfigChanged(UPFUnitTestFixtures):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         self.mock_k8s_service.is_created.return_value = True
         self.mock_dpdk.is_configured.return_value = False
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=False,
         )
 
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container],
             config={
@@ -38,20 +38,20 @@ class TestCharmConfigChanged(UPFUnitTestFixtures):
     ):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         self.mock_k8s_service.is_created.return_value = True
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=True,
         )
-        pfcp_agent_container = scenario.Container(
+        pfcp_agent_container = testing.Container(
             name="pfcp-agent",
             can_connect=True,
         )
-        n3_relation = scenario.Relation(
+        n3_relation = testing.Relation(
             endpoint="fiveg_n3",
             interface="fiveg_n3",
         )
 
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container, pfcp_agent_container],
             relations=[n3_relation],
@@ -71,20 +71,20 @@ class TestCharmConfigChanged(UPFUnitTestFixtures):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         self.mock_k8s_service.is_created.return_value = True
         self.mock_k8s_service.get_hostname.return_value = "my-hostname"
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=True,
         )
-        pfcp_agent_container = scenario.Container(
+        pfcp_agent_container = testing.Container(
             name="pfcp-agent",
             can_connect=True,
         )
-        n4_relation = scenario.Relation(
+        n4_relation = testing.Relation(
             endpoint="fiveg_n4",
             interface="fiveg_n4",
         )
 
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container, pfcp_agent_container],
             relations=[n4_relation],
