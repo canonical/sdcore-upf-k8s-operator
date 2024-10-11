@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 
 
-import scenario
+from ops import testing
 
 from tests.unit.fixtures import UPFUnitTestFixtures
 
@@ -12,7 +12,7 @@ class TestCharmRemove(UPFUnitTestFixtures):
         self,
     ):
         self.mock_k8s_service.is_created.return_value = True
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
         )
 

@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 import tempfile
 
-import scenario
+from ops import testing
 from ops.pebble import Layer, ServiceStatus
 
 from tests.unit.fixtures import UPFUnitTestFixtures
@@ -17,22 +17,22 @@ class TestCharmPFCPAgentPebbleReady(UPFUnitTestFixtures):
         access_gateway_ip = "2.1.1.1"
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
         with tempfile.TemporaryDirectory() as temp_file:
-            pfcp_agent_config_mount = scenario.Mount(
+            pfcp_agent_config_mount = testing.Mount(
                 location="/tmp/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
                 mounts={
                     "config": pfcp_agent_config_mount,
                 },
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout="",
@@ -48,7 +48,7 @@ class TestCharmPFCPAgentPebbleReady(UPFUnitTestFixtures):
                 },
             )
             self.mock_k8s_service.is_created.return_value = True
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={

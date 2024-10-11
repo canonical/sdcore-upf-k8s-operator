@@ -4,8 +4,7 @@
 import tempfile
 
 import pytest
-import scenario
-from ops import ActiveStatus, BlockedStatus, WaitingStatus
+from ops import ActiveStatus, BlockedStatus, WaitingStatus, testing
 from ops.pebble import Layer, ServiceStatus
 
 from tests.unit.fixtures import UPFUnitTestFixtures
@@ -15,7 +14,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
     def test_given_unit_not_leader_when_collect_unit_status_then_status_is_blocked(
         self,
     ):
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=False,
         )
 
@@ -50,7 +49,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
     def test_given_invalid_config_when_collect_unit_status_then_status_is_blocked(
         self, config_param, value
     ):
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             config={
                 config_param: value,
@@ -66,7 +65,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
     def test_given_upf_mode_set_to_dpdk_and_hugepages_enabled_but_mac_addresses_of_access_and_core_interfaces_not_set_when_collect_unit_status_then_status_is_blocked(  # noqa: E501
         self,
     ):
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             config={"upf-mode": "dpdk"},
         )
@@ -81,7 +80,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self,
     ):
         self.mock_check_output.return_value = b"Flags: ssse3 fma cx16 rdrand"
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
         )
 
@@ -96,7 +95,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
     ):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
         self.mock_client_list.return_value = []
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             config={
                 "upf-mode": "dpdk",
@@ -113,7 +112,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
         self.mock_client_list.return_value = []
         self.mock_multus_is_available.return_value = False
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             config={},
         )
@@ -128,11 +127,11 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
         self.mock_client_list.return_value = []
         self.mock_multus_is_available.return_value = True
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=False,
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container],
         )
@@ -146,15 +145,15 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self.mock_client_list.return_value = []
         self.mock_multus_is_available.return_value = True
         self.mock_multus_is_ready.return_value = False
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=True,
         )
-        pfcp_agent_container = scenario.Container(
+        pfcp_agent_container = testing.Container(
             name="pfcp-agent",
             can_connect=True,
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container, pfcp_agent_container],
         )
@@ -168,22 +167,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self.mock_client_list.return_value = []
         self.mock_multus_is_available.return_value = True
         self.mock_multus_is_ready.return_value = True
-        pfcp_agent_container = scenario.Container(
+        pfcp_agent_container = testing.Container(
             name="pfcp-agent",
             can_connect=True,
         )
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=True,
             execs={
-                scenario.Exec(
+                testing.Exec(
                     command_prefix=["ip", "route", "show"],
                     return_code=0,
                     stdout="",
                 ),
             },
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container, pfcp_agent_container],
         )
@@ -198,22 +197,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self.mock_multus_is_available.return_value = True
         self.mock_multus_is_ready.return_value = True
         core_gateway_ip = "1.2.3.4"
-        pfcp_agent_container = scenario.Container(
+        pfcp_agent_container = testing.Container(
             name="pfcp-agent",
             can_connect=True,
         )
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=True,
             execs={
-                scenario.Exec(
+                testing.Exec(
                     command_prefix=["ip", "route", "show"],
                     return_code=0,
                     stdout=f"default via {core_gateway_ip}",
                 ),
             },
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container, pfcp_agent_container],
             config={
@@ -234,22 +233,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         gnb_subnet = "2.2.2.0/24"
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
-        pfcp_agent_container = scenario.Container(
+        pfcp_agent_container = testing.Container(
             name="pfcp-agent",
             can_connect=True,
         )
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=True,
             execs={
-                scenario.Exec(
+                testing.Exec(
                     command_prefix=["ip", "route", "show"],
                     return_code=0,
                     stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",
                 ),
             },
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container, pfcp_agent_container],
             config={
@@ -274,36 +273,36 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         with tempfile.TemporaryDirectory() as temp_file:
-            bessd_config_mount = scenario.Mount(
+            bessd_config_mount = testing.Mount(
                 location="/etc/bess/conf/",
                 source=temp_file,
             )
-            pfcp_agent_config_mount = scenario.Mount(
+            pfcp_agent_config_mount = testing.Mount(
                 location="/tmp/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
                 mounts={
                     "config": pfcp_agent_config_mount,
                 },
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={
                     "config": bessd_config_mount,
                 },
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
                     ),
                 },
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={
@@ -326,22 +325,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         with tempfile.TemporaryDirectory() as temp_file:
-            bessd_config_mount = scenario.Mount(
+            bessd_config_mount = testing.Mount(
                 location="/etc/bess/conf/",
                 source=temp_file,
             )
-            pfcp_agent_config_mount = scenario.Mount(
+            pfcp_agent_config_mount = testing.Mount(
                 location="/tmp/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
                 mounts={
                     "config": pfcp_agent_config_mount,
                 },
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={
@@ -350,18 +349,18 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 layers={"bessd": Layer({"services": {"bessd": {}}})},
                 service_statuses={"bessd": ServiceStatus.ACTIVE},
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=1,
                     ),
                 },
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={
@@ -386,22 +385,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         with tempfile.TemporaryDirectory() as temp_file:
-            bessd_config_mount = scenario.Mount(
+            bessd_config_mount = testing.Mount(
                 location="/etc/bess/conf/",
                 source=temp_file,
             )
-            pfcp_agent_config_mount = scenario.Mount(
+            pfcp_agent_config_mount = testing.Mount(
                 location="/tmp/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
                 mounts={
                     "config": pfcp_agent_config_mount,
                 },
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={
@@ -410,22 +409,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 layers={"bessd": Layer({"services": {"bessd": {}}})},
                 service_statuses={"bessd": ServiceStatus.ACTIVE},
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=1,
                     ),
                 },
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={
@@ -452,22 +451,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         with tempfile.TemporaryDirectory() as temp_file:
-            bessd_config_mount = scenario.Mount(
+            bessd_config_mount = testing.Mount(
                 location="/etc/bess/conf/",
                 source=temp_file,
             )
-            pfcp_agent_config_mount = scenario.Mount(
+            pfcp_agent_config_mount = testing.Mount(
                 location="/tmp/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
                 mounts={
                     "config": pfcp_agent_config_mount,
                 },
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={
@@ -476,21 +475,21 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 layers={"bessd": Layer({"services": {"bessd": {}}})},
                 service_statuses={"bessd": ServiceStatus.ACTIVE},
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -499,7 +498,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                         ],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -510,7 +509,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                     ),
                 },
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={
@@ -524,7 +523,9 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
 
         assert state_out.unit_status == WaitingStatus("Waiting for routectl service to run")
 
-    def test_given_pfcp_agent_storage_not_attached_when_collect_unit_status_then_status_is_waiting(self):  # noqa: E501
+    def test_given_pfcp_agent_storage_not_attached_when_collect_unit_status_then_status_is_waiting(
+        self,
+    ):  # noqa: E501
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
         self.mock_client_list.return_value = []
         self.mock_multus_is_available.return_value = True
@@ -533,15 +534,15 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         with tempfile.TemporaryDirectory() as temp_file:
-            bessd_config_mount = scenario.Mount(
+            bessd_config_mount = testing.Mount(
                 location="/etc/bess/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={
@@ -552,21 +553,21 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
                 service_statuses={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -575,7 +576,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                         ],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -586,7 +587,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                     ),
                 },
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={
@@ -611,22 +612,22 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         with tempfile.TemporaryDirectory() as temp_file:
-            bessd_config_mount = scenario.Mount(
+            bessd_config_mount = testing.Mount(
                 location="/etc/bess/conf/",
                 source=temp_file,
             )
-            pfcp_agent_config_mount = scenario.Mount(
+            pfcp_agent_config_mount = testing.Mount(
                 location="/tmp/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
                 mounts={
                     "config": pfcp_agent_config_mount,
                 },
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={
@@ -637,21 +638,21 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
                 service_statuses={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -660,7 +661,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                         ],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -671,7 +672,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                     ),
                 },
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={
@@ -694,15 +695,15 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         core_gateway_ip = "1.2.3.4"
         access_gateway_ip = "2.1.1.1"
         with tempfile.TemporaryDirectory() as temp_file:
-            bessd_config_mount = scenario.Mount(
+            bessd_config_mount = testing.Mount(
                 location="/etc/bess/conf/",
                 source=temp_file,
             )
-            pfcp_agent_config_mount = scenario.Mount(
+            pfcp_agent_config_mount = testing.Mount(
                 location="/tmp/conf/",
                 source=temp_file,
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
                 mounts={
@@ -713,7 +714,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
                 service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
             )
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={
@@ -724,21 +725,21 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                 },
                 service_statuses={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
                 execs={
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["ip", "route", "show"],
                         return_code=0,
                         stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
                         return_code=0,
                         stdout="RUNNING",
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -747,7 +748,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                         ],
                         return_code=0,
                     ),
-                    scenario.Exec(
+                    testing.Exec(
                         command_prefix=[
                             "/opt/bess/bessctl/bessctl",
                             "show",
@@ -758,7 +759,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
                     ),
                 },
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
                 config={
@@ -780,15 +781,15 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self.mock_multus_is_available.return_value = True
         self.mock_multus_is_ready.return_value = False
 
-        bessd_container = scenario.Container(
+        bessd_container = testing.Container(
             name="bessd",
             can_connect=True,
         )
-        pfcp_agent_container = scenario.Container(
+        pfcp_agent_container = testing.Container(
             name="pfcp-agent",
             can_connect=True,
         )
-        state_in = scenario.State(
+        state_in = testing.State(
             leader=True,
             containers=[bessd_container, pfcp_agent_container],
         )
@@ -806,21 +807,21 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self.mock_multus_is_ready.return_value = False
 
         with tempfile.TemporaryDirectory() as temp_file:
-            workload_version_mount = scenario.Mount(
+            workload_version_mount = testing.Mount(
                 location="/etc",
                 source=temp_file,
             )
 
-            bessd_container = scenario.Container(
+            bessd_container = testing.Container(
                 name="bessd",
                 can_connect=True,
                 mounts={"workload-version": workload_version_mount},
             )
-            pfcp_agent_container = scenario.Container(
+            pfcp_agent_container = testing.Container(
                 name="pfcp-agent",
                 can_connect=True,
             )
-            state_in = scenario.State(
+            state_in = testing.State(
                 leader=True,
                 containers=[bessd_container, pfcp_agent_container],
             )
