@@ -1,0 +1,8 @@
+alert: UpfDown
+expr: up == 0
+for: 5m
+labels:
+    severity: critical
+annotations:
+    summary: "UPF availability"
+    description: "UPF is unavailable"
