@@ -87,6 +87,7 @@ class UPFOperatorCharm(CharmBase):
         self.fiveg_n4_provider = N4Provides(charm=self, relation_name="fiveg_n4")
         self._metrics_endpoint = MetricsEndpointProvider(
             self,
+            refresh_event=[self.on.update_status],
             jobs=[
                 {
                     "static_configs": [{"targets": [f"*:{PROMETHEUS_PORT}"]}],
