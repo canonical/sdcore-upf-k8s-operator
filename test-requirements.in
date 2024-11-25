@@ -6,7 +6,7 @@ parameterized
 pytest
 pytest-asyncio==0.21.2
 pytest-interface-tester
-pydantic==2.9.2
+pydantic==2.10.1
 pytest-operator
 ruff
 ops-scenario
