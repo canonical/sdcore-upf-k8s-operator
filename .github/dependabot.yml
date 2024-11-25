@@ -32,3 +32,33 @@ updates:
       terraform_modules:
         patterns:
           - "*"
+
+  - package-ecosystem: "github-actions"
+    target-branch: v1.5
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore: "
+    labels:
+      - v1.5
+
+  - package-ecosystem: "pip"
+    target-branch: v1.5
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore: "
+    labels:
+      - v1.5
+
+  - package-ecosystem: "terraform"
+    target-branch: v1.5
+    directory: "/terraform/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore: "
+    labels:
+      - v1.5
