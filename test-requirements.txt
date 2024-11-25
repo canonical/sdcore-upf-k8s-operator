@@ -26,7 +26,7 @@ click==8.1.7
     # via typer
 codespell==2.3.0
     # via -r test-requirements.in
-coverage[toml]==7.6.7
+coverage[toml]==7.6.8
     # via -r test-requirements.in
 cryptography==43.0.1
     # via paramiko
