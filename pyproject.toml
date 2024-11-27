@@ -1,3 +1,40 @@
+[project]
+name = "sdcore-upf-k8s-operator"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+dependencies = [
+    "cosl",
+    "httpx",
+    "ipaddress",
+    "jinja2",
+    "juju",
+    "lightkube-models",
+    "lightkube",
+    "macaddress",
+    "ops",
+    "pydantic-extra-types",
+    "pydantic<3.0",
+    "pytest-interface-tester",
+    "pyyaml",
+]
+
+[dependency-groups]
+test = [
+    "coverage[toml]",
+    "juju>=3.5.2.1",
+    "pytest-asyncio<0.23",
+    "pytest-operator",
+    "pytest",
+    "parameterized",
+    "ops-scenario",
+]
+dev = [
+    "codespell",
+    "pyright",
+    "ruff",
+]
+
 # Testing tools configuration
 [tool.coverage.run]
 branch = true
@@ -15,11 +52,11 @@ line-length = 99
 [tool.ruff.lint]
 select = ["E", "W", "F", "C", "N", "D", "I001"]
 extend-ignore = [
+    "D107",
     "D203",
     "D204",
     "D213",
     "D215",
-    "D107",
     "D400",
     "D404",
     "D406",
