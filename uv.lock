@@ -1286,6 +1286,7 @@ dev = [
 test = [
     { name = "coverage", extra = ["toml"] },
     { name = "juju" },
+    { name = "ops-scenario" },
     { name = "parameterized" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1303,10 +1304,10 @@ requires-dist = [
     { name = "lightkube-models" },
     { name = "macaddress" },
     { name = "ops" },
-    { name = "pydantic", specifier = "==2.10.1" },
+    { name = "pydantic" },
     { name = "pydantic-extra-types" },
     { name = "pytest-interface-tester" },
-    { name = "pyyaml", specifier = ">=6.0.1" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata.requires-dev]
@@ -1318,9 +1319,10 @@ dev = [
 test = [
     { name = "coverage", extras = ["toml"] },
     { name = "juju", specifier = ">=3.5.2.1" },
-    { name = "parameterized", specifier = ">=0.9.0" },
+    { name = "ops-scenario" },
+    { name = "parameterized" },
     { name = "pytest" },
-    { name = "pytest-asyncio" },
+    { name = "pytest-asyncio", specifier = "<0.23" },
     { name = "pytest-operator" },
 ]
 
