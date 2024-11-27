@@ -13,7 +13,7 @@ lxd init --auto
 
 Install MicroK8s:
 ```shell
-sudo snap install microk8s --channel=1.27-strict/stable
+sudo snap install microk8s --channel=1.31-strict/stable
 sudo usermod -a -G snap_microk8s $USER
 newgrp snap_microk8s
 sudo microk8s enable hostpath-storage
@@ -27,25 +27,30 @@ sudo microk8s enable multus
 
 Install Juju and bootstrap a controller on the MicroK8S instance:
 ```shell
-sudo snap install juju --channel=3.4/stable
+sudo snap install juju --channel=3.5/stable
 juju bootstrap microk8s
 ```
 
-Install `pip` and `tox`:
+This project uses `uv`. You can install it on Ubuntu with:
+
 ```shell
-sudo apt install python3-pip
-python3 -m pip install "tox>=4.0.0"
+sudo snap install --classic astral-uv
 ```
 
-## Development
-Activate the virtual environment created by `tox` for development:
+You can create an environment for development with `uv`:
+
 ```shell
-tox --notest -e unit
-source .tox/unit/bin/activate
+uv sync
+source .venv/bin/activate
 ```
 
 ## Testing
-This project uses `tox` for managing test environments.
+This project uses `tox` for managing test environments. It can be installed
+with:
+
+```shell
+uv tool install tox --with tox-uv
+```
 
 There are some pre-configured environments
 that can be used for linting and formatting code when you're preparing contributions to the charm:
