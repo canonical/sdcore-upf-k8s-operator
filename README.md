@@ -37,7 +37,7 @@ service port with the load balancer upon install of the charm.
 
 ## Image
 
-- **bessd**: ghcr.io/canonical/sdcore-upf-bess:1.4.0
-- **routectl**: ghcr.io/canonical/sdcore-upf-bess:1.4.0
-- **pfcp-agent**: ghcr.io/canonical/sdcore-upf-pfcpiface:1.4.0
+- **bessd**: ghcr.io/canonical/sdcore-upf-bess:1.0.1
+- **routectl**: ghcr.io/canonical/sdcore-upf-bess:1.0.1
+- **pfcp-agent**: ghcr.io/canonical/sdcore-upf-pfcpiface:1.5.0
 
