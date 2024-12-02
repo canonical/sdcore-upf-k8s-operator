@@ -73,7 +73,7 @@ jobs:
       CHARMCRAFT_AUTH: ${{ secrets.CHARMCRAFT_AUTH }}
 
   fiveg-n3-lib-needs-publishing:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       needs-publishing: ${{ steps.changes.outputs.fiveg_n3 }}
     steps:
@@ -97,7 +97,7 @@ jobs:
     secrets: inherit
 
   fiveg-n4-lib-needs-publishing:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     outputs:
       needs-publishing: ${{ steps.changes.outputs.fiveg_n4 }}
     steps:
