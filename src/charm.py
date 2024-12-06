@@ -672,6 +672,7 @@ class UPFOperatorCharm(CharmBase):
             dnn=self._charm_config.dnn,
             pod_share_path=POD_SHARE_PATH,
             enable_hw_checksum=self._charm_config.enable_hw_checksum,
+            log_level=self._charm_config.log_level,
         )
         if (
             not self._upf_config_file_is_written_to_bessd_container()
@@ -1164,6 +1165,7 @@ def render_bessd_config_file(
     dnn: str,
     pod_share_path: str,
     enable_hw_checksum: bool,
+    log_level: str,
 ) -> str:
     """Render the configuration file for the 5G UPF service.
 
@@ -1176,6 +1178,7 @@ def render_bessd_config_file(
         dnn: Data Network Name (DNN)
         pod_share_path: pod_share path
         enable_hw_checksum: Whether to enable hardware checksum or not
+        log_level (str): Log level for the UPF.
     """
     jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
     template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
@@ -1188,6 +1191,7 @@ def render_bessd_config_file(
         dnn=dnn,
         pod_share_path=pod_share_path,
         hwcksum=str(enable_hw_checksum).lower(),
+        log_level=log_level,
     )
     return content
 
