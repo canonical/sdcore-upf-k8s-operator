@@ -41,6 +41,15 @@ class UpfMode(str, Enum):
     af_packet = "af_packet"
     dpdk = "dpdk"
 
+class LogLevel(str, Enum):
+    """Class to define available log levels for UPF operator."""
+
+    DEBUG = "debug"
+    INFO = "info"
+    WARN = "warn"
+    ERROR = "error"
+    FATAL = "fatal"
+    PANIC = "panic"
 
 NetworkType: TypeAlias = "str | bytes | int | tuple[str | bytes | int, str | int]"
 
@@ -85,6 +94,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     core_interface_mtu_size: Optional[int] = Field(default=None, ge=1200, le=65535)
     external_upf_hostname: Optional[StrictStr] = Field(default="")
     enable_hw_checksum: bool = True
+    log_level: LogLevel = LogLevel.INFO
 
     @model_validator(mode="after")
     def validate_upf_mode_with_mac_addresses(self):
@@ -153,6 +163,7 @@ class CharmConfig:
     core_interface_mtu_size: Optional[int]
     external_upf_hostname: Optional[StrictStr]
     enable_hw_checksum: bool
+    log_level: LogLevel
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -176,6 +187,7 @@ class CharmConfig:
         self.core_interface_mtu_size = upf_config.core_interface_mtu_size
         self.external_upf_hostname = upf_config.external_upf_hostname
         self.enable_hw_checksum = upf_config.enable_hw_checksum
+        self.log_level = upf_config.log_level
 
     @classmethod
     def from_charm(

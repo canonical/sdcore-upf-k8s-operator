@@ -161,3 +161,7 @@ config:
       default: true
       description: |
         When enabled, hardware checksum will be used on the network interfaces.
+    log-level:
+      type: string
+      default: info
+      description: Log level for the UPF. One of `debug`, `info`, `warn`, `error`, `fatal`, `panic`.
