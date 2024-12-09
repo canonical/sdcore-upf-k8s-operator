@@ -574,7 +574,7 @@ class KubernetesClient:
                 )
             )
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
+            if e.response.status_code in [401, 404]:
                 return False
             else:
                 raise KubernetesMultusError(
