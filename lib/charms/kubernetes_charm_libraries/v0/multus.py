@@ -249,7 +249,7 @@ class KubernetesClient:
                 )
             return False
         except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
+            if e.response.status_code in [401, 404]:
                 raise KubernetesMultusError(
                     "NetworkAttachmentDefinition resource not found. "
                     "You may need to install Multus CNI."
