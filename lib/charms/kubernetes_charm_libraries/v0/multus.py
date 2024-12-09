@@ -249,7 +249,7 @@ class KubernetesClient:
                 )
             return False
         except httpx.HTTPStatusError as e:
-            if e.response.status_code in [401, 404]:
+            if e.response.status_code == 404:
                 raise KubernetesMultusError(
                     "NetworkAttachmentDefinition resource not found. "
                     "You may need to install Multus CNI."
@@ -573,8 +573,18 @@ class KubernetesClient:
                     res=NetworkAttachmentDefinition, namespace=self.namespace
                 )
             )
+        except ApiError as e:
+            if e.status.reason == "NotFound":
+                logger.debug("NetworkAttachmentDefinition resource not found")
+            elif e.status.reason == "Unauthorized":
+                logger.debug("kube-apiserver not ready yet")
+            else:
+                raise KubernetesMultusError(
+                    "Unexpected outcome when checking for Multus availability"
+                )
+            return False
         except httpx.HTTPStatusError as e:
-            if e.response.status_code in [401, 404]:
+            if e.response.status_code == 404:
                 return False
             else:
                 raise KubernetesMultusError(
