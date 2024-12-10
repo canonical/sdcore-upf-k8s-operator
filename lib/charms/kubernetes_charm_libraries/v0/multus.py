@@ -324,7 +324,7 @@ class KubernetesClient:
         cap_net_admin: bool,
         privileged: bool,
     ) -> None:
-        """Patches a statefulset with Multus annotation and NET_ADMIN capability.
+        """Patch a statefulset with Multus annotation and NET_ADMIN capability.
 
         Args:
             name: Statefulset name
