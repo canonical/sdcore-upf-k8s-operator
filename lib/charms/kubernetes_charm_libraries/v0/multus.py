@@ -107,7 +107,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 16
+LIBPATCH = 17
 
 
 logger = logging.getLogger(__name__)
@@ -324,7 +324,7 @@ class KubernetesClient:
         cap_net_admin: bool,
         privileged: bool,
     ) -> None:
-        """Patches a statefulset with Multus annotation and NET_ADMIN capability.
+        """Patch a statefulset with Multus annotation and NET_ADMIN capability.
 
         Args:
             name: Statefulset name
