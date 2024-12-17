@@ -13,6 +13,12 @@ variable "channel" {
   default     = "1.6/edge"
 }
 
+variable "base" {
+  description = "The base to use when deploying a charm."
+  type        = string
+  default     = "ubuntu@24.04"
+}
+
 variable "config" {
   description = "Application config. Details about available options can be found at https://charmhub.io/sdcore-upf-k8s-operator/configure."
   type        = map(string)
