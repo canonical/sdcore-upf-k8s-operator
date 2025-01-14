@@ -28,6 +28,7 @@ from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
 from lightkube.core.client import Client
+from lightkube.core.exceptions import ApiError
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod
 from ops import (
@@ -1111,10 +1112,17 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether HugePages are available in the K8S nodes
         """
-        client = Client()
-        nodes = client.list(Node)
         if not self._hugepages_is_enabled():
             return True
+        client = Client()
+        try:
+            nodes = client.list(Node)
+        except ApiError as e:
+            if e.status.reason == "Unauthorized":
+                logger.debug("kube-apiserver not ready yet")
+                return False
+            else:
+                raise e
         if not nodes:
             return False
         return all(node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes)  # type: ignore
