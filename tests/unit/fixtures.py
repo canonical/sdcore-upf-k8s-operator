@@ -14,6 +14,7 @@ from k8s_service import K8sService
 class UPFUnitTestFixtures:
     patcher_k8s_client = patch("lightkube.core.client.GenericSyncClient")
     patcher_client_list = patch("lightkube.core.client.Client.list")
+    patcher_k8sclient_list = patch("k8s_client.K8sClient.list")
     patcher_k8s_service = patch("charm.K8sService", autospec=K8sService)
     patcher_huge_pages_is_patched = patch(
         "charm.KubernetesHugePagesPatchCharmLib.is_patched",
@@ -31,6 +32,7 @@ class UPFUnitTestFixtures:
     def setup(self, request):
         self.mock_k8s_client = UPFUnitTestFixtures.patcher_k8s_client.start().return_value
         self.mock_client_list = UPFUnitTestFixtures.patcher_client_list.start()
+        self.mock_k8sclient_list = UPFUnitTestFixtures.patcher_k8sclient_list.start()
         self.mock_k8s_service = UPFUnitTestFixtures.patcher_k8s_service.start().return_value
         self.mock_huge_pages_is_patched = UPFUnitTestFixtures.patcher_huge_pages_is_patched.start()
         self.mock_multus_is_available = UPFUnitTestFixtures.patcher_multus_is_available.start()

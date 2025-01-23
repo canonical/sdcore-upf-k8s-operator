@@ -27,8 +27,6 @@ from charms.prometheus_k8s.v0.prometheus_scrape import (
 from charms.sdcore_upf_k8s.v0.fiveg_n3 import N3Provides
 from charms.sdcore_upf_k8s.v0.fiveg_n4 import N4Provides
 from jinja2 import Environment, FileSystemLoader
-from lightkube.core.client import Client
-from lightkube.core.exceptions import ApiError
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Pod
 from ops import (
@@ -46,7 +44,8 @@ from ops.pebble import ChangeError, ConnectionError, ExecError, Layer, PathError
 
 from charm_config import CharmConfig, CharmConfigInvalidError, CNIType, UpfMode
 from dpdk import DPDK
-from k8s_service import K8sService
+from k8s_client import K8sClient
+from k8s_service import K8sService, K8sServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +117,7 @@ class UPFOperatorCharm(CharmBase):
             pod_name=self._pod_name,
             hugepages_volumes=self._volumes_request_from_config(),
         )
+        self.k8s_client = K8sClient()
         self.k8s_service = K8sService(
             namespace=self._namespace,
             service_name=f"{self.app.name}-external",
@@ -162,8 +162,7 @@ class UPFOperatorCharm(CharmBase):
 
     def delete_pod(self):
         """Delete the pod."""
-        client = Client()
-        client.delete(Pod, name=self._pod_name, namespace=self._namespace)
+        self.k8s_client.delete(Pod, name=self._pod_name, namespace=self._namespace)
 
     @property
     def _namespace(self) -> str:
@@ -551,7 +550,10 @@ class UPFOperatorCharm(CharmBase):
         if not self._hugepages_are_available():
             return
         if not self.k8s_service.is_created():
-            self.k8s_service.create()
+            try:
+                self.k8s_service.create()
+            except K8sServiceError:
+                return
         if not self._kubernetes_multus.multus_is_available():
             return
         self._kubernetes_multus.configure()
@@ -1114,15 +1116,7 @@ class UPFOperatorCharm(CharmBase):
         """
         if not self._hugepages_is_enabled():
             return True
-        client = Client()
-        try:
-            nodes = client.list(Node)
-        except ApiError as e:
-            if e.status.reason == "Unauthorized":
-                logger.debug("kube-apiserver not ready yet")
-                return False
-            else:
-                raise e
+        nodes = self.k8s_client.list(Node)
         if not nodes:
             return False
         return all(node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes)  # type: ignore

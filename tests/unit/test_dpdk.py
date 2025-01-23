@@ -1,7 +1,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from lightkube.core.exceptions import ApiError
@@ -28,18 +28,20 @@ TEST_RESOURCE_REQUIREMENTS = {
 
 
 class TestDPDKStatefulSetUpdater:
-    patcher_lightkube_client = patch("lightkube.core.client.GenericSyncClient", new=Mock)
     patcher_lightkube_client_get = patch("lightkube.core.client.Client.get")
-    patcher_lightkube_client_replace = patch("lightkube.core.client.Client.replace")
+    patcher_k8sclient_get = patch("k8s_client.K8sClient.get")
+    patcher_k8sclient_replace = patch("k8s_client.K8sClient.replace")
 
     @pytest.fixture(autouse=True)
     def setUp(self, request) -> None:
-        TestDPDKStatefulSetUpdater.patcher_lightkube_client.start()
         self.mock_lightkube_client_get = (
             TestDPDKStatefulSetUpdater.patcher_lightkube_client_get.start()
         )
-        self.mock_lightkube_client_replace = (
-            TestDPDKStatefulSetUpdater.patcher_lightkube_client_replace.start()
+        self.mock_k8sclient_get = (
+            TestDPDKStatefulSetUpdater.patcher_k8sclient_get.start()
+        )
+        self.mock_k8sclient_replace = (
+            TestDPDKStatefulSetUpdater.patcher_k8sclient_replace.start()
         )
         self.dpdk_statefulset_updater = DPDK(
             statefulset_name="doesntmatter",
@@ -71,7 +73,7 @@ class TestDPDKStatefulSetUpdater:
                 template=PodTemplateSpec(spec=PodSpec(containers=[])),
             )
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
 
         with pytest.raises(DPDKError):
             self.dpdk_statefulset_updater.is_configured("justatest")
@@ -95,7 +97,7 @@ class TestDPDKStatefulSetUpdater:
                 ),
             )
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
 
         assert self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME) is False
 
@@ -119,7 +121,7 @@ class TestDPDKStatefulSetUpdater:
                 ),
             )
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
 
         assert self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME) is False
 
@@ -147,7 +149,7 @@ class TestDPDKStatefulSetUpdater:
                 ),
             )
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
 
         assert self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME) is False
 
@@ -175,7 +177,7 @@ class TestDPDKStatefulSetUpdater:
                 ),
             )
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
 
         assert self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME) is False
 
@@ -203,7 +205,7 @@ class TestDPDKStatefulSetUpdater:
                 ),
             )
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
 
         assert self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME) is True
 
@@ -229,7 +231,7 @@ class TestDPDKStatefulSetUpdater:
                 ),
             ),
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
         expected_updated_container_spec = Container(
             name=TEST_CONTAINER_NAME,
             resources=ResourceRequirements(
@@ -270,11 +272,11 @@ class TestDPDKStatefulSetUpdater:
                 ),
             ),
         )
-        self.mock_lightkube_client_get.return_value = test_statefulset
+        self.mock_k8sclient_get.return_value = test_statefulset
 
         self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)
 
-        self.mock_lightkube_client_replace.assert_called_once_with(obj=test_statefulset)
+        self.mock_k8sclient_replace.assert_called_once_with(obj=test_statefulset)
 
     def test_given_lightkube_client_returns_api_error_on_replace_when_configure_container_for_dpdk_then_dpdk_statefulset_updater_error_is_raised(  # noqa: E501
         self,
@@ -302,7 +304,7 @@ class TestDPDKStatefulSetUpdater:
             ),
         )
         self.mock_lightkube_client_get.return_value = test_statefulset
-        self.mock_lightkube_client_replace.side_effect = ApiError(response=MagicMock())
+        self.mock_k8sclient_replace.side_effect = ApiError(response=MagicMock())
 
         with pytest.raises(DPDKError):
             self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)
@@ -310,7 +312,7 @@ class TestDPDKStatefulSetUpdater:
     def test_given_lightkube_client_returns_no_stateful_set_on_get_when_configure_container_for_dpdk_then_runtime_error_is_raised(  # noqa: E501
         self,
     ):
-        self.mock_lightkube_client_get.return_value = None
+        self.mock_k8sclient_get.return_value = None
 
         with pytest.raises(RuntimeError):
             self.dpdk_statefulset_updater.configure(TEST_CONTAINER_NAME)
@@ -319,7 +321,7 @@ class TestDPDKStatefulSetUpdater:
         self,
     ):
         self.dpdk_statefulset_updater.dpdk_resource_requirements = TEST_RESOURCE_REQUIREMENTS
-        self.mock_lightkube_client_get.return_value = None
+        self.mock_k8sclient_get.return_value = None
 
         with pytest.raises(RuntimeError):
             self.dpdk_statefulset_updater.is_configured(TEST_CONTAINER_NAME)

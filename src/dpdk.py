@@ -7,10 +7,10 @@
 import logging
 from typing import Iterable, Optional
 
-from lightkube.core.client import Client
-from lightkube.core.exceptions import ApiError
 from lightkube.models.core_v1 import Container
 from lightkube.resources.apps_v1 import StatefulSet
+
+from k8s_client import K8sClient, K8sClientError
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class DPDK:
         dpdk_access_interface_resource_name: str,
         dpdk_core_interface_resource_name: str,
     ):
-        self.k8s_client = Client()
+        self.k8s_client = K8sClient()
         self.statefulset_name = statefulset_name
         self.namespace = namespace
         self.dpdk_resource_requirements = {
@@ -119,8 +119,8 @@ class DPDK:
         """
         try:
             return self.k8s_client.get(res=StatefulSet, name=statefulset_name, namespace=namespace)
-        except ApiError as e:
-            raise DPDKError(f"Could not get statefulset `{statefulset_name}`: {e.status.message}")
+        except K8sClientError as e:
+            raise DPDKError(f"Could not get statefulset `{statefulset_name}`: {e.message}")
 
     @staticmethod
     def _get_container(
@@ -189,7 +189,7 @@ class DPDK:
         try:
             self.k8s_client.replace(obj=statefulset)
             logger.info("Statefulset %s replaced", statefulset.metadata.name)
-        except ApiError as e:
+        except K8sClientError as e:
             raise DPDKError(
-                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.status.message}"
+                f"Could not replace statefulset `{statefulset.metadata.name}`: {e.message}"
             )
