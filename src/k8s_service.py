@@ -7,13 +7,21 @@
 import logging
 from typing import Optional
 
-from httpx import HTTPStatusError
-from lightkube.core.client import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 
+from k8s_client import K8sClient, K8sClientError
+
 logger = logging.getLogger(__name__)
+
+
+class K8sServiceError(Exception):
+    """K8sServiceError."""
+
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(self.message)
 
 
 class K8sService:
@@ -24,7 +32,7 @@ class K8sService:
         self.service_name = service_name
         self.app_name = app_name
         self.pfcp_port = pfcp_port
-        self.client = Client()
+        self.client = K8sClient()
 
     def create(self) -> None:
         """Create the external UPF service."""
@@ -48,17 +56,16 @@ class K8sService:
                 type="LoadBalancer",
             ),
         )
-        self.client.apply(service, field_manager=self.app_name)
-        logger.info("Created/asserted existence of the external UPF service")
+        try:
+            self.client.apply(service, field_manager=self.app_name)
+            logger.info("Created/asserted existence of the external UPF service")
+        except K8sClientError as e:
+            raise K8sServiceError(f"Could not create UPF service due to: {e.message}")
 
     def is_created(self) -> bool:
         """Check if the external UPF service exists."""
-        try:
-            self.client.get(Service, name=self.service_name, namespace=self.namespace)
+        if self.client.get(Service, name=self.service_name, namespace=self.namespace):
             return True
-        except HTTPStatusError as status:
-            if status.response.status_code == 404:
-                return False
         return False
 
     def delete(self) -> None:
@@ -70,8 +77,8 @@ class K8sService:
                 namespace=self.namespace,
             )
             logger.info("Deleted external UPF service")
-        except HTTPStatusError as status:
-            logger.info("Could not delete %s due to: %s", self.service_name, status)
+        except K8sClientError as e:
+            logger.warning("Could not delete %s due to: %s", self.service_name, e.message)
 
     def get_hostname(self) -> Optional[str]:
         """Get the hostname of the external UPF service."""
