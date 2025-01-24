@@ -94,7 +94,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         self,
     ):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
-        self.mock_client_list.return_value = []
+        self.mock_k8sclient_list.return_value = []
         state_in = testing.State(
             leader=True,
             config={
