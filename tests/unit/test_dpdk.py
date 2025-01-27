@@ -1,7 +1,7 @@
 # Copyright 2023 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from lightkube.core.exceptions import ApiError
@@ -28,12 +28,14 @@ TEST_RESOURCE_REQUIREMENTS = {
 
 
 class TestDPDKStatefulSetUpdater:
+    patcher_lightkube_client = patch("lightkube.core.client.GenericSyncClient", new=Mock)
     patcher_lightkube_client_get = patch("lightkube.core.client.Client.get")
     patcher_k8sclient_get = patch("k8s_client.K8sClient.get")
     patcher_k8sclient_replace = patch("k8s_client.K8sClient.replace")
 
     @pytest.fixture(autouse=True)
     def setUp(self, request) -> None:
+        TestDPDKStatefulSetUpdater.patcher_lightkube_client.start()
         self.mock_lightkube_client_get = (
             TestDPDKStatefulSetUpdater.patcher_lightkube_client_get.start()
         )

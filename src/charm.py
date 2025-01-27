@@ -155,7 +155,7 @@ class UPFOperatorCharm(CharmBase):
         # where the leader status is removed from the leader unit before all
         # hooks are finished running. In this case, we will leave behind a
         # dirty state in k8s, but it will be cleaned up when the juju model is
-        # destroyed. It will be re-used if the charm is re-deployed.
+        # destroyed. It will be reused if the charm is re-deployed.
         self._kubernetes_multus.remove()
         if self.k8s_service.is_created():
             self.k8s_service.delete()

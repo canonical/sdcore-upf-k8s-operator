@@ -57,13 +57,12 @@ class MetaClass(type):
         marker = None
         for base in base_classes:
             if hasattr(base, '_marker'):
-                marker = getattr(base, '_marker')  # remember class name of temp base class
+                marker = getattr(base, '_marker')
                 break
 
-        if class_name == marker:  # temporary base class being created by with_metaclass()?
+        if class_name == marker:
             return  type.__new__(meta, class_name, base_classes, class_dict)
 
-        # Temporarily create an unmodified version of class so it's MRO can be used below.
         temp_class = type.__new__(meta, 'TempClass', base_classes, class_dict)
 
         new_class_dict = {}
