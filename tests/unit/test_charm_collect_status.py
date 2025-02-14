@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 import tempfile
+from unittest.mock import MagicMock
 
 import pytest
 from ops import ActiveStatus, BlockedStatus, WaitingStatus, testing
@@ -107,6 +108,67 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
         state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
 
         assert state_out.unit_status == BlockedStatus("Not enough HugePages available")
+
+    @pytest.mark.parametrize(
+        "allocatable",
+        [
+            {},
+            {"sriov": 2},
+            {"hugepages-1Gi": "0Gi"},
+            {"hugepages-1Gi": "0"},
+            {"hugepages-1Gi": "1Gi"},
+            {"hugepages-1Gi": "1"},
+        ],
+    )
+    def test_given_not_enough_hugepages_available_when_collect_unit_status_then_status_is_blocked(
+        self, allocatable
+    ):
+        self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        node_mock = MagicMock()
+        node_mock.status.allocatable = allocatable
+        self.mock_k8sclient_list.return_value = [node_mock]
+        state_in = testing.State(
+            leader=True,
+            config={
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "11:22:33:44:55:66",
+                "core-interface-mac-address": "11:22:33:44:55:77",
+            },
+        )
+
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
+
+        assert state_out.unit_status == BlockedStatus("Not enough HugePages available")
+
+    @pytest.mark.parametrize(
+        "allocatable",
+        [
+            {"hugepages-1Gi": "2Gi"},
+            {"hugepages-1Gi": "2"},
+            {"hugepages-1Gi": "10Gi"},
+            {"hugepages-1Gi": "10"},
+        ],
+    )
+    def test_given_enough_hugepages_available_when_collect_unit_status_then_status_is_not_blocked_for_hugepages( # noqa: E501
+        self, allocatable
+    ):
+        self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
+        node_mock = MagicMock()
+        node_mock.status.allocatable = allocatable
+        self.mock_k8sclient_list.return_value = [node_mock]
+        self.mock_multus_is_available.return_value = False
+        state_in = testing.State(
+            leader=True,
+            config={
+                "upf-mode": "dpdk",
+                "access-interface-mac-address": "11:22:33:44:55:66",
+                "core-interface-mac-address": "11:22:33:44:55:77",
+            },
+        )
+
+        state_out = self.ctx.run(self.ctx.on.collect_unit_status(), state_in)
+
+        assert state_out.unit_status != BlockedStatus("Not enough HugePages available")
 
     def test_given_multus_not_available_when_collect_unit_status_then_status_is_blocked(self):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
