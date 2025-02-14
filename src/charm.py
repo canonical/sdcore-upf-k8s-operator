@@ -251,7 +251,7 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             list[HugePagesVolume]: list of HugePages to be set based on the application config.
         """
-        if self._hugepages_is_enabled():
+        if self._hugepages_are_required():
             return [HugePagesVolume(mount_path="/dev/hugepages", size="1Gi", limit="2Gi")]
         return []
 
@@ -1078,7 +1078,7 @@ class UPFOperatorCharm(CharmBase):
                 ", ".join(REQUIRED_CPU_EXTENSIONS),
             )
             return False
-        if self._hugepages_is_enabled():
+        if self._hugepages_are_required():
             if not self._cpu_is_compatible_for_hugepages():
                 logger.warning(
                     "Please use a CPU that has the following capabilities: %s",
@@ -1114,12 +1114,15 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             bool: Whether HugePages are available in the K8S nodes
         """
-        if not self._hugepages_is_enabled():
+        if not self._hugepages_are_required():
             return True
         nodes = self.k8s_client.list(Node)
         if not nodes:
             return False
-        return all(node.status.allocatable.get("hugepages-1Gi", "0") >= "2Gi" for node in nodes)  # type: ignore
+        return all(
+            int(node.status.allocatable.get("hugepages-1Gi", "0Gi").removesuffix("Gi")) >= 2
+            for node in nodes
+        )
 
     def _get_interface_mtu_config(self, interface_name) -> Optional[int]:
         """Retrieve the MTU to use for the specified interface.
@@ -1137,11 +1140,11 @@ class UPFOperatorCharm(CharmBase):
         else:
             return None
 
-    def _hugepages_is_enabled(self) -> bool:
-        """Return whether HugePages are enabled.
+    def _hugepages_are_required(self) -> bool:
+        """Return whether HugePages are required.
 
         Returns:
-            bool: Whether HugePages are enabled
+            bool: Whether HugePages are required
         """
         return self._charm_config.upf_mode == UpfMode.dpdk
 
@@ -1152,7 +1155,7 @@ class UPFOperatorCharm(CharmBase):
             str: bessd startup command
         """
         hugepages_cmd = ""
-        if not self._hugepages_is_enabled():
+        if not self._hugepages_are_required():
             hugepages_cmd = "-m 0"  # "-m 0" means that we are not using hugepages
         return f"/bin/bessd -f -grpc-url=0.0.0.0:{BESSD_PORT} {hugepages_cmd}"
 
