@@ -149,7 +149,7 @@ class TestCharmCollectUnitStatus(UPFUnitTestFixtures):
             {"hugepages-1Gi": "10"},
         ],
     )
-    def test_given_enough_hugepages_available_when_collect_unit_status_then_status_is_not_blocked_for_hugepages( # noqa: E501
+    def test_given_enough_hugepages_available_when_collect_unit_status_then_status_is_not_blocked_for_hugepages(  # noqa: E501
         self, allocatable
     ):
         self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand pdpe1gb"
