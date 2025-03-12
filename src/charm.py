@@ -666,14 +666,14 @@ class UPFOperatorCharm(CharmBase):
         restart = False
         recreate_pod = False
         core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
-        core_ip_masquerade_flag = self._charm_config.core_ip_masquerade
+        core_ip_masquerade = self._charm_config.core_ip_masquerade
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=self._charm_config.upf_mode,
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
             core_ip_address=core_ip_address.split("/")[0]
-            if (core_ip_address and core_ip_masquerade_flag)
+            if (core_ip_address and core_ip_masquerade)
             else "",
             dnn=self._charm_config.dnn,
             pod_share_path=POD_SHARE_PATH,
