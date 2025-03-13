@@ -84,7 +84,90 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
 
             self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
 
-            with open("tests/unit/expected_upf.json", "r") as f:
+            with open("tests/unit/config/expected_upf.json", "r") as f:
+                expected_upf_config = f.read()
+
+            with open(f"{temp_file}/upf.json", "r") as f:
+                actual_upf_config = f.read()
+
+            assert actual_upf_config.strip() == expected_upf_config.strip()
+
+    def test_given_no_ip_masquerade_when_bessd_pebble_ready_then_config_file_is_created(
+        self,
+    ):
+        gnb_subnet = "2.2.2.0/24"
+        core_gateway_ip = "1.2.3.1"
+        core_ip = "1.2.3.4"
+        access_gateway_ip = "2.1.1.1"
+        self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
+        with tempfile.TemporaryDirectory() as temp_file:
+            bessd_config_mount = testing.Mount(
+                location="/etc/bess/conf/",
+                source=temp_file,
+            )
+            pfcp_agent_container = testing.Container(
+                name="pfcp-agent",
+                can_connect=True,
+                layers={
+                    "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
+                },
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
+            )
+            bessd_container = testing.Container(
+                name="bessd",
+                mounts={"config": bessd_config_mount},
+                can_connect=True,
+                execs={
+                    testing.Exec(
+                        command_prefix=["ip", "route", "show"],
+                        return_code=0,
+                        stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
+                    ),
+                    testing.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
+                        return_code=0,
+                    ),
+                    testing.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
+                        return_code=0,
+                        stdout="RUNNING",
+                    ),
+                    testing.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
+                        return_code=0,
+                    ),
+                    testing.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
+                        return_code=0,
+                    ),
+                },
+            )
+            state_in = testing.State(
+                leader=True,
+                containers=[bessd_container, pfcp_agent_container],
+                config={
+                    "core-gateway-ip": core_gateway_ip,
+                    "access-gateway-ip": access_gateway_ip,
+                    "core-ip": core_ip,
+                    "core-ip-masquerade": False,
+                    "gnb-subnet": gnb_subnet,
+                },
+                model=testing.Model(name="whatever"),
+            )
+
+            self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
+
+            with open("tests/unit/config/expected_upf_no_masquerade.json", "r") as f:
                 expected_upf_config = f.read()
 
             with open(f"{temp_file}/upf.json", "r") as f:
@@ -161,7 +244,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                 },
                 model=testing.Model(name="whatever"),
             )
-            with open("tests/unit/expected_upf.json", "r") as f:
+            with open("tests/unit/config/expected_upf.json", "r") as f:
                 expected_upf_config = f.read()
             with open(f"{temp_file}/upf.json", "w") as f:
                 f.write(expected_upf_config.strip())

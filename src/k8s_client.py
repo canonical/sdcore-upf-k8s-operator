@@ -46,6 +46,7 @@ def try_except_all(func):
                     f"Could not perform requested Kubernetes call due to: {e.status.message}"
                 )
         return None
+
     return wrapper
 
 
@@ -56,14 +57,14 @@ class MetaClass(type):
         """See if any of the base classes were created by with_metaclass() function."""
         marker = None
         for base in base_classes:
-            if hasattr(base, '_marker'):
-                marker = getattr(base, '_marker')
+            if hasattr(base, "_marker"):
+                marker = getattr(base, "_marker")
                 break
 
         if class_name == marker:
-            return  type.__new__(meta, class_name, base_classes, class_dict)
+            return type.__new__(meta, class_name, base_classes, class_dict)
 
-        temp_class = type.__new__(meta, 'TempClass', base_classes, class_dict)
+        temp_class = type.__new__(meta, "TempClass", base_classes, class_dict)
 
         new_class_dict = {}
         for cls in temp_class.mro():
@@ -77,11 +78,10 @@ class MetaClass(type):
 
 def with_metaclass(meta, classname, bases):
     """Create a class with the supplied bases and metaclass."""
-    return type.__new__(meta, classname, bases, {'_marker': classname})
+    return type.__new__(meta, classname, bases, {"_marker": classname})
 
 
-class K8sClient(
-    with_metaclass(MetaClass, 'WrappedK8sClient', (Client, object))
-):
+class K8sClient(with_metaclass(MetaClass, "WrappedK8sClient", (Client, object))):
     """Custom K8s client automatically catching 401 Unauthorized error."""
+
     pass

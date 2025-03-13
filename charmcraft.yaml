@@ -118,7 +118,9 @@ config:
     access-ip:
       type: string
       default: 192.168.252.3/24
-      description: IP address used by the UPF's Access interface.
+      description: |
+        IP address used by the UPF's Access interface.
+        The charm will create a Network Annotation with this address and attach it to the access Network Attachment Definition.
     access-gateway-ip:
       type: string
       default: 192.168.252.1
@@ -139,7 +141,15 @@ config:
     core-ip:
       type: string
       default: 192.168.250.3/24
-      description: IP address used by the UPF's Core interface.
+      description: |
+        IP address used by the UPF's Core interface.
+        The charm will create a Network Annotation with this address and attach it to the core Network Attachment Definition.
+    core-ip-masquerade:
+      type: boolean
+      default: true
+      description: |
+        When set to `true`, the UPF will perform NATting for User Equipment traffic, packets will have the `core-ip` address as their source IP address.
+        If not set, User Equipment packets will keep their original IP addresses.
     core-gateway-ip:
       type: string
       default: 192.168.250.1

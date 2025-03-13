@@ -666,12 +666,15 @@ class UPFOperatorCharm(CharmBase):
         restart = False
         recreate_pod = False
         core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
+        core_ip_masquerade = self._charm_config.core_ip_masquerade
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=self._charm_config.upf_mode,
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
-            core_ip_address=core_ip_address.split("/")[0] if core_ip_address else "",
+            core_ip_address=core_ip_address.split("/")[0]
+            if (core_ip_address and core_ip_masquerade)
+            else "",
             dnn=self._charm_config.dnn,
             pod_share_path=POD_SHARE_PATH,
             enable_hw_checksum=self._charm_config.enable_hw_checksum,
@@ -1179,7 +1182,8 @@ def render_bessd_config_file(
         upf_mode: UPF mode
         access_interface_name: Access network interface name
         core_interface_name: Core network interface name
-        core_ip_address: Core network IP address
+        core_ip_address: Core network IP address.
+            This is only used when core_ip_masquerade is enabled
         dnn: Data Network Name (DNN)
         pod_share_path: pod_share path
         enable_hw_checksum: Whether to enable hardware checksum or not

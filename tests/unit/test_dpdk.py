@@ -39,12 +39,8 @@ class TestDPDKStatefulSetUpdater:
         self.mock_lightkube_client_get = (
             TestDPDKStatefulSetUpdater.patcher_lightkube_client_get.start()
         )
-        self.mock_k8sclient_get = (
-            TestDPDKStatefulSetUpdater.patcher_k8sclient_get.start()
-        )
-        self.mock_k8sclient_replace = (
-            TestDPDKStatefulSetUpdater.patcher_k8sclient_replace.start()
-        )
+        self.mock_k8sclient_get = TestDPDKStatefulSetUpdater.patcher_k8sclient_get.start()
+        self.mock_k8sclient_replace = TestDPDKStatefulSetUpdater.patcher_k8sclient_replace.start()
         self.dpdk_statefulset_updater = DPDK(
             statefulset_name="doesntmatter",
             namespace="whatever",

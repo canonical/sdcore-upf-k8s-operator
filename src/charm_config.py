@@ -41,6 +41,7 @@ class UpfMode(str, Enum):
     af_packet = "af_packet"
     dpdk = "dpdk"
 
+
 class LogLevel(str, Enum):
     """Class to define available log levels for UPF operator."""
 
@@ -50,6 +51,7 @@ class LogLevel(str, Enum):
     ERROR = "error"
     FATAL = "fatal"
     PANIC = "panic"
+
 
 NetworkType: TypeAlias = "str | bytes | int | tuple[str | bytes | int, str | int]"
 
@@ -83,6 +85,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     access_interface: Optional[StrictStr] = Field(default="")
     access_interface_mac_address: Optional[StrictStr] = Field(default="")
     access_ip: str = Field(default="192.168.252.3/24")
+    core_ip_masquerade: bool = True
     access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
     access_interface_mtu_size: Optional[int] = Field(
         default=None, ge=1200, le=65535, validate_default=True
@@ -141,6 +144,7 @@ class CharmConfig:
         core_interface: Interface on the host to use for the Core Network.
         core_interface_mac_address: MAC address of the UPF's Core interface.
         core_ip: IP address used by the UPF's Core interface.
+        core_ip_masquerade: Whether to NAT User Equipment traffic with the Core IP address.
         core_gateway_ip: Gateway IP address to the Core Network.
         core_interface_mtu_size: MTU for the core interface in bytes.
         external_upf_hostname: Externally accessible FQDN for the UPF.
@@ -159,6 +163,7 @@ class CharmConfig:
     core_interface: Optional[StrictStr]
     core_interface_mac_address: Optional[StrictStr]
     core_ip: str
+    core_ip_masquerade: bool
     core_gateway_ip: IPv4Address
     core_interface_mtu_size: Optional[int]
     external_upf_hostname: Optional[StrictStr]
@@ -183,6 +188,7 @@ class CharmConfig:
         self.core_interface = upf_config.core_interface
         self.core_interface_mac_address = upf_config.core_interface_mac_address
         self.core_ip = upf_config.core_ip
+        self.core_ip_masquerade = upf_config.core_ip_masquerade
         self.core_gateway_ip = upf_config.core_gateway_ip
         self.core_interface_mtu_size = upf_config.core_interface_mtu_size
         self.external_upf_hostname = upf_config.external_upf_hostname
