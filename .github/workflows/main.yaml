@@ -5,8 +5,8 @@ on:
     branches:
       - main
   push:
-    branches:
-      - main
+#    branches:
+#      - main
   schedule:
     - cron: '20 7 * * 0'
 
