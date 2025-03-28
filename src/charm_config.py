@@ -32,7 +32,7 @@ class CNIType(str, Enum):
     bridge = "bridge"
     macvlan = "macvlan"
     host_device = "host-device"
-    vfioveth = "vfioveth"
+    sriov = "sriov"
 
 
 class UpfMode(str, Enum):

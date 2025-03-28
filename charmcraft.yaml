@@ -93,7 +93,7 @@ config:
       default: bridge
       description: |
         Multus CNI plugin to use for the interfaces.
-        Allowed values are `bridge`, `host-device`, `macvlan`, `vfioveth`.
+        Allowed values are `bridge`, `host-device`, `macvlan`, `sriov`.
     upf-mode:
       type: string
       default: af_packet

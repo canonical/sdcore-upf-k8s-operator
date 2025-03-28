@@ -346,7 +346,7 @@ class UPFOperatorCharm(CharmBase):
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
         access_nad_config = self._get_nad_base_config(ACCESS_INTERFACE_NAME)
-        access_nad_config.update({"type": "vfioveth"})
+        access_nad_config.update({"type": "sriov"})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -365,7 +365,7 @@ class UPFOperatorCharm(CharmBase):
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
         core_nad_config = self._get_nad_base_config(CORE_INTERFACE_NAME)
-        core_nad_config.update({"type": "vfioveth"})
+        core_nad_config.update({"type": "sriov"})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
