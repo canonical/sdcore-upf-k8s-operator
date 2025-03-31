@@ -3,8 +3,12 @@
     "ifname": "{{ access_interface_name }}"
   },
   "core": {
+    {% if core_ip_masquerade %}
     "ifname": "{{ core_interface_name }}",
     "ip_masquerade": "{{ core_ip_address }}"
+    {% else %}
+    "ifname": "{{ core_interface_name }}"
+    {% endif %}
   },
   "cpiface": {
     "dnn": "{{ dnn }}",
