@@ -672,6 +672,13 @@ class KubernetesMultusCharmLib:
            if any there is any modification in existing NADs
         """
         network_attachment_definitions_to_create = self.network_attachment_definitions
+        logger.error("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
+        logger.error("NADs to create:")
+        logger.error(network_attachment_definitions_to_create)
+        logger.error("----------------------------")
+        logger.error("Existing NADs:")
+        logger.error(self.kubernetes.list_network_attachment_definitions())
+        logger.error("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
         nad_config_changed = False
         for (
             existing_network_attachment_definition
@@ -702,6 +709,9 @@ class KubernetesMultusCharmLib:
         ) in network_attachment_definitions_to_create:
             self.kubernetes.create_network_attachment_definition(
                 network_attachment_definition=network_attachment_definition_to_create
+            )
+            logger.info(
+                f"Created NetworkAttachmentDefinition: {network_attachment_definition_to_create}"
             )
         if nad_config_changed:
             # We want to trigger the pod restart once if there is a change in NADs
