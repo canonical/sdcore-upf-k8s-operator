@@ -236,6 +236,11 @@ class KubernetesClient:
                 name=network_attachment_definition.metadata.name,
                 namespace=self.namespace,
             )
+            logger.error("======================================================================")
+            logger.error(f"Existing NAD: {existing_nad}")
+            logger.error("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+            logger.error(f"Expected: {network_attachment_definition}")
+            logger.error("======================================================================")
             return existing_nad == network_attachment_definition
         except ApiError as e:
             if e.status.reason == "NotFound":
