@@ -744,8 +744,11 @@ class KubernetesMultusCharmLib:
             bool: Whether Multus is ready
         """
         nad_are_created = self._network_attachment_definitions_are_created()
+        logger.error(f"NADs ready: {nad_are_created}")
         satefulset_is_patched = self._statefulset_is_patched()
+        logger.error(f"StatefulSet patched: {satefulset_is_patched}")
         pod_is_ready = self._pod_is_ready()
+        logger.error(f"POD ready: {pod_is_ready}")
         return nad_are_created and satefulset_is_patched and pod_is_ready
 
     def remove(self) -> None:

@@ -58,8 +58,8 @@ ACCESS_INTERFACE_NAME = "access"
 CORE_INTERFACE_NAME = "core"
 ACCESS_INTERFACE_BRIDGE_NAME = "access-br"
 CORE_INTERFACE_BRIDGE_NAME = "core-br"
-DPDK_ACCESS_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_vfio_access"
-DPDK_CORE_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_vfio_core"
+DPDK_ACCESS_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_netdevice"
+DPDK_CORE_INTERFACE_RESOURCE_NAME = "intel.com/intel_sriov_netdevice"
 CONFIG_FILE_NAME = "upf.json"
 BESSD_PORT = 10514
 PROMETHEUS_PORT = 8080
@@ -574,7 +574,7 @@ class UPFOperatorCharm(CharmBase):
         the file is not present, an empty string is returned.
 
         Returns:
-            string: A human readable string representing the
+            string: A human-readable string representing the
             version of the workload
         """
         if self._bessd_container.exists(path=f"{WORKLOAD_VERSION_FILE_NAME}"):
