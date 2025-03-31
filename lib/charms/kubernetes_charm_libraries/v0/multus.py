@@ -244,9 +244,9 @@ class KubernetesClient:
             return existing_nad == network_attachment_definition
         except ApiError as e:
             if e.status.reason == "NotFound":
-                logger.debug("NetworkAttachmentDefinition not found")
+                logger.error("NetworkAttachmentDefinition not found")
             elif e.status.reason == "Unauthorized":
-                logger.debug("kube-apiserver not ready yet")
+                logger.error("kube-apiserver not ready yet")
             else:
                 raise KubernetesMultusError(
                     f"Unexpected outcome when retrieving NetworkAttachmentDefinition "
@@ -711,6 +711,9 @@ class KubernetesMultusCharmLib:
 
     def _network_attachment_definitions_are_created(self) -> bool:
         """Return whether all network attachment definitions are created."""
+        logger.error("----------------------------------------------------------------------")
+        logger.error(self.network_attachment_definitions)
+        logger.error("----------------------------------------------------------------------")
         for network_attachment_definition in self.network_attachment_definitions:
             if not self.kubernetes.network_attachment_definition_is_created(
                 network_attachment_definition=network_attachment_definition
