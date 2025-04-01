@@ -365,12 +365,7 @@ class KubernetesClient:
                 template=PodTemplateSpec(
                     metadata=ObjectMeta(
                         annotations={
-                            NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY: json.dumps(
-                                [
-                                    network_annotation.dict()
-                                    for network_annotation in network_annotations
-                                ]
-                            )
+                            "v1.multus-cni.io/default-network": "/host/etc/cni/net.d/10-calico.conflist"
                         }
                     ),
                     spec=PodSpec(containers=[container]),
@@ -506,11 +501,11 @@ class KubernetesClient:
         Returns:
             bool
         """
-        if not self._annotations_contains_multus_networks(
-            annotations=pod.metadata.annotations,  # type: ignore[reportOptionalMemberAccess]
-            network_annotations=network_annotations,
-        ):
-            return False
+        # if not self._annotations_contains_multus_networks(
+        #     annotations=pod.metadata.annotations,  # type: ignore[reportOptionalMemberAccess]
+        #     network_annotations=network_annotations,
+        # ):
+        #     return False
         if not self._container_security_context_is_set(
             containers=pod.spec.containers,  # type: ignore[reportOptionalMemberAccess]
             container_name=container_name,
