@@ -365,8 +365,7 @@ class KubernetesClient:
                                     network_annotation.dict()
                                     for network_annotation in network_annotations
                                 ]
-                            ),
-                            "v1.multus-cni.io/default-network": "calico"
+                            )
                         }
                     ),
                     spec=PodSpec(containers=[container]),
