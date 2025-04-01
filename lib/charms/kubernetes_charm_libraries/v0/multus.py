@@ -133,7 +133,7 @@ class NetworkAttachmentDefinition(_NetworkAttachmentDefinition):
 class NetworkAnnotation:
     """NetworkAnnotation."""
 
-    NETWORK_ANNOTATION_RESOURCE_KEY = "k8s.v1.cni.cncf.io/networks"
+    NETWORK_ANNOTATION_RESOURCE_KEY = "v1.multus-cni.io/default-network"
 
     name: str
     interface: str
@@ -365,7 +365,7 @@ class KubernetesClient:
                 template=PodTemplateSpec(
                     metadata=ObjectMeta(
                         annotations={
-                            "v1.multus-cni.io/default-network": "/host/etc/cni/net.d/10-calico.conflist"
+                            NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY: "/host/etc/cni/net.d/10-calico.conflist"
                         }
                     ),
                     spec=PodSpec(containers=[container]),
@@ -667,13 +667,6 @@ class KubernetesMultusCharmLib:
            if any there is any modification in existing NADs
         """
         network_attachment_definitions_to_create = self.network_attachment_definitions
-        logger.error("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
-        logger.error("NADs to create:")
-        logger.error(network_attachment_definitions_to_create)
-        logger.error("----------------------------")
-        logger.error("Existing NADs:")
-        logger.error(self.kubernetes.list_network_attachment_definitions())
-        logger.error("|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||")
         nad_config_changed = False
         for (
             existing_network_attachment_definition
@@ -716,9 +709,6 @@ class KubernetesMultusCharmLib:
 
     def _network_attachment_definitions_are_created(self) -> bool:
         """Return whether all network attachment definitions are created."""
-        logger.error("----------------------------------------------------------------------")
-        logger.error(self.network_attachment_definitions)
-        logger.error("----------------------------------------------------------------------")
         for network_attachment_definition in self.network_attachment_definitions:
             if not self.kubernetes.network_attachment_definition_is_created(
                 network_attachment_definition=network_attachment_definition

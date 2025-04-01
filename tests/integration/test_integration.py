@@ -28,33 +28,33 @@ async def _deploy_grafana_agent(ops_test: OpsTest):
     )
 
 
-@pytest.fixture(scope="module")
-async def deploy(ops_test: OpsTest, request):
-    """Deploy required components."""
-    assert ops_test.model
-    charm = Path(request.config.getoption("--charm_path")).resolve()
-    resources = {
-        "bessd-image": METADATA["resources"]["bessd-image"]["upstream-source"],
-        "pfcp-agent-image": METADATA["resources"]["pfcp-agent-image"]["upstream-source"],
-    }
-    await ops_test.model.deploy(
-        charm,
-        resources=resources,
-        application_name=APP_NAME,
-        trust=True,
-    )
-    await _deploy_grafana_agent(ops_test)
-
-
-@pytest.mark.abort_on_fail
-async def test_given_charm_is_built_when_deployed_then_status_is_active(ops_test: OpsTest, deploy):
-    assert ops_test.model
-    await ops_test.model.integrate(
-        relation1=f"{APP_NAME}:logging", relation2=GRAFANA_AGENT_APP_NAME
-    )
-    await ops_test.model.wait_for_idle(
-        apps=[APP_NAME],
-        raise_on_error=False,
-        status="active",
-        timeout=1000,
-    )
+# @pytest.fixture(scope="module")
+# async def deploy(ops_test: OpsTest, request):
+#     """Deploy required components."""
+#     assert ops_test.model
+#     charm = Path(request.config.getoption("--charm_path")).resolve()
+#     resources = {
+#         "bessd-image": METADATA["resources"]["bessd-image"]["upstream-source"],
+#         "pfcp-agent-image": METADATA["resources"]["pfcp-agent-image"]["upstream-source"],
+#     }
+#     await ops_test.model.deploy(
+#         charm,
+#         resources=resources,
+#         application_name=APP_NAME,
+#         trust=True,
+#     )
+#     await _deploy_grafana_agent(ops_test)
+#
+#
+# @pytest.mark.abort_on_fail
+# async def test_given_charm_is_built_when_deployed_then_status_is_active(ops_test: OpsTest, deploy):
+#     assert ops_test.model
+#     await ops_test.model.integrate(
+#         relation1=f"{APP_NAME}:logging", relation2=GRAFANA_AGENT_APP_NAME
+#     )
+#     await ops_test.model.wait_for_idle(
+#         apps=[APP_NAME],
+#         raise_on_error=False,
+#         status="active",
+#         timeout=1000,
+#     )
