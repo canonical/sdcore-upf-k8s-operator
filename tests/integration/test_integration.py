@@ -52,4 +52,9 @@ async def test_given_charm_is_built_when_deployed_then_status_is_active(ops_test
     await ops_test.model.integrate(
         relation1=f"{APP_NAME}:logging", relation2=GRAFANA_AGENT_APP_NAME
     )
-    return True
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME],
+        raise_on_error=False,
+        status="active",
+        timeout=1000,
+    )

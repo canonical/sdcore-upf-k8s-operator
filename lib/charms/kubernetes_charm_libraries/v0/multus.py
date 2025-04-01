@@ -133,7 +133,7 @@ class NetworkAttachmentDefinition(_NetworkAttachmentDefinition):
 class NetworkAnnotation:
     """NetworkAnnotation."""
 
-    NETWORK_ANNOTATION_RESOURCE_KEY = "v1.multus-cni.io/default-network"
+    NETWORK_ANNOTATION_RESOURCE_KEY = "k8s.v1.cni.cncf.io/networks"
 
     name: str
     interface: str
@@ -236,11 +236,6 @@ class KubernetesClient:
                 name=network_attachment_definition.metadata.name,
                 namespace=self.namespace,
             )
-            logger.error("======================================================================")
-            logger.error(f"Existing NAD: {existing_nad}")
-            logger.error("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-            logger.error(f"Expected: {network_attachment_definition}")
-            logger.error("======================================================================")
             return existing_nad == network_attachment_definition
         except ApiError as e:
             if e.status.reason == "NotFound":
@@ -365,7 +360,13 @@ class KubernetesClient:
                 template=PodTemplateSpec(
                     metadata=ObjectMeta(
                         annotations={
-                            NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY: "/host/etc/cni/net.d/10-calico.conflist"
+                            NetworkAnnotation.NETWORK_ANNOTATION_RESOURCE_KEY: json.dumps(
+                                [
+                                    network_annotation.dict()
+                                    for network_annotation in network_annotations
+                                ]
+                            ),
+                            "v1.multus-cni.io/default-network": "calico"
                         }
                     ),
                     spec=PodSpec(containers=[container]),
@@ -501,11 +502,11 @@ class KubernetesClient:
         Returns:
             bool
         """
-        # if not self._annotations_contains_multus_networks(
-        #     annotations=pod.metadata.annotations,  # type: ignore[reportOptionalMemberAccess]
-        #     network_annotations=network_annotations,
-        # ):
-        #     return False
+        if not self._annotations_contains_multus_networks(
+            annotations=pod.metadata.annotations,  # type: ignore[reportOptionalMemberAccess]
+            network_annotations=network_annotations,
+        ):
+            return False
         if not self._container_security_context_is_set(
             containers=pod.spec.containers,  # type: ignore[reportOptionalMemberAccess]
             container_name=container_name,
