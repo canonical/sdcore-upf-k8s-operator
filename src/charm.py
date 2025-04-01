@@ -200,7 +200,7 @@ class UPFOperatorCharm(CharmBase):
 
     def _update_fiveg_n3_relation_data(self) -> None:
         """Publish UPF IP address in the `fiveg_n3` relation data bag."""
-        cidr = self._get_network_ip_config(ACCESS_INTERFACE_NAME)
+        cidr = self._get_access_ip_config()
         if not cidr:
             logger.info("No IP address found for the access interface.")
             return
@@ -270,8 +270,8 @@ class UPFOperatorCharm(CharmBase):
             interface=CORE_INTERFACE_NAME,
         )
         if self._charm_config.upf_mode == UpfMode.dpdk:
-            access_ip = self._get_network_ip_config(ACCESS_INTERFACE_NAME)
-            core_ip = self._get_network_ip_config(CORE_INTERFACE_NAME)
+            access_ip = self._get_access_ip_config()
+            core_ip = self._get_core_ip_config()
             access_network_annotation.mac = self._get_interface_mac_address(ACCESS_INTERFACE_NAME)
             access_network_annotation.ips = [access_ip] if access_ip else []
             core_network_annotation.mac = self._get_interface_mac_address(CORE_INTERFACE_NAME)
@@ -303,9 +303,14 @@ class UPFOperatorCharm(CharmBase):
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
         nad_config = self._get_nad_base_config(interface_name)
+        ip_config = (
+            self._get_access_ip_config()
+            if interface_name == ACCESS_INTERFACE_NAME
+            else self._get_core_ip_config()
+        )
 
         nad_config["ipam"].update(
-            {"addresses": [{"address": self._get_network_ip_config(interface_name)}]}
+            {"addresses": [{"address": ip_config}]}
         )
 
         cni_type = self._charm_config.cni_type
@@ -665,16 +670,15 @@ class UPFOperatorCharm(CharmBase):
         """  # noqa: E501
         restart = False
         recreate_pod = False
-        core_ip_address = self._get_network_ip_config(CORE_INTERFACE_NAME)
+        core_ip_address = self._get_core_ip_config()
         core_ip_masquerade = self._charm_config.core_ip_masquerade
         content = render_bessd_config_file(
             upf_hostname=self._upf_hostname,
             upf_mode=self._charm_config.upf_mode,
             access_interface_name=ACCESS_INTERFACE_NAME,
             core_interface_name=CORE_INTERFACE_NAME,
-            core_ip_address=core_ip_address.split("/")[0]
-            if (core_ip_address and core_ip_masquerade)
-            else "",
+            core_ip_address=core_ip_address.split("/")[0],
+            core_ip_masquerade=core_ip_masquerade,
             dnn=self._charm_config.dnn,
             pod_share_path=POD_SHARE_PATH,
             enable_hw_checksum=self._charm_config.enable_hw_checksum,
@@ -994,21 +998,21 @@ class UPFOperatorCharm(CharmBase):
             "PYTHONUNBUFFERED": "1",
         }
 
-    def _get_network_ip_config(self, interface_name: str) -> Optional[str]:
-        """Retrieve the network IP address to use for the specified interface.
-
-        Args:
-            interface_name (str): Interface name to retrieve the network IP address from
+    def _get_access_ip_config(self) -> str:
+        """Retrieve the network IP address to use for the access interface.
 
         Returns:
-            Optional[str]: The network IP address to use
+            str: The network IP address to use
         """
-        if interface_name == ACCESS_INTERFACE_NAME:
-            return str(self._charm_config.access_ip)
-        elif interface_name == CORE_INTERFACE_NAME:
-            return str(self._charm_config.core_ip)
-        else:
-            return None
+        return str(self._charm_config.access_ip)
+
+    def _get_core_ip_config(self) -> str:
+        """Retrieve the network IP address to use for the core interface.
+
+        Returns:
+            str: The network IP address to use
+        """
+        return str(self._charm_config.core_ip)
 
     def _get_interface_config(self, interface_name: str) -> Optional[str]:
         """Retrieve the interface on the host to use for the specified interface.
@@ -1169,7 +1173,8 @@ def render_bessd_config_file(
     upf_mode: str,
     access_interface_name: str,
     core_interface_name: str,
-    core_ip_address: Optional[str],
+    core_ip_address: str,
+    core_ip_masquerade: bool,
     dnn: str,
     pod_share_path: str,
     enable_hw_checksum: bool,
@@ -1184,12 +1189,17 @@ def render_bessd_config_file(
         core_interface_name: Core network interface name
         core_ip_address: Core network IP address.
             This is only used when core_ip_masquerade is enabled
+        core_ip_masquerade: Boolean to indicate if masquerading should be enabled
         dnn: Data Network Name (DNN)
         pod_share_path: pod_share path
         enable_hw_checksum: Whether to enable hardware checksum or not
         log_level (str): Log level for the UPF.
     """
-    jinja2_environment = Environment(loader=FileSystemLoader("src/templates/"))
+    jinja2_environment = Environment(
+        loader=FileSystemLoader("src/templates/"),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
     template = jinja2_environment.get_template(f"{CONFIG_FILE_NAME}.j2")
     content = template.render(
         upf_hostname=upf_hostname,
@@ -1197,6 +1207,7 @@ def render_bessd_config_file(
         access_interface_name=access_interface_name,
         core_interface_name=core_interface_name,
         core_ip_address=core_ip_address,
+        core_ip_masquerade=core_ip_masquerade,
         dnn=dnn,
         pod_share_path=pod_share_path,
         hwcksum=str(enable_hw_checksum).lower(),

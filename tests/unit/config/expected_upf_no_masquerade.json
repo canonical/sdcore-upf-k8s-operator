@@ -3,8 +3,7 @@
     "ifname": "access"
   },
   "core": {
-    "ifname": "core",
-    "ip_masquerade": ""
+    "ifname": "core"
   },
   "cpiface": {
     "dnn": "internet",
