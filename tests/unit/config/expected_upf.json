@@ -31,12 +31,6 @@
       "qci": 0
     }
   ],
-  "slice_rate_limit_config": {
-    "n3_bps": 1000000000,
-    "n3_burst_bytes": 12500000,
-    "n6_bps": 1000000000,
-    "n6_burst_bytes": 12500000
-  },
   "table_sizes": {
     "appQERLookup": 200000,
     "farLookup": 150000,
