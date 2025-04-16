@@ -84,6 +84,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     gnb_subnet: IPvAnyNetwork = Field(default=IPv4Network("192.168.252.0/24"))
     access_interface: Optional[StrictStr] = Field(default="")
     access_interface_mac_address: Optional[StrictStr] = Field(default="")
+    access_interface_vlan: Optional[int] = Field(default=None, ge=0, le=4095)
     access_ip: str = Field(default="192.168.252.3/24")
     core_ip_masquerade: bool = True
     access_gateway_ip: IPv4Address = IPv4Address("192.168.252.1")
@@ -92,6 +93,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     )
     core_interface: Optional[StrictStr] = Field(default="")
     core_interface_mac_address: Optional[StrictStr] = Field(default="")
+    core_interface_vlan: Optional[int] = Field(default=None, ge=0, le=4095)
     core_ip: str = Field(default="192.168.250.3/24")
     core_gateway_ip: IPv4Address = IPv4Address("192.168.250.1")
     core_interface_mtu_size: Optional[int] = Field(default=None, ge=1200, le=65535)
@@ -138,11 +140,13 @@ class CharmConfig:
         gnb_subnet: gNodeB subnet.
         access_interface: Interface on the host to use for the Access Network.
         access_interface_mac_address: MAC address of the UPF's Access interface.
+        access_interface_vlan: VLAN of the UPF's Access interface.
         access_ip: IP address used by the UPF's Access interface.
         access_gateway_ip: Gateway IP address to the Access Network.
         access_interface_mtu_size: MTU for the access interface in bytes.
         core_interface: Interface on the host to use for the Core Network.
         core_interface_mac_address: MAC address of the UPF's Core interface.
+        core_interface_vlan: VLAN of the UPF's Core interface.
         core_ip: IP address used by the UPF's Core interface.
         core_ip_masquerade: Whether to NAT User Equipment traffic with the Core IP address.
         core_gateway_ip: Gateway IP address to the Core Network.
@@ -157,11 +161,13 @@ class CharmConfig:
     gnb_subnet: IPvAnyNetwork
     access_interface: Optional[StrictStr]
     access_interface_mac_address: Optional[StrictStr]
+    access_interface_vlan: Optional[int]
     access_ip: str
     access_gateway_ip: IPv4Address
     access_interface_mtu_size: Optional[int]
     core_interface: Optional[StrictStr]
     core_interface_mac_address: Optional[StrictStr]
+    core_interface_vlan: Optional[int]
     core_ip: str
     core_ip_masquerade: bool
     core_gateway_ip: IPv4Address
@@ -182,11 +188,13 @@ class CharmConfig:
         self.gnb_subnet = upf_config.gnb_subnet
         self.access_interface = upf_config.access_interface
         self.access_interface_mac_address = upf_config.access_interface_mac_address
+        self.access_interface_vlan = upf_config.access_interface_vlan
         self.access_ip = upf_config.access_ip
         self.access_gateway_ip = upf_config.access_gateway_ip
         self.access_interface_mtu_size = upf_config.access_interface_mtu_size
         self.core_interface = upf_config.core_interface
         self.core_interface_mac_address = upf_config.core_interface_mac_address
+        self.core_interface_vlan = upf_config.core_interface_vlan
         self.core_ip = upf_config.core_ip
         self.core_ip_masquerade = upf_config.core_ip_masquerade
         self.core_gateway_ip = upf_config.core_gateway_ip

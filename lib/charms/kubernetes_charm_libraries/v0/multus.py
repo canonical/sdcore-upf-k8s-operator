@@ -139,6 +139,7 @@ class NetworkAnnotation:
     interface: str
     mac: Optional[str] = None
     ips: Optional[List[str]] = None
+    vlan: Optional[int] = None
 
     def dict(self) -> dict:
         """Return a NetworkAnnotation in the form of a dictionary.

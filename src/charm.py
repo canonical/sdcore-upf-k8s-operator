@@ -273,9 +273,11 @@ class UPFOperatorCharm(CharmBase):
             access_ip = self._get_access_ip_config()
             core_ip = self._get_core_ip_config()
             access_network_annotation.mac = self._get_interface_mac_address(ACCESS_INTERFACE_NAME)
+            access_network_annotation.vlan = self._get_interface_vlan(ACCESS_INTERFACE_NAME)
             access_network_annotation.ips = [access_ip] if access_ip else []
             core_network_annotation.mac = self._get_interface_mac_address(CORE_INTERFACE_NAME)
             core_network_annotation.ips = [core_ip] if core_ip else []
+            core_network_annotation.vlan = self._get_interface_vlan(ACCESS_INTERFACE_NAME)
         return [access_network_annotation, core_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
@@ -352,6 +354,7 @@ class UPFOperatorCharm(CharmBase):
         """
         access_nad_config = self._get_nad_base_config(ACCESS_INTERFACE_NAME)
         access_nad_config.update({"type": "vfioveth"})
+        access_nad_config.update({"vlan": self._get_interface_vlan(ACCESS_INTERFACE_NAME)})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -371,6 +374,7 @@ class UPFOperatorCharm(CharmBase):
         """
         core_nad_config = self._get_nad_base_config(CORE_INTERFACE_NAME)
         core_nad_config.update({"type": "vfioveth"})
+        core_nad_config.update({"vlan": self._get_interface_vlan(CORE_INTERFACE_NAME)})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -1045,6 +1049,22 @@ class UPFOperatorCharm(CharmBase):
             return self._charm_config.core_interface_mac_address
         else:
             return None
+
+    def _get_interface_vlan(self, interface_name: str) -> Optional[int]:
+        """Retrieve the VLAN to use for the specified interface.
+
+        Args:
+            interface_name (str): Interface name to retrieve the VLAN from
+
+        Returns:
+            Optional[int]: The VLAN to use
+        """
+        if interface_name == ACCESS_INTERFACE_NAME:
+            return self._charm_config.access_interface_vlan
+        elif interface_name == CORE_INTERFACE_NAME:
+            return self._charm_config.core_interface_vlan
+        else:
+            return 0
 
     def _get_network_gateway_ip_config(self, interface_name: str) -> Optional[str]:
         """Retrieve the gateway IP address to use for the specified interface.
