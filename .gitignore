@@ -3,6 +3,7 @@
 .coverage
 .mypy_cache/
 .tox/
+coverage.xml
 
 # Python
 **/venv/**
