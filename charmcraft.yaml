@@ -180,3 +180,4 @@ config:
       default: false
       description: |
         When enabled, UPF will expose the BESS HTTP server on port 5000.
+        WARNING: This should be enabled only for debugging purposes and disabled afterwards.
