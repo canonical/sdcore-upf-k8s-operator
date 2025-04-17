@@ -968,7 +968,7 @@ class UPFOperatorCharm(CharmBase):
                     },
                     self._bessctl_http_service_name: {
                         "override": "replace",
-                        "startup": "enabled" if self._charm_config.bess_http else "disabled",
+                        "startup": "enabled" if self._charm_config.enable_bess_http else "disabled",  # noqa E501
                         "command": "/opt/bess/bessctl/bessctl http 0.0.0.0",
                         "requires": [self._bessd_service_name],
                         "after": [self._bessd_service_name],

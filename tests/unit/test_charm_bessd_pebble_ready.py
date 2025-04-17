@@ -259,10 +259,10 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
             assert os.stat(f"{temp_file}/upf.json").st_mtime == config_modification_time
 
     @pytest.mark.parametrize(
-        "bess_http", [True, False], ids=["bess_http_enabled", "bess_http_disabled"]
+        "enable_bess_http", [True, False], ids=["bess_http_enabled", "bess_http_disabled"]
     )
     def test_given_bessd_container_ready_when_bessd_pebble_ready_then_pebble_layer_is_created(
-        self, bess_http
+        self, enable_bess_http
     ):
         gnb_subnet = "2.2.2.0/24"
         core_gateway_ip = "1.2.3.4"
@@ -327,7 +327,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                     "core-gateway-ip": core_gateway_ip,
                     "access-gateway-ip": access_gateway_ip,
                     "gnb-subnet": gnb_subnet,
-                    "bess-http": bess_http,
+                    "enable-bess-http": enable_bess_http,
                 },
             )
 
@@ -351,7 +351,7 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
                             },
                             "bessctl-http": {
                                 "override": "replace",
-                                "startup": "enabled" if bess_http else "disabled",
+                                "startup": "enabled" if enable_bess_http else "disabled",
                                 "command": "/opt/bess/bessctl/bessctl http 0.0.0.0",
                                 "requires": ["bessd"],
                                 "after": ["bessd"],
