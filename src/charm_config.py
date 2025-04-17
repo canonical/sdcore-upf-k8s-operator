@@ -98,6 +98,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     external_upf_hostname: Optional[StrictStr] = Field(default="")
     enable_hw_checksum: bool = True
     log_level: LogLevel = LogLevel.INFO
+    bess_http: bool = False
 
     @model_validator(mode="after")
     def validate_upf_mode_with_mac_addresses(self):
@@ -169,6 +170,7 @@ class CharmConfig:
     external_upf_hostname: Optional[StrictStr]
     enable_hw_checksum: bool
     log_level: LogLevel
+    bess_http: bool
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -194,6 +196,7 @@ class CharmConfig:
         self.external_upf_hostname = upf_config.external_upf_hostname
         self.enable_hw_checksum = upf_config.enable_hw_checksum
         self.log_level = upf_config.log_level
+        self.bess_http = upf_config.bess_http
 
     @classmethod
     def from_charm(

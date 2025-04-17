@@ -80,6 +80,7 @@ class UPFOperatorCharm(CharmBase):
             return
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_service_name = "routectl"
+        self._bessctl_http_service_name = "bessctl-http"
         self._pfcp_agent_container_name = self._pfcp_agent_service_name = "pfcp-agent"
         self._bessd_container = self.unit.get_container(self._bessd_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
@@ -705,12 +706,20 @@ class UPFOperatorCharm(CharmBase):
         (e.g. when the UPF configuration file has changed).
         """
         plan = self._bessd_container.get_plan()
-        if not all(service in plan.services for service in self._bessd_pebble_layer.services):
+        if not all(service in plan.services == service for
+                   service in self._bessd_pebble_layer.services):
             self._bessd_container.add_layer("bessd", self._bessd_pebble_layer, combine=True)
             restart_service = True
-        if restart_service:
-            self._bessd_container.restart(self._bessd_service_name)
-            logger.info("Service `bessd` restarted")
+        for service_name, service in self._bessd_pebble_layer.services.items():
+            if service.startup == "enabled" and (
+                    self._bessd_container.get_service(service_name).current != "active"
+                    or restart_service):
+                self._bessd_container.restart(service_name)
+                logger.info("Service `%s` restarted", service_name)
+            elif (service.startup == "disabled" and
+                  self._bessd_container.get_service(service_name).current != "inactive"):
+                self._bessd_container.stop(service_name)
+                logger.info("Service `%s` stopped", service_name)
         self._wait_for_bessd_grpc_service_to_be_ready(timeout=60)
         self._run_bess_configuration()
 
@@ -957,6 +966,13 @@ class UPFOperatorCharm(CharmBase):
                         "command": self._generate_bessd_startup_command(),
                         "environment": self._bessd_environment_variables,
                     },
+                    self._bessctl_http_service_name: {
+                        "override": "replace",
+                        "startup": "enabled" if self._charm_config.bess_http else "disabled",
+                        "command": "/opt/bess/bessctl/bessctl http 0.0.0.0",
+                        "requires": [self._bessd_service_name],
+                        "after": [self._bessd_service_name],
+                    }
                 },
                 "checks": {
                     "online": {
