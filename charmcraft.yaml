@@ -175,3 +175,9 @@ config:
       type: string
       default: info
       description: Log level for the UPF. One of `debug`, `info`, `warn`, `error`, `fatal`, `panic`.
+    enable-bess-http:
+      type: boolean
+      default: false
+      description: |
+        When enabled, UPF will expose the BESS HTTP server on port 5000.
+        WARNING: This should be enabled only for debugging purposes and disabled afterwards.
