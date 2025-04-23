@@ -345,8 +345,12 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        access_nad_config = self._get_nad_base_config(ACCESS_INTERFACE_NAME)
-        access_nad_config.update({"type": "sriov"})
+        access_nad_config = {
+            "cniVersion": "0.3.1",
+            "name": "sriov-dpdk-access",
+            "type": "sriov",
+            "vlan": 3654
+        }
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -364,8 +368,12 @@ class UPFOperatorCharm(CharmBase):
         Returns:
             NetworkAttachmentDefinition: NetworkAttachmentDefinition object
         """
-        core_nad_config = self._get_nad_base_config(CORE_INTERFACE_NAME)
-        core_nad_config.update({"type": "sriov"})
+        core_nad_config = {
+            "cniVersion": "0.3.1",
+            "name": "sriov-dpdk-core",
+            "type": "sriov",
+            "vlan": 3655
+        }
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
