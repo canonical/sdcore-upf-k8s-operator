@@ -349,7 +349,11 @@ class UPFOperatorCharm(CharmBase):
             "cniVersion": "0.3.1",
             "name": "sriov-dpdk-access",
             "type": "sriov",
-            "vlan": 3654
+            "vlan": 3654,
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True}
         }
 
         return NetworkAttachmentDefinition(
@@ -372,7 +376,11 @@ class UPFOperatorCharm(CharmBase):
             "cniVersion": "0.3.1",
             "name": "sriov-dpdk-core",
             "type": "sriov",
-            "vlan": 3655
+            "vlan": 3655,
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True}
         }
 
         return NetworkAttachmentDefinition(
@@ -490,20 +498,20 @@ class UPFOperatorCharm(CharmBase):
             event.add_status(WaitingStatus("Waiting for Multus to be ready"))
             logger.info("Waiting for Multus to be ready")
             return
-        if not self._route_exists(
-            dst="default",
-            via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
-        ):
-            event.add_status(WaitingStatus("Waiting for default route creation"))
-            logger.info("Waiting for default route creation")
-            return
-        if not self._route_exists(
-            dst=str(self._charm_config.gnb_subnet),
-            via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
-        ):
-            event.add_status(WaitingStatus("Waiting for RAN route creation"))
-            logger.info("Waiting for RAN route creation")
-            return
+        # if not self._route_exists(
+        #     dst="default",
+        #     via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+        # ):
+        #     event.add_status(WaitingStatus("Waiting for default route creation"))
+        #     logger.info("Waiting for default route creation")
+        #     return
+        # if not self._route_exists(
+        #     dst=str(self._charm_config.gnb_subnet),
+        #     via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+        # ):
+        #     event.add_status(WaitingStatus("Waiting for RAN route creation"))
+        #     logger.info("Waiting for RAN route creation")
+        #     return
         if not path_exists(container=self._bessd_container, path=BESSD_CONTAINER_CONFIG_PATH):
             event.add_status(
                 WaitingStatus("Waiting for storage to be attached for bessd container")
@@ -638,16 +646,16 @@ class UPFOperatorCharm(CharmBase):
         services are created, started and configured.
         """
         recreate_pod, restart = self._create_upf_configuration_file()
-        if not self._route_exists(
-            dst="default",
-            via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
-        ):
-            self._create_default_route()
-        if not self._route_exists(
-            dst=str(self._charm_config.gnb_subnet),
-            via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
-        ):
-            self._create_ran_route()
+        # if not self._route_exists(
+        #     dst="default",
+        #     via=self._get_network_gateway_ip_config(CORE_INTERFACE_NAME),
+        # ):
+        #     self._create_default_route()
+        # if not self._route_exists(
+        #     dst=str(self._charm_config.gnb_subnet),
+        #     via=self._get_network_gateway_ip_config(ACCESS_INTERFACE_NAME),
+        # ):
+        #     self._create_ran_route()
         if not self._ip_tables_rule_exists():
             self._create_ip_tables_rule()
 
