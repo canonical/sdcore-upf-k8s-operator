@@ -64,6 +64,7 @@ jobs:
     needs:
       - lint-report
       - static-analysis
+      - build
 #      - unit-tests-with-coverage
 #      - integration-test
     if: ${{ (github.ref_name != 'main') && (github.event_name == 'push') }}
