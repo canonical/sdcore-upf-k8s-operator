@@ -119,7 +119,6 @@ config:
       type: int
       description: |
         VLAN of the UPF's Access interface. 
-        Required only if `upf-mode` is `dpdk`.
     access-ip:
       type: string
       default: 192.168.252.3/24
@@ -147,7 +146,6 @@ config:
       type: int
       description: |
         VLAN of the UPF's Core interface. 
-        Required only if `upf-mode` is `dpdk`.
     core-ip:
       type: string
       default: 192.168.250.3/24

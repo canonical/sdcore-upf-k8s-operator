@@ -265,20 +265,20 @@ class UPFOperatorCharm(CharmBase):
         access_network_annotation = NetworkAnnotation(
             name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=ACCESS_INTERFACE_NAME,
+            vlan=self._get_interface_vlan(ACCESS_INTERFACE_NAME)
         )
         core_network_annotation = NetworkAnnotation(
             name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=CORE_INTERFACE_NAME,
+            vlan=self._get_interface_vlan(CORE_INTERFACE_NAME)
         )
         if self._charm_config.upf_mode == UpfMode.dpdk:
             access_ip = self._get_access_ip_config()
             core_ip = self._get_core_ip_config()
             access_network_annotation.mac = self._get_interface_mac_address(ACCESS_INTERFACE_NAME)
-            access_network_annotation.vlan = self._get_interface_vlan(ACCESS_INTERFACE_NAME)
             access_network_annotation.ips = [access_ip] if access_ip else []
             core_network_annotation.mac = self._get_interface_mac_address(CORE_INTERFACE_NAME)
             core_network_annotation.ips = [core_ip] if core_ip else []
-            core_network_annotation.vlan = self._get_interface_vlan(ACCESS_INTERFACE_NAME)
         return [access_network_annotation, core_network_annotation]
 
     def _network_attachment_definitions_from_config(self) -> list[NetworkAttachmentDefinition]:
@@ -355,7 +355,6 @@ class UPFOperatorCharm(CharmBase):
         """
         access_nad_config = self._get_nad_base_config(ACCESS_INTERFACE_NAME)
         access_nad_config.update({"type": "vfioveth"})
-        access_nad_config.update({"vlan": self._get_interface_vlan(ACCESS_INTERFACE_NAME)})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -375,7 +374,6 @@ class UPFOperatorCharm(CharmBase):
         """
         core_nad_config = self._get_nad_base_config(CORE_INTERFACE_NAME)
         core_nad_config.update({"type": "vfioveth"})
-        core_nad_config.update({"vlan": self._get_interface_vlan(CORE_INTERFACE_NAME)})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -408,6 +406,9 @@ class UPFOperatorCharm(CharmBase):
         if cni_type != CNIType.host_device:
             if interface_mtu := self._get_interface_mtu_config(interface_name):
                 base_nad.update({"mtu": interface_mtu})
+        # VLAN is optional
+        if vlan := self._get_interface_vlan(interface_name):
+            base_nad.update({"vlan": vlan})
         return base_nad
 
     def _write_upf_config_file_to_bessd_container(self, content: str) -> None:
