@@ -353,6 +353,7 @@ class UPFOperatorCharm(CharmBase):
         """
         access_nad_config = self._get_nad_base_config(ACCESS_INTERFACE_NAME)
         access_nad_config.update({"type": "vfioveth"})
+        access_nad_config.update({"vlan": 3655})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -372,6 +373,7 @@ class UPFOperatorCharm(CharmBase):
         """
         core_nad_config = self._get_nad_base_config(CORE_INTERFACE_NAME)
         core_nad_config.update({"type": "vfioveth"})
+        core_nad_config.update({"vlan": 3654})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
