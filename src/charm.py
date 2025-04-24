@@ -265,10 +265,12 @@ class UPFOperatorCharm(CharmBase):
         access_network_annotation = NetworkAnnotation(
             name=ACCESS_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=ACCESS_INTERFACE_NAME,
+            vlan=3655,
         )
         core_network_annotation = NetworkAnnotation(
             name=CORE_NETWORK_ATTACHMENT_DEFINITION_NAME,
             interface=CORE_INTERFACE_NAME,
+            vlan=3654,
         )
         if self._charm_config.upf_mode == UpfMode.dpdk:
             access_ip = self._get_access_ip_config()
@@ -353,7 +355,6 @@ class UPFOperatorCharm(CharmBase):
         """
         access_nad_config = self._get_nad_base_config(ACCESS_INTERFACE_NAME)
         access_nad_config.update({"type": "vfioveth"})
-        access_nad_config.update({"vlan": 3655})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
@@ -373,7 +374,6 @@ class UPFOperatorCharm(CharmBase):
         """
         core_nad_config = self._get_nad_base_config(CORE_INTERFACE_NAME)
         core_nad_config.update({"type": "vfioveth"})
-        core_nad_config.update({"vlan": 3654})
 
         return NetworkAttachmentDefinition(
             metadata=ObjectMeta(
