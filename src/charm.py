@@ -350,6 +350,10 @@ class UPFOperatorCharm(CharmBase):
             "name": "sriov-dpdk-access",
             "type": "sriov",
             "vlan": 3654,
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True}
         }
 
         return NetworkAttachmentDefinition(
@@ -373,6 +377,10 @@ class UPFOperatorCharm(CharmBase):
             "name": "sriov-dpdk-core",
             "type": "sriov",
             "vlan": 3655,
+            "ipam": {
+                "type": "static",
+            },
+            "capabilities": {"mac": True}
         }
 
         return NetworkAttachmentDefinition(
