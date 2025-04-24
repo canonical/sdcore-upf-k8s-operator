@@ -80,6 +80,7 @@ class UPFOperatorCharm(CharmBase):
             return
         self._bessd_container_name = self._bessd_service_name = "bessd"
         self._routectl_service_name = "routectl"
+        self._bessctl_http_service_name = "bessctl-http"
         self._pfcp_agent_container_name = self._pfcp_agent_service_name = "pfcp-agent"
         self._bessd_container = self.unit.get_container(self._bessd_container_name)
         self._pfcp_agent_container = self.unit.get_container(self._pfcp_agent_container_name)
@@ -701,20 +702,29 @@ class UPFOperatorCharm(CharmBase):
     def _create_and_configure_bessd_service(self, restart_service: bool):
         """Create the `bessd` service and configures it.
 
-        This function adds the Pebble layer defining the `bessd` service. The Pebble layer will
-        only be added if it doesn't already exist. Once it's added and the GRPC service
-        is up and running, `bess` configuration script is ran.
+        This function adds the Pebble layer defining the `bessd` and `bessctl-http` service. The
+        Pebble layer will only be added if it doesn't already exist. Once it's added and the GRPC
+        service is up and running, `bess` configuration script is ran.
         Through the `restart_service` argument, the function also allows to restart
-        the `bessd` service (even if there was no change in the Pebble layer) if it is required
-        (e.g. when the UPF configuration file has changed).
+        the services in the container (even if there was no change in the Pebble layer) if it is
+        required (e.g. when the UPF configuration file has changed).
         """
         plan = self._bessd_container.get_plan()
-        if not all(service in plan.services for service in self._bessd_pebble_layer.services):
-            self._bessd_container.add_layer("bessd", self._bessd_pebble_layer, combine=True)
-            restart_service = True
-        if restart_service:
-            self._bessd_container.restart(self._bessd_service_name)
-            logger.info("Service `bessd` restarted")
+        for service_name, service in self._bessd_pebble_layer.services.items():
+            if plan.services.get(service_name, None) != service:
+                self._bessd_container.add_layer(
+                    "bessd", self._bessd_pebble_layer, combine=True
+                )
+                restart_service = True
+            if service.startup == "enabled" and (
+                    self._bessd_container.get_service(service_name).current != "active"
+                    or restart_service):
+                self._bessd_container.restart(service_name)
+                logger.info("Service `%s` restarted", service_name)
+            elif (service.startup == "disabled" and
+                  self._bessd_container.get_service(service_name).current != "inactive"):
+                self._bessd_container.stop(service_name)
+                logger.info("Service `%s` stopped", service_name)
         self._wait_for_bessd_grpc_service_to_be_ready(timeout=60)
         self._run_bess_configuration()
 
@@ -961,6 +971,13 @@ class UPFOperatorCharm(CharmBase):
                         "command": self._generate_bessd_startup_command(),
                         "environment": self._bessd_environment_variables,
                     },
+                    self._bessctl_http_service_name: {
+                        "override": "replace",
+                        "startup": "enabled" if self._charm_config.enable_bess_http else "disabled",  # noqa E501
+                        "command": "/opt/bess/bessctl/bessctl http 0.0.0.0",
+                        "requires": [self._bessd_service_name],
+                        "after": [self._bessd_service_name],
+                    }
                 },
                 "checks": {
                     "online": {

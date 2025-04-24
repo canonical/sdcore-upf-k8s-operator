@@ -100,6 +100,7 @@ class UpfConfig(BaseModel):  # pylint: disable=too-few-public-methods
     external_upf_hostname: Optional[StrictStr] = Field(default="")
     enable_hw_checksum: bool = True
     log_level: LogLevel = LogLevel.INFO
+    enable_bess_http: bool = False
 
     @model_validator(mode="after")
     def validate_upf_mode_with_mac_addresses(self):
@@ -153,6 +154,7 @@ class CharmConfig:
         core_interface_mtu_size: MTU for the core interface in bytes.
         external_upf_hostname: Externally accessible FQDN for the UPF.
         enable_hw_checksum: When enabled, hardware checksum will be used on the network interfaces.
+        enable_bess_http: When enabled, UPF will expose the BESS HTTP server on port 5000.
     """
 
     cni_type: CNIType
@@ -175,6 +177,7 @@ class CharmConfig:
     external_upf_hostname: Optional[StrictStr]
     enable_hw_checksum: bool
     log_level: LogLevel
+    enable_bess_http: bool
 
     def __init__(self, *, upf_config: UpfConfig):
         """Initialize a new instance of the CharmConfig class.
@@ -202,6 +205,7 @@ class CharmConfig:
         self.external_upf_hostname = upf_config.external_upf_hostname
         self.enable_hw_checksum = upf_config.enable_hw_checksum
         self.log_level = upf_config.log_level
+        self.enable_bess_http = upf_config.enable_bess_http
 
     @classmethod
     def from_charm(
