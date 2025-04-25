@@ -258,6 +258,136 @@ class TestCharmBessdPebbleReady(UPFUnitTestFixtures):
             assert actual_upf_config.strip() == expected_upf_config.strip()
             assert os.stat(f"{temp_file}/upf.json").st_mtime == config_modification_time
 
+    def test_given_config_file_already_written_and_bessd_running_when_bessd_pebble_ready_then_bessd_is_not_restarted(  # noqa: E501
+        self, caplog
+    ):
+        gnb_subnet = "2.2.2.0/24"
+        core_gateway_ip = "1.2.3.4"
+        access_gateway_ip = "2.1.1.1"
+        self.mock_check_output.return_value = b"Flags: avx2 ssse3 fma cx16 rdrand"
+        with tempfile.TemporaryDirectory() as temp_file:
+            bessd_config_mount = testing.Mount(
+                location="/etc/bess/conf/",
+                source=temp_file,
+            )
+            pfcp_agent_container = testing.Container(
+                name="pfcp-agent",
+                can_connect=True,
+                layers={
+                    "pfcp-agent": Layer({"services": {"pfcp-agent": {}}}),
+                },
+                service_statuses={"pfcp-agent": ServiceStatus.ACTIVE},
+            )
+            bessd_container = testing.Container(
+                name="bessd",
+                mounts={"config": bessd_config_mount},
+                can_connect=True,
+                execs={
+                    testing.Exec(
+                        command_prefix=["ip", "route", "show"],
+                        return_code=0,
+                        stdout=f"default via {core_gateway_ip}\n {gnb_subnet} via {access_gateway_ip}",  # noqa: E501
+                    ),
+                    testing.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "version"],
+                        return_code=0,
+                    ),
+                    testing.Exec(
+                        command_prefix=["/opt/bess/bessctl/bessctl", "show", "worker"],
+                        return_code=0,
+                        stdout="RUNNING",
+                    ),
+                    testing.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "accessRoutes",
+                        ],
+                        return_code=0,
+                    ),
+                    testing.Exec(
+                        command_prefix=[
+                            "/opt/bess/bessctl/bessctl",
+                            "show",
+                            "module",
+                            "coreRoutes",
+                        ],
+                        return_code=0,
+                    ),
+                },
+                service_statuses={"bessd": ServiceStatus.ACTIVE, "routectl": ServiceStatus.ACTIVE},
+                layers= {
+                    "bessd": Layer(
+                        {
+                            "summary": "bessd layer",
+                            "description": "pebble config layer for bessd",
+                            "services": {
+                                "bessd": {
+                                    "startup": "enabled",
+                                    "override": "replace",
+                                    "command": "/bin/bessd -f -grpc-url=0.0.0.0:10514 -m 0",
+                                    "environment": {
+                                        "CONF_FILE": "/etc/bess/conf/upf.json",
+                                        "PYTHONPATH": "/opt/bess",
+                                    },
+                                },
+                                "bessctl-http": {
+                                    "override": "replace",
+                                    "startup": "disabled",
+                                    "command": "/opt/bess/bessctl/bessctl http 0.0.0.0",
+                                    "requires": ["bessd"],
+                                    "after": ["bessd"],
+                                }
+                            },
+                            "checks": {
+                                "online": {
+                                    "override": "replace",
+                                    "level": "ready",
+                                    "tcp": {"port": 10514},
+                                }
+                            },
+                        }
+                    ),
+                    "routectl": Layer(
+                        {
+                            "summary": "route_control layer",
+                            "description": "pebble config layer for route_control",
+                            "services": {
+                                "routectl": {
+                                    "startup": "enabled",
+                                    "override": "replace",
+                                    "command": "/opt/bess/bessctl/conf/route_control.py -i access core",  # noqa: E501
+                                    "environment": {
+                                        "PYTHONPATH": "/opt/bess",
+                                        "PYTHONUNBUFFERED": "1",
+                                    },
+                                }
+                            },
+                        }
+                    ),
+                }
+            )
+            state_in = testing.State(
+                leader=True,
+                containers=[bessd_container, pfcp_agent_container],
+                config={
+                    "core-gateway-ip": core_gateway_ip,
+                    "access-gateway-ip": access_gateway_ip,
+                    "gnb-subnet": gnb_subnet,
+                },
+                model=testing.Model(name="whatever"),
+            )
+            with open("tests/unit/config/expected_upf.json", "r") as f:
+                expected_upf_config = f.read()
+            with open(f"{temp_file}/upf.json", "w") as f:
+                f.write(expected_upf_config.strip())
+
+            self.ctx.run(self.ctx.on.pebble_ready(bessd_container), state_in)
+
+            assert "Service `bessd` restarted" not in caplog.text
+
+
     @pytest.mark.parametrize(
         "enable_bess_http", [True, False], ids=["bess_http_enabled", "bess_http_disabled"]
     )
