@@ -713,12 +713,12 @@ class UPFOperatorCharm(CharmBase):
                 )
                 restart_service = True
             if service.startup == "enabled" and (
-                    self._bessd_container.get_service(service_name).current != "active"
+                    not self._bessd_container.get_service(service_name).is_running()
                     or restart_service):
                 self._bessd_container.restart(service_name)
                 logger.info("Service `%s` restarted", service_name)
             elif (service.startup == "disabled" and
-                  self._bessd_container.get_service(service_name).current != "inactive"):
+                  self._bessd_container.get_service(service_name).is_running()):
                 self._bessd_container.stop(service_name)
                 logger.info("Service `%s` stopped", service_name)
         self._wait_for_bessd_grpc_service_to_be_ready(timeout=60)
