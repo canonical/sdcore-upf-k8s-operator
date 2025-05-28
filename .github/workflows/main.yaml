@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - TELCO-1721-use-canonical-k8s
   schedule:
     - cron: '20 7 * * 0'
 
@@ -43,7 +44,7 @@ jobs:
   integration-test:
     needs:
       - build
-    uses: canonical/sdcore-github-workflows/.github/workflows/integration-test-with-multus.yaml@v2.3.3
+    uses: canonical/sdcore-github-workflows/.github/workflows/integration-test-with-multus.yaml@TELCO-1721-use-canonical-k8s
 
   publish-charm:
     name: Publish Charm
