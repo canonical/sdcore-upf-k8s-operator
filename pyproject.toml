@@ -23,7 +23,7 @@ dependencies = [
 test = [
     "coverage[toml]",
     "juju>=3.6.1.1",
-    "pytest-asyncio<0.23",
+    "pytest-asyncio<1.1",
     "pytest-operator",
     "pytest",
     "parameterized",
