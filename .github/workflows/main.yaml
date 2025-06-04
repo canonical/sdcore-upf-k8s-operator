@@ -44,7 +44,7 @@ jobs:
   integration-test:
     needs:
       - build
-    uses: canonical/sdcore-github-workflows/.github/workflows/integration-test-with-multus.yaml@TELCO-1721-use-canonical-k8s
+    uses: canonical/sdcore-github-workflows/.github/workflows/integration-test-with-multus.yaml@v2.3.5
 
   publish-charm:
     name: Publish Charm
