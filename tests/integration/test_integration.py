@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APP_NAME = METADATA["name"]
 GRAFANA_AGENT_APP_NAME = "grafana-agent-k8s"
-GRAFANA_AGENT_APP_CHANNEL = "latest/stable"
+GRAFANA_AGENT_APP_CHANNEL = "1/stable"
 
 
 async def _deploy_grafana_agent(ops_test: OpsTest):
