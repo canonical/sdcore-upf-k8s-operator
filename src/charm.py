@@ -309,10 +309,18 @@ class UPFOperatorCharm(CharmBase):
             if interface_name == ACCESS_INTERFACE_NAME
             else self._get_core_ip_config()
         )
-
-        nad_config["ipam"].update(
-            {"addresses": [{"address": ip_config}]}
-        )
+        if interface_name == ACCESS_INTERFACE_NAME:
+            nad_config["ipam"].update(
+                {
+                    "addresses": [{"address": ip_config}],
+                    "gateway": "192.168.252.1",
+                    "routes": [{"dst": "192.168.251.0/24"}],
+                }
+            )
+        else:
+            nad_config["ipam"].update(
+                {"addresses": [{"address": ip_config}]}
+            )
 
         cni_type = self._charm_config.cni_type
 
