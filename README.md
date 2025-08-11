@@ -1,6 +1,10 @@
 # SD-Core UPF Operator (k8s)
 [![CharmHub Badge](https://charmhub.io/sdcore-upf-k8s/badge.svg)](https://charmhub.io/sdcore-upf-k8s)
 
+> **:warning: Deprecation Notice!**
+>
+> This project is deprecated and will not receive further updates. Please refer to the upstream [Aether](https://aetherproject.org/) project to continue using Aether.
+
 Charmed Operator for SD-Core's User Plane Function (UPF) for K8s. For more information, read [here](https://github.com/omec-project/upf).
 
 ## Pre-requisites
